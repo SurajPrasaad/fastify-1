@@ -1,0 +1,18 @@
+meta {
+  name: Repost
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/engagement/repost
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "postId": "",
+    "quoteText": "Great post!"
+  }
+}

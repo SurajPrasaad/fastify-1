@@ -1,0 +1,29 @@
+meta {
+  name: Chat WebSocket
+  type: http
+  seq: 5
+}
+
+connect {
+  url: ws://localhost:3000/chat/ws?token={{accessToken}}
+  body: none
+  auth: none
+}
+
+docs {
+  # WebSocket Message Format
+  
+  **PREREQUISITE**: You must run the `Auth/Login` request first to generate a valid `accessToken`.
+  
+  Send a JSON message to chat:
+  ```json
+  {
+    "type": "MESSAGE",
+    "payload": {
+      "roomId": "<ROOM_ID>",
+      "content": "Hello World",
+      "msgType": "TEXT"
+    }
+  }
+  ```
+}

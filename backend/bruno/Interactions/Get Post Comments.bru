@@ -1,0 +1,15 @@
+meta {
+  name: Get Post Comments
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/interactions/post/:postId/comments
+  body: none
+  auth: inherit
+}
+
+params:path {
+  postId: 
+}

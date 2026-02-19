@@ -1,0 +1,38 @@
+meta {
+  name: Login 2FA Verify
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/auth/login/2fa
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "tempToken": "{{tempToken}}",
+    "code": "123456", // REPLACE WITH VALID TOTP
+    "deviceId": "device_1"
+  }
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+  tempToken: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YmRkZDBkMS03YTM0LTRlNGYtOGU5ZC0xNzgzNGRmNjY3MWEiLCJzaWQiOiJhMWUzOWFlMi1mMjgyLTQ5MjgtOTg4NC0wYjQyOWQ5YzkzNDQiLCJyb2xlIjoidXNlciIsImlhdCI6MTc3MTMyMjAyOCwiZXhwIjoxNzcxMzIyOTI4LCJhdWQiOiJhcGkiLCJpc3MiOiJhdXRoLXNlcnZpY2UifQ.UDYCkPLelfyn2x47NSraEPYCiB4Irb_0o_c86HqOvOD4nOeQclzLCEot3CohDGO3U_rBtr0Y3ycgin6YEff7FomIEnWIeqxngKg34nvaBpWlt30XAmdSq1Uz94Ezu_Ik5iY33_3rc7Zfd7sp7Mj8G5o0LVKLLYMoIFToRd_ZWpNijgc3qwt-fDgwC0RK7PeSsOLgEEMf6mT8D5H__Q0aukmJkEn68c6mrRqqkOhasTcNMkbtWivj9pkHTwRD3Q6-ezcQkZJzZAXBOuLeljCEPHlU0WsVRVE30dRlDgH7RVVpAl-R_CT9KFq63FNEwgJuaue6c6OfCJOFGirFM0eibw
+}
+
+script:post-response {
+  if (res.status === 200) {
+      bru.setVar("accessToken", res.body.accessToken);
+  }
+}
+
+tests {
+  test("2FA Login successful", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.accessToken).to.be.a('string');
+    expect(res.body.user).to.be.an('object');
+  });
+}

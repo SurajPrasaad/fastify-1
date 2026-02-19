@@ -1,0 +1,19 @@
+meta {
+  name: For You Feed
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/recommendations/feed/for-you
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

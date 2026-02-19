@@ -1,0 +1,15 @@
+meta {
+  name: Block User
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/blocks/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

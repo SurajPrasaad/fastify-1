@@ -1,0 +1,19 @@
+meta {
+  name: Toggle Bookmark
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/interactions/bookmark/{{postId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

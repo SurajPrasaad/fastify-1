@@ -1,0 +1,23 @@
+meta {
+  name: Create Chat Room
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/chat/rooms
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "participants": [d1942dca-7a21-4d92-a6d8-c2e2a2bd1db3],
+    "type": "DIRECT",
+    "name": "New Room"
+  }
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

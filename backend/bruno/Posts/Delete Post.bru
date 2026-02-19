@@ -1,0 +1,15 @@
+meta {
+  name: Delete Post
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/posts/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

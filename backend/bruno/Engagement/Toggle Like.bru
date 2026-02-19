@@ -1,0 +1,18 @@
+meta {
+  name: Toggle Like
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/engagement/like
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "targetId": "",
+    "targetType": "POST"
+  }
+}

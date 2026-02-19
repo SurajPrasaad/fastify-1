@@ -1,0 +1,33 @@
+meta {
+  name: Setup 2FA
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/auth/2fa/setup
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}
+
+script:post-response {
+  if (res.status === 200) {
+      bru.setVar("otpSecret", res.body.secret);
+  }
+}
+
+tests {
+  test("2FA Setup returns secret and QR URL", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.secret).to.be.a('string');
+    expect(res.body.qrCodeUrl).to.be.a('string');
+  });
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Publish Draft
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/posts/:id/publish
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

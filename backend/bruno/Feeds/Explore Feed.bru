@@ -1,0 +1,19 @@
+meta {
+  name: Explore Feed
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/feeds/explore
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

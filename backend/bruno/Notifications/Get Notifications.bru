@@ -1,0 +1,19 @@
+meta {
+  name: Get Notifications
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/notifications?limit=20
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

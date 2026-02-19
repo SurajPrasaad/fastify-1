@@ -1,0 +1,19 @@
+meta {
+  name: Add Reaction
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/engagement/react
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "targetId": "",
+    "targetType": "POST",
+    "type": "LOVE"
+  }
+}

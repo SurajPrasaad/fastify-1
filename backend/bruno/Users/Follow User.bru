@@ -1,0 +1,27 @@
+meta {
+  name: Follow User
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/users/{{targetUserId}}/follow
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "followerId": "{{myUserId}}"
+  }
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+  myUserId: d1942dca-7a21-4d92-a6d8-c2e2a2bd1db3
+  targetUserId: 643d65c4-85e0-44f3-8bd6-22d9c2a2eaaf
+}

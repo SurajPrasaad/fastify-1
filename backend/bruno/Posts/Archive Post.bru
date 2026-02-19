@@ -1,0 +1,15 @@
+meta {
+  name: Archive Post
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/posts/:id/archive
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: 
+}

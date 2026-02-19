@@ -1,0 +1,11 @@
+meta {
+  name: Mark All As Read
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/notifications/read-all
+  body: none
+  auth: inherit
+}

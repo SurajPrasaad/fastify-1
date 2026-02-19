@@ -1,0 +1,26 @@
+meta {
+  name: Toggle Like
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/interactions/like
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "resourceId": "{{postId}}",
+    "resourceType": "POST"
+  }
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

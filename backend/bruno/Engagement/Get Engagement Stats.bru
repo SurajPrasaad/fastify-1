@@ -1,0 +1,15 @@
+meta {
+  name: Get Engagement Stats
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/engagement/stats/:targetId
+  body: none
+  auth: none
+}
+
+params:path {
+  targetId: 
+}

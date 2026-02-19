@@ -1,0 +1,15 @@
+meta {
+  name: Logout
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/auth/logout
+  body: none
+  auth: inherit
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

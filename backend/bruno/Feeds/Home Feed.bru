@@ -1,0 +1,19 @@
+meta {
+  name: Home Feed
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/feeds
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}

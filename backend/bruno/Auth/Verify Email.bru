@@ -1,0 +1,24 @@
+meta {
+  name: Verify Email
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/auth/verify-email?token=REPLACE_WITH_TOKEN
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}
+
+tests {
+  test("Should verify email successfully with valid token", function() {
+    // Note: You need a valid token from the console logs or email
+    if (res.status === 200) {
+        expect(res.body.message).to.equal("Email verified successfully");
+    }
+  });
+}

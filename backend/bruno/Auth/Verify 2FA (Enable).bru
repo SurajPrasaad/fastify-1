@@ -1,0 +1,36 @@
+meta {
+  name: Verify 2FA (Enable)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/auth/2fa/verify
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "token": "123456" // REPLACE WITH VALID TOTP FROM AUTH APP
+  }
+}
+
+vars:pre-request {
+  baseUrl: http://localhost:8080
+}
+
+script:post-response {
+  // No variable setting needed here
+}
+
+tests {
+  test("2FA Enable successful", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.message).to.equal("MFA enabled successfully");
+  });
+}

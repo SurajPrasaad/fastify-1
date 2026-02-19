@@ -1,0 +1,1 @@
+{"version":3,"file":"block.schema.d.ts","sourceRoot":"","sources":["../../../src/modules/block/block.schema.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAC;AACxB,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,SAAS,CAAC;AAE7C,eAAO,MAAM,iBAAiB;;iBAE5B,CAAC;AAEH,eAAO,MAAM,mBAAmB;;iBAE9B,CAAC;AAEH,eAAO,MAAM,oBAAoB,EAAE,aAOlC,CAAC;AAEF,eAAO,MAAM,sBAAsB,EAAE,aAOpC,CAAC"}

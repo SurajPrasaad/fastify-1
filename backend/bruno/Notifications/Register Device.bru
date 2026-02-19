@@ -1,0 +1,18 @@
+meta {
+  name: Register Device
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/notifications/register-device
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "token": "fcm-token-string",
+    "platform": "ANDROID"
+  }
+}
