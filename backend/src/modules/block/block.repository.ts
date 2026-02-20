@@ -56,4 +56,14 @@ export class BlockRepository {
             .limit(1);
         return !!result;
     }
+
+    async getBlockedUsers(blockerId: string) {
+        return await db.query.blocks.findMany({
+            where: eq(blocks.blockerId, blockerId),
+            with: {
+                blocked: true
+            },
+            orderBy: (blocks, { desc }) => [desc(blocks.createdAt)],
+        });
+    }
 }

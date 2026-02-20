@@ -124,6 +124,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     sessions: many(sessions),
     identityProviders: many(identityProviders),
     mfaSecret: one(mfaSecrets),
+    blocksSent: many(blocks, { relationName: "blocker" }),
+    blocksReceived: many(blocks, { relationName: "blocked" }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -151,6 +153,19 @@ export const followsRelations = relations(follows, ({ one }) => ({
         fields: [follows.followingId],
         references: [users.id],
         relationName: "followers",
+    }),
+}));
+
+export const blocksRelations = relations(blocks, ({ one }) => ({
+    blocker: one(users, {
+        fields: [blocks.blockerId],
+        references: [users.id],
+        relationName: "blocker",
+    }),
+    blocked: one(users, {
+        fields: [blocks.blockedId],
+        references: [users.id],
+        relationName: "blocked",
     }),
 }));
 

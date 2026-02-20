@@ -1,40 +1,78 @@
+"use client";
 
-import { Metadata } from 'next';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail } from 'lucide-react';
-
-export const metadata: Metadata = {
-    title: 'Verify Email',
-    description: 'Check your inbox to verify your account',
-};
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEmailVerification } from "@/features/auth/hooks";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import Link from "next/link";
 
 export default function VerifyEmailPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const token = searchParams.get("token");
+    const { verify, isVerifying } = useEmailVerification();
+    const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+    const [message, setMessage] = useState("");
+
+    useEffect(() => {
+        if (!token) {
+            setStatus("error");
+            setMessage("Invalid verification link.");
+            return;
+        }
+
+        const runVerification = async () => {
+            try {
+                const res = await verify(token);
+                setStatus("success");
+                setMessage(res.message || "Email verified successfully!");
+                // Auto redirect after 3 seconds
+                setTimeout(() => router.push("/login"), 3000);
+            } catch (err: any) {
+                setStatus("error");
+                setMessage(err.message || "Verification failed. Link may be expired.");
+            }
+        };
+
+        runVerification();
+    }, [token, verify, router]);
+
     return (
-        <Card className="w-full max-w-sm text-center shadow-lg">
-            <CardHeader>
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                    <Mail className="h-8 w-8 text-blue-600 dark:text-blue-300" />
-                </div>
-                <CardTitle className="text-2xl">Check your inbox</CardTitle>
-                <CardDescription>
-                    We are sending a verification link to your email.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p className="text-sm text-muted-foreground">
-                    Click the link in the email to verify your account. If you don't see it, check your spam folder.
-                </p>
+        <Card className="w-full text-center">
+            <CardContent className="pt-10 space-y-4">
+                {status === "loading" && (
+                    <>
+                        <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+                        <CardTitle>Verifying your email...</CardTitle>
+                        <CardDescription>Please wait while we validate your link</CardDescription>
+                    </>
+                )}
+
+                {status === "success" && (
+                    <>
+                        <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
+                        <CardTitle>Verified!</CardTitle>
+                        <CardDescription>{message}</CardDescription>
+                        <p className="text-sm text-muted-foreground">Redirecting to login...</p>
+                        <Button asChild className="w-full">
+                            <Link href="/login">Login Now</Link>
+                        </Button>
+                    </>
+                )}
+
+                {status === "error" && (
+                    <>
+                        <XCircle className="h-12 w-12 text-destructive mx-auto" />
+                        <CardTitle>Verification Failed</CardTitle>
+                        <CardDescription className="text-destructive font-medium">{message}</CardDescription>
+                        <Button asChild className="w-full" variant="outline">
+                            <Link href="/login">Back to Login</Link>
+                        </Button>
+                    </>
+                )}
             </CardContent>
-            <CardFooter className="flex flex-col gap-4">
-                <Button variant="outline" className="w-full">
-                    Resend Email
-                </Button>
-                <Link href="/login" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-primary">
-                    Back to Sign In
-                </Link>
-            </CardFooter>
         </Card>
     );
 }

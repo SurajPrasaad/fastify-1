@@ -8,26 +8,42 @@ export class FeedRepository {
     async findByIds(ids: string[]) {
         if (ids.length === 0) return [];
 
-        return await db
+        const result = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrls: posts.mediaUrls,
-                tags: posts.tags,
-                status: posts.status,
-                commentsCount: posts.commentsCount,
-                likesCount: posts.likesCount,
+                mediaUrl: sql<string>`${posts.mediaUrls}->>0`, // Frontend expects single string for now or adapt frontend
+                type: sql<string>`CASE 
+                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
+                    ELSE 'TEXT' 
+                END`.as('type'), // Basic inference
                 createdAt: posts.createdAt,
-                publishedAt: posts.publishedAt,
-                author: {
+                updatedAt: posts.updatedAt,
+                user: {
+                    id: users.id,
                     username: users.username,
                     name: users.name,
+                    avatarUrl: users.avatarUrl,
                 },
+                stats: {
+                    likeCount: posts.likesCount,
+                    commentCount: posts.commentsCount,
+                    repostCount: sql<number>`0`.as('repostCount'), // Placeholder until reposts count is added to posts table or separate query
+                }
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
             .where(inArray(posts.id, ids));
+
+        return result.map(post => ({
+            ...post,
+            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
+            stats: {
+                ...post.stats,
+                repostCount: Number(post.stats.repostCount)
+            }
+        }));
     }
 
     // 2. Hybrid model: Fetch posts from followed celebrities (Pull model)
@@ -39,21 +55,30 @@ export class FeedRepository {
             .innerJoin(celebrityAccounts, eq(follows.followingId, celebrityAccounts.userId))
             .where(eq(follows.followerId, userId));
 
-        return await db
+        const result = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrls: posts.mediaUrls,
-                tags: posts.tags,
-                status: posts.status,
-                commentsCount: posts.commentsCount,
-                likesCount: posts.likesCount,
+                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
+                type: sql<string>`CASE 
+                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
+                    ELSE 'TEXT' 
+                END`.as('type'),
+                createdAt: posts.createdAt,
+                updatedAt: posts.updatedAt,
                 publishedAt: posts.publishedAt,
-                author: {
+                user: {
+                    id: users.id,
                     username: users.username,
                     name: users.name,
+                    avatarUrl: users.avatarUrl,
                 },
+                stats: {
+                    likeCount: posts.likesCount,
+                    commentCount: posts.commentsCount,
+                    repostCount: sql<number>`0`.as('repostCount'),
+                }
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -66,6 +91,12 @@ export class FeedRepository {
             )
             .orderBy(desc(posts.publishedAt))
             .limit(limit);
+
+        return result.map(post => ({
+            ...post,
+            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
+            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        }));
     }
 
     // 3. Follower fetching for Fan-out on Write
@@ -106,21 +137,30 @@ export class FeedRepository {
             .from(follows)
             .where(eq(follows.followerId, userId));
 
-        return await db
+        const result = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrls: posts.mediaUrls,
-                tags: posts.tags,
-                status: posts.status,
-                commentsCount: posts.commentsCount,
-                likesCount: posts.likesCount,
+                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
+                type: sql<string>`CASE 
+                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
+                    ELSE 'TEXT' 
+                END`.as('type'),
+                createdAt: posts.createdAt,
+                updatedAt: posts.updatedAt,
                 publishedAt: posts.publishedAt,
-                author: {
+                user: {
+                    id: users.id,
                     username: users.username,
                     name: users.name,
+                    avatarUrl: users.avatarUrl,
                 },
+                stats: {
+                    likeCount: posts.likesCount,
+                    commentCount: posts.commentsCount,
+                    repostCount: sql<number>`0`.as('repostCount'),
+                }
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -133,5 +173,102 @@ export class FeedRepository {
             )
             .orderBy(desc(posts.publishedAt))
             .limit(limit);
+
+        return result.map(post => ({
+            ...post,
+            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
+            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        }));
+    }
+
+    // 7. Global Explore Feed
+    async getExploreFeed(limit: number, cursor?: string) {
+        const result = await db
+            .select({
+                id: posts.id,
+                userId: posts.userId,
+                content: posts.content,
+                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
+                type: sql<string>`CASE 
+                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
+                    ELSE 'TEXT' 
+                END`.as('type'),
+                createdAt: posts.createdAt,
+                updatedAt: posts.updatedAt,
+                publishedAt: posts.publishedAt,
+                user: {
+                    id: users.id,
+                    username: users.username,
+                    name: users.name,
+                    avatarUrl: users.avatarUrl,
+                },
+                stats: {
+                    likeCount: posts.likesCount,
+                    commentCount: posts.commentsCount,
+                    repostCount: sql<number>`0`.as('repostCount'),
+                }
+            })
+            .from(posts)
+            .innerJoin(users, eq(posts.userId, users.id))
+            .where(
+                and(
+                    eq(posts.status, 'PUBLISHED'),
+                    cursor ? lt(posts.publishedAt, new Date(cursor)) : undefined
+                )
+            )
+            .orderBy(desc(posts.publishedAt))
+            .limit(limit);
+
+        return result.map(post => ({
+            ...post,
+            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
+            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        }));
+    }
+
+    // 8. Hashtag Feed
+    async getHashtagFeed(tag: string, limit: number, cursor?: string) {
+        const result = await db
+            .select({
+                id: posts.id,
+                userId: posts.userId,
+                content: posts.content,
+                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
+                type: sql<string>`CASE 
+                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
+                    ELSE 'TEXT' 
+                END`.as('type'),
+                createdAt: posts.createdAt,
+                updatedAt: posts.updatedAt,
+                publishedAt: posts.publishedAt,
+                user: {
+                    id: users.id,
+                    username: users.username,
+                    name: users.name,
+                    avatarUrl: users.avatarUrl,
+                },
+                stats: {
+                    likeCount: posts.likesCount,
+                    commentCount: posts.commentsCount,
+                    repostCount: sql<number>`0`.as('repostCount'),
+                }
+            })
+            .from(posts)
+            .innerJoin(users, eq(posts.userId, users.id))
+            .where(
+                and(
+                    eq(posts.status, 'PUBLISHED'),
+                    sql`${posts.tags} ? ${tag}`,
+                    cursor ? lt(posts.publishedAt, new Date(cursor)) : undefined
+                )
+            )
+            .orderBy(desc(posts.publishedAt))
+            .limit(limit);
+
+        return result.map(post => ({
+            ...post,
+            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
+            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        }));
     }
 }

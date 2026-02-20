@@ -16,6 +16,13 @@ export class BlockService {
         const cacheKey = `blocks:${blockerId}`;
         await redis.sadd(cacheKey, blockedId);
 
+        // Emit real-time event to the BLOCKED user to close connections/update UI
+        const event = {
+            type: 'USER_BLOCKED',
+            payload: { blockerId, blockedId }
+        };
+        await redis.publish(`chat:u:${blockedId}`, JSON.stringify(event));
+
         return result;
     }
 
@@ -26,18 +33,43 @@ export class BlockService {
         const cacheKey = `blocks:${blockerId}`;
         await redis.srem(cacheKey, blockedId);
 
+        // Emit real-time event
+        const event = {
+            type: 'USER_UNBLOCKED',
+            payload: { blockerId, blockedId }
+        };
+        await redis.publish(`chat:u:${blockedId}`, JSON.stringify(event));
+
         return result;
     }
 
     async isBlocked(blockerId: string, blockedId: string) {
         const cacheKey = `blocks:${blockerId}`;
-
-        // 1. Try Cache
         const exists = await redis.sismember(cacheKey, blockedId);
         if (exists) return true;
-
-        // 2. Fallback to DB if cache is missing (though we should usually keep sets fresh)
-        // For a true 100M user system, we might use a Bloom filter or ensure the set is populated.
         return this.blockRepository.isBlocked(blockerId, blockedId);
+    }
+
+    async getBlockedUsers(blockerId: string) {
+        const result = await this.blockRepository.getBlockedUsers(blockerId);
+        return result.map((item) => {
+            return {
+                id: item.blockedId,
+                userId: item.blocked.id,
+                username: item.blocked.username,
+                name: item.blocked.name,
+                avatarUrl: item.blocked.avatarUrl,
+                blockedAt: item.createdAt
+            };
+        });
+    }
+
+    async getBlockStatus(blockerId: string, otherUserId: string) {
+        const [isBlocked, isBlockedBy] = await Promise.all([
+            this.isBlocked(blockerId, otherUserId),
+            this.isBlocked(otherUserId, blockerId)
+        ]);
+
+        return { isBlocked, isBlockedBy };
     }
 }

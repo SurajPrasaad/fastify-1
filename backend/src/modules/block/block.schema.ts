@@ -26,3 +26,16 @@ export const unblockUserRouteSchema: FastifySchema = {
         200: blockResponseSchema,
     },
 };
+export const blockStatusSchema = z.object({
+    isBlocked: z.boolean(),
+    isBlockedBy: z.boolean(),
+});
+
+export const blockedUserListSchema = z.array(z.object({
+    id: z.string(),
+    userId: z.string(),
+    username: z.string(),
+    name: z.string(),
+    avatarUrl: z.string().nullable().optional(),
+    blockedAt: z.date(),
+}));

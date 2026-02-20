@@ -112,6 +112,15 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
                 queryClient.setQueryData(['presence', payload.userId], type === 'USER_ONLINE' ? 'ONLINE' : 'OFFLINE');
                 break;
             }
+
+            case 'USER_BLOCKED':
+            case 'USER_UNBLOCKED': {
+                // Invalidate block status queries for this user
+                queryClient.invalidateQueries({ queryKey: ["block-status", payload.blockerId] });
+                // If the user who blocked us is the one we are currently chatting with
+                // we might want to trigger a UI refresh or close the connection
+                break;
+            }
         }
     }, [roomId, queryClient, onMessage]);
 

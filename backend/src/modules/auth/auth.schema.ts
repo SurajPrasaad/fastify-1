@@ -43,6 +43,7 @@ export const userResponseSchema = z.object({
   username: z.string(),
   email: z.string(),
   name: z.string(),
+  avatarUrl: z.string().nullable().optional(),
   profile: z.object({
     techStack: z.array(z.string()).nullable(),
     followersCount: z.number(),

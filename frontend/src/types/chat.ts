@@ -55,7 +55,9 @@ export type ChatEventType =
     | 'USER_TYPING'
     | 'USER_STOPPED_TYPING'
     | 'USER_ONLINE'
-    | 'USER_OFFLINE';
+    | 'USER_OFFLINE'
+    | 'USER_BLOCKED'
+    | 'USER_UNBLOCKED';
 
 export interface ChatEvent {
     type: ChatEventType;

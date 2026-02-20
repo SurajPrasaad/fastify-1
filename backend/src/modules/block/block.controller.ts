@@ -22,4 +22,21 @@ export class BlockController {
         const blockerId = request.user!.sub;
         return this.blockService.unblockUser(blockerId, blockedId);
     };
+
+    getBlockedUsersHandler = async (
+        request: FastifyRequest,
+        reply: FastifyReply
+    ) => {
+        const userId = request.user!.sub;
+        return this.blockService.getBlockedUsers(userId);
+    };
+
+    getBlockStatusHandler = async (
+        request: FastifyRequest<{ Params: BlockParamsDto }>,
+        reply: FastifyReply
+    ) => {
+        const { id: otherUserId } = request.params;
+        const userId = request.user!.sub;
+        return this.blockService.getBlockStatus(userId, otherUserId);
+    };
 }

@@ -1,11 +1,5 @@
 import { toast } from "sonner";
-
-export type ApiError = {
-    message: string;
-    code?: string;
-    status: number;
-    fields?: Record<string, string>;
-};
+import { ApiError } from "@/features/auth/types";
 
 class ApiClient {
     private baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
@@ -14,6 +8,13 @@ class ApiClient {
 
     setToken(token: string | null) {
         this.accessToken = token;
+        if (typeof window !== "undefined") {
+            if (token) {
+                localStorage.setItem("has_token", "true");
+            } else {
+                localStorage.removeItem("has_token");
+            }
+        }
     }
 
     getToken() {
@@ -32,14 +33,11 @@ class ApiClient {
             headers.set("Content-Type", "application/json");
         }
 
-        // On server, this will be null, and that's fine for public routes
-        const token = typeof window !== "undefined" ? this.accessToken : null;
-
+        const token = this.accessToken;
         if (token && !skipAuth) {
             headers.set("Authorization", `Bearer ${token}`);
         }
 
-        // Default to including credentials (for HttpOnly refresh cookie)
         const fetchOptions: RequestInit = {
             ...options,
             headers,
@@ -49,17 +47,26 @@ class ApiClient {
         try {
             let response = await fetch(url, fetchOptions);
 
-            // Handle 401 Unauthorized - Attempt Silent Refresh (ONLY ON CLIENT)
-            if (response.status === 401 && !skipAuth && !path.includes("/auth/refresh") && typeof window !== "undefined") {
+            // Handle 401 Unauthorized - Attempt Silent Refresh
+            if (response.status === 401 && !skipAuth && !path.includes("/auth/refresh")) {
                 const newToken = await this.refreshToken();
                 if (newToken) {
                     headers.set("Authorization", `Bearer ${newToken}`);
                     response = await fetch(url, { ...fetchOptions, headers });
+                } else {
+                    this.setToken(null);
                 }
             }
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
+                let errorData: any = {};
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    errorData = await response.json().catch(() => ({}));
+                } else {
+                    errorData = { message: await response.text().catch(() => "Server Error") };
+                }
+
                 const normalizedError: ApiError = {
                     message: errorData.message || "An unexpected error occurred",
                     code: errorData.code,
@@ -67,12 +74,20 @@ class ApiClient {
                     fields: errorData.fields,
                 };
 
-                // Global toast (ONLY ON CLIENT)
-                if (typeof window !== "undefined" && response.status !== 422 && response.status !== 401) {
+                if (typeof window !== "undefined" &&
+                    response.status !== 401 &&
+                    response.status !== 422 &&
+                    response.status !== 429
+                ) {
                     toast.error(normalizedError.message);
                 }
 
                 throw normalizedError;
+            }
+
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                return await response.json();
             }
             const text = await response.text();
             return text ? JSON.parse(text) : {} as T;
@@ -107,7 +122,6 @@ class ApiClient {
                 return data.accessToken;
             } catch (err) {
                 this.accessToken = null;
-                // Optional: Redirect to login or broadcast logout
                 return null;
             } finally {
                 this.refreshPromise = null;

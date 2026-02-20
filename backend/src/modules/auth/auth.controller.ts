@@ -208,8 +208,8 @@ export class AuthController {
     reply.setCookie("refreshToken", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/", // Or /auth/refresh
+      sameSite: "lax", // Lax is more compatible with different ports/ips in dev
+      path: "/",
       maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
     });
   }

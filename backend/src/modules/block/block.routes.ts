@@ -22,4 +22,14 @@ export async function blockRoutes(fastify: FastifyInstance) {
         preHandler: requireAuth,
         handler: blockController.unblockUserHandler
     });
+
+    fastify.withTypeProvider<ZodTypeProvider>().get("/", {
+        preHandler: requireAuth,
+        handler: blockController.getBlockedUsersHandler
+    });
+
+    fastify.withTypeProvider<ZodTypeProvider>().get("/:id/status", {
+        preHandler: requireAuth,
+        handler: blockController.getBlockStatusHandler
+    });
 }

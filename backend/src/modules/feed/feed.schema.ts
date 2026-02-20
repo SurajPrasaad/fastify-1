@@ -1,4 +1,3 @@
-
 import { z } from "zod";
 
 export const getFeedSchema = z.object({
@@ -6,8 +5,11 @@ export const getFeedSchema = z.object({
     limit: z.coerce.number().min(1).max(50).default(20),
 });
 
-export const getHashtagFeedSchema = z.object({
+export const getHashtagParamsSchema = z.object({
     tag: z.string().min(1),
+});
+
+export const getHashtagFeedSchema = z.object({
     cursor: z.string().optional(),
     limit: z.coerce.number().min(1).max(50).default(20),
 });

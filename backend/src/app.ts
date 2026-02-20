@@ -67,7 +67,7 @@ app.register(notificationGateway);
 
 app.register(notificationRoutes, { prefix: '/notifications' })
 app.register(postRoutes, { prefix: '/posts' })
-app.register(feedRoutes, { prefix: '/feeds' })
+app.register(feedRoutes, { prefix: '/feed' })
 app.register(recommendationRoutes, { prefix: '/recommendations' })
 app.register(blockRoutes, { prefix: '/blocks' })
 app.register(privacyRoutes, { prefix: '/privacy' })

@@ -19,7 +19,7 @@ import { NavItem } from "@/components/layout/nav-item"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/features/auth/components/AuthProvider"
 import { useUnreadCount } from "@/features/notifications/hooks"
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {

@@ -12,6 +12,9 @@ import { useChatSocket } from "@/hooks/use-chat-socket"
 import { ChatRoom } from "@/types/chat"
 import { useUser } from "@/hooks/use-auth"
 
+import { BlockButton } from "@/features/block/components/BlockButton"
+import { BlockGuard } from "@/features/block/components/BlockGuard"
+
 interface ChatWindowProps {
     roomId: string
     room: ChatRoom | undefined
@@ -20,6 +23,9 @@ interface ChatWindowProps {
 export function ChatWindow({ roomId, room }: ChatWindowProps) {
     const { data: currentUser } = useUser();
     const { messages: socketMessages, sendMessage, sendTyping, typingUsers } = useChatSocket(roomId)
+
+    const otherUserId = room?.participants.find(p => String(p) !== String(currentUser?.id));
+
     const { data: initialMessages, isLoading } = useQuery({
         queryKey: ["chat-history", roomId],
         queryFn: () => ChatService.getHistory(roomId),
@@ -29,20 +35,16 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
     const [input, setInput] = useState("")
     const scrollRef = useRef<HTMLDivElement>(null)
 
-    // Unified message handling: History + Live Socket Messages
+    // ... Deduplication and message sorting logic ...
     const history = initialMessages ? [...initialMessages].reverse() : [];
     const combined = [...history, ...socketMessages];
 
-    // Deduplicate: preference to server-confirmed messages over optimistic ones
     const consolidated = combined.reduce((acc: any[], msg) => {
-        // 1. If ID matches, replace only if the new one is finalized
         const existingById = acc.findIndex(m => String(m._id) === String(msg._id));
         if (existingById !== -1) {
             if (msg.status !== 'SENDING') acc[existingById] = msg;
             return acc;
         }
-
-        // 2. If content matches an optimistic message, replace it (trim to ignore spaces)
         if (msg.status !== 'SENDING') {
             const optIdx = acc.findIndex(m =>
                 m.status === 'SENDING' &&
@@ -53,19 +55,14 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
                 return acc;
             }
         }
-
         acc.push(msg);
         return acc;
     }, []);
 
-    // Sort by time (ascending) to ensure oldest at top, newest at bottom
     const allMessages = [...consolidated].sort((a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
-
-
-    // Auto-scroll to bottom on new messages
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollIntoView({ behavior: "smooth" });
@@ -100,10 +97,17 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
+                    {otherUserId && (
+                        <BlockButton
+                            userId={String(otherUserId)}
+                            size="sm"
+                            variant="ghost"
+                            showLabel={false}
+                        />
+                    )}
                     <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                 </div>
-
             </div>
 
             {/* Messages */}
@@ -122,8 +126,6 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
                                         : "bg-white dark:bg-zinc-800 text-foreground border dark:border-zinc-700 rounded-tl-none"
                                         }`}
                                 >
-
-
                                     <div className="text-sm leading-relaxed break-words">
                                         {msg.content}
                                     </div>
@@ -131,7 +133,6 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
                                         {msg.status === 'SENDING' && <span className="animate-pulse">Sending...</span>}
                                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
-
                                 </div>
                             </div>
                         )
@@ -140,20 +141,28 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
                 </div>
             </ScrollArea>
 
-            {/* Input */}
+            {/* Input Overlay with BlockGuard */}
             <div className="p-4 bg-background border-t">
-                <div className="flex items-center gap-2">
-                    <Input
-                        placeholder="Type a message..."
-                        className="flex-1"
-                        value={input}
-                        onChange={handleTyping}
-                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                    />
-                    <Button size="icon" onClick={handleSend}>
-                        <Send className="h-4 w-4" />
-                    </Button>
-                </div>
+                {otherUserId ? (
+                    <BlockGuard userId={String(otherUserId)}>
+                        <div className="flex items-center gap-2">
+                            <Input
+                                placeholder="Type a message..."
+                                className="flex-1"
+                                value={input}
+                                onChange={handleTyping}
+                                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                            />
+                            <Button size="icon" onClick={handleSend}>
+                                <Send className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </BlockGuard>
+                ) : (
+                    <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+                        Select a chat to start messaging
+                    </div>
+                )}
             </div>
         </div>
     )

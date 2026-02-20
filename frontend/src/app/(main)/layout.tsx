@@ -1,6 +1,7 @@
 
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
+import { AuthGuard } from "@/features/auth/components/AuthGuard"
 
 export default function MainLayout({
     children,
@@ -8,24 +9,18 @@ export default function MainLayout({
     children: React.ReactNode
 }) {
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
-            {/* 
-        Persistent Sidebar 
-        - Collapsible (handled internally)
-        - Sticky/Fixed behavior due to flex layout
-      */}
-            <Sidebar className="hidden md:flex" />
+        <AuthGuard>
+            <div className="flex h-screen overflow-hidden bg-background">
+                <Sidebar className="hidden md:flex" />
 
-            {/* Main Content Area */}
-            <div className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-                {/* Sticky Header */}
-                <Header />
+                <div className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
+                    <Header />
 
-                {/* Page Content */}
-                <main className="flex-1 w-full mx-auto p-4 md:p-6 lg:p-8">
-                    {children}
-                </main>
+                    <main className="flex-1 w-full mx-auto p-4 md:p-6 lg:p-8">
+                        {children}
+                    </main>
+                </div>
             </div>
-        </div>
+        </AuthGuard>
     )
 }

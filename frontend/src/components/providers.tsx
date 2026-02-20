@@ -4,12 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { useAuthInit } from "@/hooks/use-auth";
-
-function AuthInitializer({ children }: { children: React.ReactNode }) {
-    useAuthInit();
-    return <>{children}</>;
-}
+import { AuthProvider } from "@/features/auth/components/AuthProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(
@@ -33,9 +28,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 enableSystem
                 disableTransitionOnChange
             >
-                <AuthInitializer>
+                <AuthProvider>
                     {children}
-                </AuthInitializer>
+                </AuthProvider>
                 <Toaster position="top-right" />
             </ThemeProvider>
         </QueryClientProvider>

@@ -63,7 +63,7 @@ export class FeedService {
         const ageInHours = (now - post.publishedAt.getTime()) / (1000 * 60 * 60);
 
         const recencyScore = Math.exp(-ageInHours / 24); // Exponential decay (24h half-life)
-        const engagementScore = (post.likesCount + post.commentsCount * 2) / (ageInHours + 2);
+        const engagementScore = (post.stats.likeCount + post.stats.commentCount * 2) / (ageInHours + 2);
 
         // Default affinity for simplified demo
         const affinityScore = 1.0;
@@ -115,5 +115,23 @@ export class FeedService {
         // In high-scale, we only update for active users recently logged in
         console.log(`[Rebalance] Triggered for post ${postId}`);
         // Implementation would involve updating ZSET scores for relevant users
+    }
+
+    /**
+     * Global Explore Feed with basic ranking
+     */
+    async getExploreFeed(limit: number, cursor?: string) {
+        const posts = await this.feedRepository.getExploreFeed(limit, cursor);
+        return posts.map(post => ({
+            ...post,
+            rankScore: this.calculateRankScore(post)
+        })).sort((a, b) => b.rankScore - a.rankScore);
+    }
+
+    /**
+     * Hashtag Feed
+     */
+    async getHashtagFeed(tag: string, limit: number, cursor?: string) {
+        return await this.feedRepository.getHashtagFeed(tag, limit, cursor);
     }
 }
