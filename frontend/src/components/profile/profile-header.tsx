@@ -1,10 +1,10 @@
 "use client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { MapPin, Link as LinkIcon, Calendar, CheckCircle2, MoreHorizontal, Mail } from "lucide-react";
 import { EditProfileDialog } from "./edit-profile-dialog";
 import { FollowButton } from "@/features/follow/components/follow-button";
+import { cn } from "@/lib/utils";
 
 interface Profile {
     id: string;
@@ -31,103 +31,91 @@ interface ProfileHeaderProps {
 export function ProfileHeader({ profile }: ProfileHeaderProps) {
     return (
         <div className="flex flex-col">
-            {/* Cover Image Area */}
-            <div className="relative h-48 md:h-64 w-full bg-muted rounded-lg overflow-hidden">
-                {profile.coverUrl && (
-                    <img
-                        src={profile.coverUrl}
-                        alt="Cover"
-                        className="w-full h-full object-cover"
+            {/* Cover Photo */}
+            <div className="relative w-full">
+                <div className="h-48 w-full bg-gradient-to-br from-primary/30 to-purple-600/30 overflow-hidden">
+                    <div
+                        className="w-full h-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${profile.coverUrl || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200'})` }}
                     />
-                )}
-            </div>
+                </div>
 
-            {/* Info Bar */}
-            <div className="px-4 pb-2">
-                <div className="relative flex justify-between items-end -mt-12 md:-mt-16 mb-4">
-                    {/* Avatar */}
-                    <div className="relative">
-                        <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-background ring-2 ring-background/50">
-                            <AvatarImage src={profile.avatarUrl} alt={profile.username} />
-                            <AvatarFallback>{profile.displayName[0]}</AvatarFallback>
-                        </Avatar>
-                        <span className="absolute bottom-2 right-2 w-4 h-4 rounded-full bg-green-500 ring-2 ring-background" title="Online" />
+                {/* Avatar & Action Button Area */}
+                <div className="px-6 relative -mt-16 flex justify-between items-end">
+                    <div className="size-32 rounded-full border-4 border-background-light dark:border-background-dark bg-slate-200 overflow-hidden relative group">
+                        <img
+                            alt={profile.displayName}
+                            className="w-full h-full object-cover"
+                            src={profile.avatarUrl}
+                        />
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 mb-2">
+                    <div className="pb-2 flex gap-2">
                         {profile.isSelf ? (
                             <EditProfileDialog
-                                trigger={<Button variant="outline">Edit Profile</Button>}
+                                trigger={
+                                    <button className="px-6 py-2 rounded-full border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                        Edit Profile
+                                    </button>
+                                }
                             />
                         ) : (
-                            <>
-                                <FollowButton
-                                    userId={profile.id}
-                                    username={profile.username}
-                                    isFollowing={profile.isFollowing}
-                                    isSelf={profile.isSelf}
-                                />
-                                <Button variant="ghost" size="icon">
-                                    <Mail className="w-5 h-5" />
-                                </Button>
-                                <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="w-5 h-5" />
-                                </Button>
-                            </>
+                            <FollowButton
+                                userId={profile.id}
+                                username={profile.username}
+                                isFollowing={profile.isFollowing}
+                                isSelf={profile.isSelf}
+                            />
                         )}
                     </div>
                 </div>
+            </div>
 
-                {/* Text Content */}
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-bold leading-none">{profile.displayName}</h1>
-                        {profile.isVerified && <CheckCircle2 className="w-5 h-5 text-blue-500" fill="currentColor" color="white" />}
-                    </div>
-                    <p className="text-muted-foreground font-medium">@{profile.username}</p>
+            {/* Profile Info */}
+            <div className="px-6 mt-4">
+                <div className="flex items-center gap-1">
+                    <h2 className="text-2xl font-bold">{profile.displayName}</h2>
+                    {profile.isVerified && (
+                        <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                            verified
+                        </span>
+                    )}
                 </div>
+                <p className="text-slate-500">@{profile.username}</p>
 
-                <div className="mt-4 max-w-2xl">
-                    <p className="whitespace-pre-wrap">{profile.bio}</p>
-                </div>
+                <p className="mt-4 text-[15px] leading-relaxed max-w-2xl">
+                    {profile.bio}
+                </p>
 
-                {/* Metadata Row */}
-                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-slate-500 text-sm">
                     {profile.location && (
                         <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
+                            <span className="material-symbols-outlined text-lg">location_on</span>
                             <span>{profile.location}</span>
                         </div>
                     )}
                     {profile.website && (
                         <div className="flex items-center gap-1">
-                            <LinkIcon className="w-4 h-4" />
-                            <a href={profile.website} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                                {profile.website.replace(/^https?:\/\//, '')}
+                            <span className="material-symbols-outlined text-lg">link</span>
+                            <a className="text-primary hover:underline" href={profile.website} target="_blank" rel="noopener noreferrer">
+                                {profile.website.replace(/^https?:\/\//, "")}
                             </a>
                         </div>
                     )}
                     <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
+                        <span className="material-symbols-outlined text-lg">calendar_month</span>
                         <span>Joined {profile.joinDate}</span>
                     </div>
                 </div>
 
-                {/* Stats Row */}
-                <div className="flex gap-6 mt-4 pt-4 border-t border-border/50">
-                    <Link href={`/${profile.username}/following`} className="flex items-center gap-1 hover:underline cursor-pointer transition-colors">
-                        <span className="font-bold text-foreground">{profile.following.toLocaleString()}</span>
-                        <span className="text-muted-foreground mr-1">Following</span>
+                <div className="flex gap-6 mt-4 pb-6">
+                    <Link href={`/${profile.username}/following`} className="hover:underline cursor-pointer group">
+                        <span className="font-bold text-slate-900 dark:text-slate-100">{profile.following.toLocaleString()}</span>
+                        <span className="text-slate-500 ml-1">Following</span>
                     </Link>
-                    <Link href={`/${profile.username}/followers`} className="flex items-center gap-1 hover:underline cursor-pointer transition-colors">
-                        <span className="font-bold text-foreground">{profile.followers.toLocaleString()}</span>
-                        <span className="text-muted-foreground mr-1">Followers</span>
+                    <Link href={`/${profile.username}/followers`} className="hover:underline cursor-pointer group">
+                        <span className="font-bold text-slate-900 dark:text-slate-100">{profile.followers.toLocaleString()}</span>
+                        <span className="text-slate-500 ml-1">Followers</span>
                     </Link>
-                    <div className="flex items-center gap-1">
-                        <span className="font-bold text-foreground">{profile.posts.toLocaleString()}</span>
-                        <span className="text-muted-foreground ml-1">Posts</span>
-                    </div>
                 </div>
             </div>
         </div>

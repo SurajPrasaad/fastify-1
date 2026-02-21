@@ -6,7 +6,7 @@ import {
     IUserPresence,
     RoomType,
     MessageType
-} from "../types";
+} from "../types/chat.types";
 
 export interface CreateRoomDto {
     participants: string[];
@@ -21,65 +21,54 @@ export interface SendMessageDto {
     mediaUrl?: string;
 }
 
+export interface PaginatedResponse<T> {
+    data: T[];
+    hasMore: boolean;
+    nextCursor: string | null;
+}
+
 export const ChatService = {
-    /**
-     * Fetch list of conversations for the current user
-     */
-    fetchConversations: async (limit: number = 20, offset: number = 0) => {
-        return api.get<IConversation[]>(`/chat/rooms?limit=${limit}&offset=${offset}`);
+    fetchConversations: async (limit: number = 20, offset: number = 0): Promise<PaginatedResponse<IConversation>> => {
+        const response = await api.get<IConversation[]>(`/chat/rooms?limit=${limit}&offset=${offset}`);
+        // Mocking metadata since the current API might not return it yet
+        return {
+            data: response,
+            hasMore: response.length === limit,
+            nextCursor: response.length > 0 ? response[response.length - 1].updatedAt : null
+        };
     },
 
-    /**
-     * Fetch message history for a specific room
-     */
-    fetchChatHistory: async (roomId: string, limit: number = 50, before?: string) => {
+    fetchChatHistory: async (roomId: string, limit: number = 50, before?: string): Promise<PaginatedResponse<IMessage>> => {
         const query = new URLSearchParams({
             limit: limit.toString(),
             ...(before && { before })
         });
-        return api.get<IMessage[]>(`/chat/rooms/${roomId}/messages?${query}`);
+        const response = await api.get<IMessage[]>(`/chat/rooms/${roomId}/messages?${query}`);
+        return {
+            data: response,
+            hasMore: response.length === limit,
+            nextCursor: response.length > 0 ? response[response.length - 1].createdAt : null
+        };
     },
 
-    /**
-     * Create a new chat room (Direct or Group)
-     */
     createChatRoom: async (data: CreateRoomDto) => {
         return api.post<IConversation>("/chat/rooms", data);
     },
 
-    /**
-     * Send a new message to a room
-     */
     sendChatMessage: async (data: SendMessageDto) => {
         const { roomId, ...payload } = data;
         return api.post<IMessage>(`/chat/rooms/${roomId}/messages`, payload);
     },
 
-    /**
-     * Mark a message as read
-     */
-    markMessageAsRead: async (roomId: string, messageId: string) => {
-        return api.post<{ success: boolean }>(`/chat/rooms/${roomId}/messages/${messageId}/read`);
+    markAsRead: async (roomId: string) => {
+        return api.post<{ success: boolean }>(`/chat/rooms/${roomId}/read`);
     },
 
-    /**
-     * Search within messages
-     */
-    searchChatMessages: async (query: string, limit: number = 20, offset: number = 0) => {
-        return api.get<IMessage[]>(`/chat/messages/search?q=${query}&limit=${limit}&offset=${offset}`);
-    },
-
-    /**
-     * Get presence status of a specific user
-     */
     fetchUserPresence: async (userId: string) => {
         return api.get<IUserPresence>(`/chat/presence/${userId}`);
     },
 
-    /**
-     * Batch fetch presence for a list of users
-     */
-    batchFetchPresence: async (userIds: string[]) => {
-        return api.post<Record<string, IUserPresence>>("/chat/presence/batch", { userIds });
+    batchFetchPresence: async (userIds: string[]): Promise<Record<string, IUserPresence>> => {
+        return api.get<Record<string, IUserPresence>>(`/chat/presence/batch?ids=${userIds.join(',')}`);
     }
 };

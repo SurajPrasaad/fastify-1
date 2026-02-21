@@ -1,156 +1,144 @@
 
-"use client";
-
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { useChat } from '../hooks/useChat';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { IMessage } from '../types/chat.types';
 import { MessageBubble } from './MessageBubble';
-import { ChatInput } from './ChatInput';
-import { useInView } from 'react-intersection-observer';
-import { Loader2, ArrowDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/features/auth/components/AuthProvider';
-import { TypingIndicator } from './typing-indicator';
+import { format, isSameDay } from 'date-fns';
+import { Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface MessageListProps {
-    roomId: string;
+    messages: IMessage[];
+    currentUserId: string;
+    isFetchingMore: boolean;
+    onLoadMore: () => void;
+    hasMore: boolean;
 }
 
-export function MessageList({ roomId }: MessageListProps) {
-    const { user } = useAuth();
-    const { messages, activeConversation, sendMessage, sendTyping, stopTyping, loadHistory, isLoading } = useChat(roomId);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const [showScrollButton, setShowScrollButton] = useState(false);
+export const MessageList: React.FC<MessageListProps> = ({
+    messages,
+    currentUserId,
+    isFetchingMore,
+    onLoadMore,
+    hasMore
+}) => {
+    const parentRef = useRef<HTMLDivElement>(null);
+    const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
-    // Infinite Load Observer
-    const { ref: topRef, inView: topInView } = useInView({ threshold: 0 });
+    // Group messages by date and sender
+    const flatItems = useMemo(() => {
+        const items: any[] = [];
+        messages.forEach((msg, index) => {
+            const prevMsg = messages[index - 1];
 
-    const loadMore = async () => {
-        if (messages.length > 0 && !isLoading.messages) {
-            const firstMessageId = messages[0].id; // or timestamp
-            await loadHistory(firstMessageId);
-        }
-    };
+            // Add date separator
+            if (!prevMsg || !isSameDay(new Date(msg.createdAt), new Date(prevMsg.createdAt))) {
+                items.push({ type: 'date', date: msg.createdAt });
+            }
 
-    useEffect(() => {
-        if (topInView) {
-            loadMore();
-        }
-    }, [topInView]);
+            const showAvatar = !prevMsg || prevMsg.senderId !== msg.senderId ||
+                !isSameDay(new Date(msg.createdAt), new Date(prevMsg.createdAt));
 
-    const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTo({
-                top: scrollRef.current.scrollHeight,
-                behavior
-            });
-        }
-    };
-
-    // Auto-scroll on new message
-    useEffect(() => {
-        const isNearBottom = scrollRef.current
-            ? scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 200
-            : true;
-
-        if (isNearBottom) {
-            scrollToBottom('auto');
-        } else if (messages.length > 0) {
-            setShowScrollButton(true);
-        }
+            items.push({ type: 'message', message: msg, showAvatar });
+        });
+        return items;
     }, [messages]);
 
-    // Initial load scroll
-    useEffect(() => {
-        if (!isLoading.messages && messages.length > 0) {
-            scrollToBottom('auto');
-        }
-    }, [roomId, isLoading.messages]);
+    const virtualizer = useVirtualizer({
+        count: flatItems.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 60,
+        overscan: 5,
+    });
 
-    const handleScroll = () => {
-        if (!scrollRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        setShowScrollButton(scrollHeight - scrollTop - clientHeight > 300);
+    // Auto scroll logic
+    useEffect(() => {
+        if (messages.length > 0 && !isFetchingMore) {
+            virtualizer.scrollToIndex(flatItems.length - 1, { align: 'end' });
+        }
+    }, [messages.length, isFetchingMore, virtualizer, flatItems.length]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.currentTarget;
+        const isNearTop = target.scrollTop < 100;
+        const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 200;
+
+        if (isNearTop && hasMore && !isFetchingMore) {
+            onLoadMore();
+        }
+
+        setShowScrollToBottom(!isNearBottom);
     };
 
     return (
-        <div className="flex-1 flex flex-col min-h-0">
-            {/* Messages Area */}
-            <div
-                ref={scrollRef}
-                onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin overflow-x-hidden"
-            >
-                {/* Top Sentinel for Pagination */}
-                <div ref={topRef} className="h-1 w-full" />
-
-                {isLoading.messages && messages.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : (
-                    <div className="max-w-4xl mx-auto">
-                        {messages.map((msg, index) => (
-                            <MessageBubble
-                                key={msg.id}
-                                message={msg}
-                                isGroup={activeConversation?.type === 'GROUP'}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {/* Typing Indicator */}
-                {(() => {
-                    const otherTypingUsers = (activeConversation?.typingUsers || [])
-                        .filter(id => id !== user?.id)
-                        .map(id => activeConversation?.participants.find(p => p.id === id))
-                        .filter(Boolean);
-
-                    if (otherTypingUsers.length === 0) return null;
-
-                    return (
-                        <div className="max-w-4xl mx-auto px-4 mb-4 animate-in fade-in slide-in-from-bottom-2">
-                            <div className="flex flex-col items-start gap-1">
-                                <div className="flex items-end gap-2">
-                                    {otherTypingUsers.length === 1 && otherTypingUsers[0]?.avatarUrl && (
-                                        <Avatar className="h-6 w-6 border shadow-sm">
-                                            <AvatarImage src={otherTypingUsers[0].avatarUrl} />
-                                            <AvatarFallback className="text-[10px]">{otherTypingUsers[0].name?.[0]}</AvatarFallback>
-                                        </Avatar>
-                                    )}
-                                    <TypingIndicator />
-                                </div>
-                                <span className="text-[10px] text-muted-foreground ml-1 font-medium tracking-tight">
-                                    {otherTypingUsers.length === 1
-                                        ? `${otherTypingUsers[0]?.username || otherTypingUsers[0]?.name} is typing...`
-                                        : `${otherTypingUsers.length} people are typing...`}
-                                </span>
-                            </div>
-                        </div>
-                    );
-                })()}
-            </div>
-
-            {/* Floating Action: Scroll to Bottom */}
-            {showScrollButton && (
-                <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute bottom-24 right-8 rounded-full shadow-lg animate-bounce"
-                    onClick={() => scrollToBottom()}
-                >
-                    <ArrowDown className="h-5 w-5" />
-                </Button>
+        <div
+            ref={parentRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2 scroll-smooth bg-chat-pattern" // Pattern can be added via CSS
+        >
+            {isFetchingMore && (
+                <div className="flex justify-center py-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
             )}
 
+            <div
+                style={{
+                    height: `${virtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                }}
+            >
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const item = flatItems[virtualRow.index];
 
-            {/* Chat Input Area */}
-            <ChatInput
-                onSendMessage={sendMessage}
-                onTyping={sendTyping}
-                onStopTyping={stopTyping}
-            />
+                    return (
+                        <div
+                            key={virtualRow.key}
+                            data-index={virtualRow.index}
+                            ref={virtualizer.measureElement}
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                            className="py-1"
+                        >
+                            {item.type === 'date' ? (
+                                <div className="flex justify-center my-4 sticky top-0 z-20">
+                                    <span className="px-3 py-1 bg-background/80 backdrop-blur-sm border rounded-full text-[11px] font-medium text-muted-foreground shadow-sm">
+                                        {format(new Date(item.date), 'MMMM d, yyyy')}
+                                    </span>
+                                </div>
+                            ) : (
+                                <MessageBubble
+                                    message={item.message}
+                                    isMe={item.message.senderId === currentUserId}
+                                    showAvatar={item.showAvatar}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <AnimatePresence>
+                {showScrollToBottom && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        onClick={() => virtualizer.scrollToIndex(flatItems.length - 1, { align: 'end' })}
+                        className="fixed bottom-24 right-8 p-2 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-110 active:scale-95 transition-transform z-30"
+                    >
+                        <svg className="w-5 h-5 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                        </svg>
+                    </motion.button>
+                )}
+            </AnimatePresence>
         </div>
     );
-}
+};

@@ -1,14 +1,14 @@
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 import { cn } from "@/lib/utils";
 
-const fontSans = Geist({
-  variable: "--font-sans",
+const fontDisplay = Plus_Jakarta_Sans({
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
@@ -18,8 +18,8 @@ const fontMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Enterprise Social Platform",
-  description: "A globally scalable, enterprise-grade social media platform.",
+  title: "SocialApp | Modern Social Media",
+  description: "A modern social media platform built for developers and creative professionals.",
 };
 
 export default function RootLayout({
@@ -29,10 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+      </head>
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased",
-          fontSans.variable,
+          "min-h-screen bg-background font-display antialiased",
+          fontDisplay.variable,
           fontMono.variable
         )}
         suppressHydrationWarning

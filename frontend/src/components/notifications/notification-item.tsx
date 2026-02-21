@@ -1,194 +1,151 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-    Heart,
-    MessageCircle,
-    UserPlus,
-    AtSign,
-    AlertTriangle,
-    MoreHorizontal,
-    Reply,
-    ExternalLink,
-} from "lucide-react";
-import type { NotificationItem as NotificationItemType } from "@/types/notification";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-
 import { useRouter } from "next/navigation";
+import type { NotificationItem as NotificationItemType } from "@/types/notification";
 
 interface NotificationItemProps {
     item: NotificationItemType;
     onRead?: (id: string) => void;
 }
 
-const iconMap: Record<
-    string,
-    { icon: typeof Heart; color: string; bgColor: string }
-> = {
-    LIKE: { icon: Heart, color: "text-rose-500", bgColor: "bg-rose-500/10" },
-    COMMENT: {
-        icon: MessageCircle,
-        color: "text-blue-500",
-        bgColor: "bg-blue-500/10",
-    },
-    REPLY: {
-        icon: Reply,
-        color: "text-cyan-500",
-        bgColor: "bg-cyan-500/10",
-    },
-    MENTION: {
-        icon: AtSign,
-        color: "text-amber-500",
-        bgColor: "bg-amber-500/10",
-    },
-    FOLLOW: {
-        icon: UserPlus,
-        color: "text-violet-500",
-        bgColor: "bg-violet-500/10",
-    },
-    SYSTEM: {
-        icon: AlertTriangle,
-        color: "text-yellow-500",
-        bgColor: "bg-yellow-500/10",
-    },
+const configMap: Record<string, { icon: string; color: string; fill?: boolean }> = {
+    LIKE: { icon: "favorite", color: "text-rose-500", fill: true },
+    COMMENT: { icon: "chat_bubble", color: "text-primary", fill: true },
+    REPLY: { icon: "reply", color: "text-primary", fill: true },
+    MENTION: { icon: "alternate_email", color: "text-primary", fill: true },
+    FOLLOW: { icon: "person_add", color: "text-primary", fill: true },
+    REPOST: { icon: "repeat", color: "text-emerald-500" },
+    SYSTEM: { icon: "info", color: "text-slate-500" },
 };
-
-function getRelativeTime(isoDate: string): string {
-    try {
-        return formatDistanceToNow(new Date(isoDate), { addSuffix: true });
-    } catch {
-        return "";
-    }
-}
 
 export function NotificationItem({ item, onRead }: NotificationItemProps) {
     const router = useRouter();
     const { type, message, sender, isRead, createdAt, actionUrl, metaData } = item;
 
-    const typeConfig = iconMap[type] || iconMap.SYSTEM;
-    const PrimaryIcon = typeConfig.icon;
-
-    const notificationLink =
-        actionUrl ||
-        metaData?.actionUrl ||
-        (item.postId ? `/post/${item.postId}` : undefined);
-
-    const initials = sender?.name
-        ? sender.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2)
-        : "??";
+    const config = configMap[type] || configMap.SYSTEM;
 
     const handleClick = () => {
-        if (!isRead) {
-            onRead?.(item.id);
-        }
-        if (notificationLink) {
-            router.push(notificationLink);
-        }
+        if (!isRead) onRead?.(item.id);
+        if (actionUrl) router.push(actionUrl);
     };
 
-    const content = (
+    const timeAgo = (() => {
+        try {
+            return formatDistanceToNow(new Date(createdAt), { addSuffix: false })
+                .replace('about ', '')
+                .replace(' minutes', 'm')
+                .replace(' minute', 'm')
+                .replace(' hours', 'h')
+                .replace(' hour', 'h')
+                .replace(' days', 'd')
+                .replace(' day', 'd');
+        } catch {
+            return "";
+        }
+    })();
+
+    return (
         <div
             onClick={handleClick}
             className={cn(
-                "group relative flex items-start gap-3.5 px-4 py-3.5 transition-all duration-200 border-b border-border/50 last:border-0 cursor-pointer",
+                "group relative flex gap-4 p-6 transition-all duration-300 cursor-pointer border-l-4",
                 !isRead
-                    ? "bg-primary/[0.03] hover:bg-primary/[0.06]"
-                    : "hover:bg-muted/40"
+                    ? "bg-primary/[0.04] border-primary"
+                    : "hover:bg-slate-50 dark:hover:bg-slate-800/20 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
             )}
         >
-            {/* Unread Indicator — animated pulse dot */}
-            {!isRead && (
-                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                </span>
-            )}
-
-            {/* Avatar + Type Badge */}
-            <div className="relative flex-shrink-0 mt-0.5">
-                <Avatar className="h-10 w-10 ring-2 ring-background">
-                    <AvatarImage src={sender?.avatarUrl} alt={sender?.name || "User"} />
-                    <AvatarFallback className="text-xs font-semibold bg-muted">
-                        {initials}
-                    </AvatarFallback>
-                </Avatar>
-
-                {/* Type Badge */}
-                <div
+            {/* Type Icon & Unread Indicator */}
+            <div className="flex flex-col items-center shrink-0 w-8">
+                <span
                     className={cn(
-                        "absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background",
-                        typeConfig.bgColor
+                        "material-symbols-outlined text-2xl mb-1",
+                        config.color,
+                        config.fill && "fill-icon"
                     )}
                 >
-                    <PrimaryIcon
-                        className={cn(
-                            "h-2.5 w-2.5",
-                            typeConfig.color,
-                            type === "LIKE" && "fill-current"
-                        )}
-                    />
-                </div>
+                    {config.icon}
+                </span>
+                {!isRead && (
+                    <div className="size-2 bg-primary rounded-full mt-1 animate-pulse shadow-[0_0_8px_rgba(19,91,236,0.6)]" />
+                )}
             </div>
 
-            {/* Content */}
-            <div className="flex-1 min-w-0 space-y-1">
-                <p className="text-sm leading-relaxed">
-                    {sender && (
-                        <Link
-                            href={`/${sender.username}`}
-                            className="font-semibold hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {sender.name}
-                        </Link>
-                    )}{" "}
-                    <span className="text-muted-foreground">
-                        {message.replace(sender?.name || "", "").trim()}
-                    </span>
+            {/* Content Area */}
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                    <Link
+                        href={`/${sender?.username}`}
+                        className="shrink-0 group/avatar"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <img
+                            alt={sender?.name}
+                            className="size-10 rounded-full object-cover border-2 border-transparent group-hover/avatar:border-primary/30 transition-all"
+                            src={sender?.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${sender?.id}`}
+                        />
+                    </Link>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-x-1 min-w-0">
+                        <span className="font-bold truncate text-[15px]">{sender?.name}</span>
+                        <span className="text-slate-500 text-sm truncate">
+                            @{sender?.username} · {timeAgo}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Message Body */}
+                <p className="text-[15px] leading-relaxed dark:text-slate-300 mb-3">
+                    {renderMessageWithTags(message)}
                 </p>
 
-                {/* Snippet Preview */}
+                {/* Optional Metadata / Snippet */}
                 {metaData?.snippet && (
-                    <div className="mt-1.5 border-l-2 border-muted-foreground/20 pl-3 text-sm text-muted-foreground/80 italic line-clamp-2">
-                        &ldquo;{metaData.snippet}&rdquo;
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white/50 dark:bg-slate-900/30 transition-colors group-hover:bg-white dark:group-hover:bg-slate-900/50">
+                        <p className="text-sm text-slate-500 line-clamp-1 italic">
+                            {metaData.snippet}
+                        </p>
                     </div>
                 )}
 
-                {/* Timestamp */}
-                <p className="text-xs text-muted-foreground/60 tabular-nums">
-                    {getRelativeTime(createdAt)}
-                </p>
+                {/* Visual Thumbnail (if any) */}
+                {metaData?.image && (
+                    <div className="mt-3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 aspect-video max-w-sm">
+                        <img
+                            src={metaData.image}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* Right: Actions */}
-            <div className="flex items-center gap-1 self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                {notificationLink && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        asChild
-                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                    >
-                        <Link href={notificationLink}>
-                            <ExternalLink className="h-3.5 w-3.5" />
-                        </Link>
-                    </Button>
-                )}
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                </Button>
+            {/* Quick Actions */}
+            <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity self-start">
+                <button
+                    className="size-9 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // Add more menu logic here
+                    }}
+                >
+                    <span className="material-symbols-outlined text-slate-500">more_horiz</span>
+                </button>
             </div>
         </div>
     );
+}
 
-    return content;
+function renderMessageWithTags(msg: string) {
+    return msg.split(/(@\w+|#\w+)/).map((part, i) => {
+        if (part.startsWith('@') || part.startsWith('#')) {
+            return (
+                <span key={i} className="text-primary font-medium hover:underline cursor-pointer">
+                    {part}
+                </span>
+            );
+        }
+        return part;
+    });
 }

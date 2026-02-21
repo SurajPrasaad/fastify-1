@@ -6,6 +6,7 @@ export type NotificationType =
     | "REPLY"
     | "MENTION"
     | "FOLLOW"
+    | "REPOST"
     | "SYSTEM";
 
 export interface NotificationSender {

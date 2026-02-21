@@ -26,10 +26,10 @@ const config = {
                 ring: "hsl(var(--ring))",
                 background: "hsl(var(--background))",
                 foreground: "hsl(var(--foreground))",
-                primary: {
-                    DEFAULT: "hsl(var(--primary))",
-                    foreground: "hsl(var(--primary-foreground))",
-                },
+                primary: "#135bec",
+                "background-light": "#f6f6f8",
+                "background-dark": "#0a0c10",
+                "surface-dark": "#161b26",
                 secondary: {
                     DEFAULT: "hsl(var(--secondary))",
                     foreground: "hsl(var(--secondary-foreground))",
@@ -66,9 +66,12 @@ const config = {
                 lg: "var(--radius)",
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)",
+                xl: "1.5rem",
+                "2xl": "2rem",
             },
             fontFamily: {
                 sans: ["var(--font-sans)", ...defaultTheme.fontFamily.sans],
+                display: ["var(--font-display)", ...defaultTheme.fontFamily.sans],
                 mono: ["var(--font-mono)", ...defaultTheme.fontFamily.mono],
             },
             keyframes: {

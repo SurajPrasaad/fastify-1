@@ -1,62 +1,51 @@
 "use client";
 
 import { usePathname } from 'next/navigation';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface ProfileTabsProps {
     username: string;
 }
 
+const TABS = [
+    { label: "Posts", id: "posts" },
+    { label: "Replies", id: "replies" },
+    { label: "Media", id: "media" },
+    { label: "Likes", id: "likes" },
+];
+
 export function ProfileTabs({ username }: ProfileTabsProps) {
-    // We use pathname to control the 'active' state, allowing deep linking
     const pathname = usePathname();
 
-    // Determine active tab based on path suffix
-    let activeTab = "posts";
-    if (pathname.endsWith("/posts")) activeTab = "posts";
-    // if (pathname.endsWith("/media")) activeTab = "media";
-    if (pathname.endsWith("/likes")) activeTab = "likes";
-    if (pathname.endsWith("/replies")) activeTab = "replies";
+    const getActiveTab = () => {
+        if (pathname.endsWith("/replies")) return "replies";
+        if (pathname.endsWith("/media")) return "media";
+        if (pathname.endsWith("/likes")) return "likes";
+        return "posts";
+    };
+
+    const activeTab = getActiveTab();
 
     return (
-        <div className="w-full">
-            <Tabs value={activeTab} className="w-full">
-                <TabsList className="w-full justify-start h-12 bg-transparent border-b rounded-none p-0 space-x-6">
-                    <Link href={`/${username}/posts`} className="h-full">
-                        <TabsTrigger
-                            value="posts"
-                            className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 disabled:opacity-50"
-                        >
-                            Posts
-                        </TabsTrigger>
-                    </Link>
-                    <Link href={`/${username}/replies`} className="h-full">
-                        <TabsTrigger
-                            value="replies"
-                            className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 disabled:opacity-50"
-                        >
-                            Replies
-                        </TabsTrigger>
-                    </Link>
-                    {/* <Link href={`/${username}/media`} className="h-full">
-                        <TabsTrigger
-                            value="media"
-                            className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 disabled:opacity-50"
-                        >
-                            Media
-                        </TabsTrigger>
-                    </Link> */}
-                    <Link href={`/${username}/likes`} className="h-full">
-                        <TabsTrigger
-                            value="likes"
-                            className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 disabled:opacity-50"
-                        >
-                            Likes
-                        </TabsTrigger>
-                    </Link>
-                </TabsList>
-            </Tabs>
+        <div className="flex border-b border-slate-200 dark:border-slate-800">
+            {TABS.map((tab) => (
+                <Link
+                    key={tab.id}
+                    href={`/${username}/${tab.id}`}
+                    className={cn(
+                        "flex-1 py-4 text-sm relative text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors uppercase tracking-wider",
+                        activeTab === tab.id
+                            ? "font-bold text-slate-900 dark:text-slate-100"
+                            : "font-medium text-slate-500"
+                    )}
+                >
+                    {tab.label}
+                    {activeTab === tab.id && (
+                        <div className="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full animate-in fade-in duration-300" />
+                    )}
+                </Link>
+            ))}
         </div>
     );
 }

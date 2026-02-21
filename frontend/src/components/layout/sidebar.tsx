@@ -1,155 +1,127 @@
 "use client"
 
 import * as React from "react"
-import {
-    Bell,
-    Home,
-    Mail,
-    MoreHorizontal,
-    Search,
-    Settings,
-    User,
-    PanelLeftClose,
-    PanelLeftOpen,
-} from "lucide-react"
-
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { NavItem } from "@/components/layout/nav-item"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useAuth } from "@/features/auth/components/AuthProvider"
-import { useUnreadCount } from "@/features/notifications/hooks"
+import { useTheme } from "next-themes"
+import { Switch } from "@/components/ui/switch"
 
-interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
-    defaultCollapsed?: boolean
-}
+interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> { }
 
-export function Sidebar({ className, defaultCollapsed = false }: SidebarProps) {
-    const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed)
+export function Sidebar({ className }: SidebarProps) {
     const { user } = useAuth()
-    const { data: unreadCount = 0 } = useUnreadCount()
-
-    const toggleCollapse = () => {
-        setIsCollapsed(!isCollapsed)
-    }
-
-    const initials = user?.name
-        ? user.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()
-        : "??"
+    const pathname = usePathname()
+    const { theme, setTheme } = useTheme()
 
     return (
-        <div
+        <aside className={cn("hidden md:flex flex-col w-72 h-screen p-6 border-r border-slate-200 dark:border-slate-800/50", className)}>
+            <div className="flex flex-col h-full justify-between">
+                <div className="flex flex-col gap-8">
+                    {/* Logo */}
+                    <Link href="/" className="flex items-center gap-3 px-3 group">
+                        <div className="size-10 bg-primary rounded-xl flex items-center justify-center text-white transition-transform group-hover:scale-110">
+                            <span className="material-symbols-outlined text-2xl">rocket_launch</span>
+                        </div>
+                        <h1 className="text-xl font-bold tracking-tight">SocialApp</h1>
+                    </Link>
+
+                    {/* Nav Links */}
+                    <nav className="flex flex-col gap-2">
+                        <SidebarLink icon="home" label="Home" href="/" active={pathname === "/"} fillIcon />
+                        <SidebarLink icon="explore" label="Explore" href="/explore" active={pathname === "/explore"} />
+                        <SidebarLink icon="mail" label="Messages" href="/messages" active={pathname.startsWith("/messages")} badge="4" />
+                        <SidebarLink icon="notifications" label="Notifications" href="/notifications" active={pathname === "/notifications"} />
+                        <SidebarLink icon="person" label="Profile" href={`/${user?.username || "profile"}`} active={user?.username ? pathname.startsWith(`/${user.username}`) : false} />
+                        <SidebarLink icon="bookmark" label="Bookmarks" href="/bookmarks" active={pathname === "/bookmarks"} />
+                        <SidebarLink icon="settings" label="Settings" href="/settings" active={pathname === "/settings"} />
+                    </nav>
+
+                    {/* <button className="w-full bg-primary text-white font-bold py-4 rounded-full shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                        <span className="material-symbols-outlined">edit</span>
+                        Post
+                    </button> */}
+                </div>
+
+                {/* Bottom Sidebar Utils */}
+                <div className="flex flex-col gap-4">
+                    {/* Dark Mode Toggle */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-100 dark:bg-surface-dark rounded-xl">
+                        <div className="flex items-center gap-3">
+                            <span className="material-symbols-outlined text-slate-500">
+                                {theme === "dark" ? "dark_mode" : "light_mode"}
+                            </span>
+                            <span className="text-sm font-medium">Dark Mode</span>
+                        </div>
+                        <Switch
+                            checked={theme === "dark"}
+                            onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                            className="data-[state=checked]:bg-primary"
+                        />
+                    </div>
+
+                    {/* User Account */}
+                    {user ? (
+                        <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer group">
+                            <div className="size-10 rounded-full bg-slate-500 overflow-hidden shrink-0">
+                                <img
+                                    className="w-full h-full object-cover"
+                                    alt={user.name}
+                                    src={user.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuCiOL2n_wnGX-tkNBmn9gmSIO2py_5xhODyOdE2R10P7HxgjYmnH9d38rfNSl-_PT0a7K-oozQygeBMztHAO5W5u5qEeMlbqCr6_Hqn9JcyIEX8X7LPzhvFFNlxpMD2aRyuRUaW5o5lxnHkj-2oGoMSGk37wybjSgFXw0anwxAHcpicg8P9U-6cfeulPNyxhBCyzbfca7rtxBGgJ0jZPwfhUoevY9RSvmr64jIn2fXTcvF0SAn7PXAo7VgIt58c"}
+                                />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-bold text-sm truncate">{user.name}</p>
+                                <p className="text-xs text-slate-500 truncate">@{user.username}</p>
+                            </div>
+                            <span className="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors">more_horiz</span>
+                        </div>
+                    ) : (
+                        <div className="px-3 py-2 animate-pulse flex items-center gap-3">
+                            <div className="size-10 rounded-full bg-slate-300 dark:bg-slate-800 shrink-0" />
+                            <div className="flex-1 space-y-2">
+                                <div className="h-3 w-20 bg-slate-300 dark:bg-slate-800 rounded" />
+                                <div className="h-2 w-16 bg-slate-300 dark:bg-slate-800 rounded" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </aside>
+    )
+}
+
+function SidebarLink({ icon, label, href, active, badge, fillIcon }: {
+    icon: string,
+    label: string,
+    href: string,
+    active?: boolean,
+    badge?: string,
+    fillIcon?: boolean
+}) {
+    return (
+        <Link
+            href={href}
             className={cn(
-                "relative flex flex-col border-r bg-background pb-4 transition-all duration-300",
-                isCollapsed ? "w-[80px]" : "w-[280px]",
-                className
+                "flex items-center gap-4 px-4 py-3 rounded-xl transition-all relative group",
+                active
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "hover:bg-slate-100 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
             )}
         >
-            <div className="flex h-14 items-center justify-between px-4 py-4">
-                {!isCollapsed && (
-                    <span className="text-xl font-bold tracking-tight text-primary">
-                        SocialApp
-                    </span>
-                )}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleCollapse}
-                    className={cn("h-8 w-8", isCollapsed && "mx-auto")}
-                >
-                    {isCollapsed ? (
-                        <PanelLeftOpen className="h-4 w-4" />
-                    ) : (
-                        <PanelLeftClose className="h-4 w-4" />
-                    )}
-                    <span className="sr-only">Toggle Sidebar</span>
-                </Button>
-            </div>
-
-            <Separator />
-
-            <ScrollArea className="flex-1 px-2 py-4">
-                <nav className="grid gap-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-2">
-                    {/* Main Navigation */}
-                    <NavItem
-                        title="Home"
-                        href="/"
-                        icon={Home}
-                        isCollapsed={isCollapsed}
-                    />
-                    <NavItem
-                        title="Explore"
-                        href="/explore"
-                        icon={Search}
-                        isCollapsed={isCollapsed}
-                    />
-                    <NavItem
-                        title="Notifications"
-                        href="/notifications"
-                        icon={Bell}
-                        isCollapsed={isCollapsed}
-                        label={unreadCount > 0 ? (unreadCount > 99 ? "99+" : String(unreadCount)) : undefined}
-                    />
-                    <NavItem
-                        title="Messages"
-                        href="/messages"
-                        icon={Mail}
-                        isCollapsed={isCollapsed}
-                        label="12"
-                    />
-                    <NavItem
-                        title="Profile"
-                        href={user ? `/${user.username}` : "/login"}
-                        icon={User}
-                        isCollapsed={isCollapsed}
-                    />
-                    <NavItem
-                        title="Settings"
-                        href="/settings"
-                        icon={Settings}
-                        isCollapsed={isCollapsed}
-                    />
-                </nav>
-            </ScrollArea>
-
-            <div className="mt-auto p-4">
-                {/* User Card Area */}
-                {user ? (
-                    <div className={cn("flex items-center gap-2", isCollapsed && "justify-center")}>
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.avatarUrl || undefined} alt={`@${user.username}`} />
-                            <AvatarFallback>{initials}</AvatarFallback>
-                        </Avatar>
-                        {!isCollapsed && (
-                            <div className="flex flex-col overflow-hidden">
-                                <span className="text-sm font-medium truncate">{user.name}</span>
-                                <span className="text-xs text-muted-foreground truncate">@{user.username}</span>
-                            </div>
-                        )}
-                        {!isCollapsed && (
-                            <Button variant="ghost" size="icon" className="ml-auto h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        )}
-                    </div>
-                ) : (
-                    <div className={cn("flex items-center gap-2", isCollapsed && "justify-center")}>
-                        <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-                        {!isCollapsed && (
-                            <div className="flex flex-col gap-1">
-                                <div className="h-3 w-20 bg-muted animate-pulse rounded" />
-                                <div className="h-2 w-12 bg-muted animate-pulse rounded" />
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
+            <span
+                className="material-symbols-outlined transition-all text-[24px]"
+                style={{ fontVariationSettings: `'FILL' ${active || fillIcon ? 1 : 0}` }}
+            >
+                {icon}
+            </span>
+            <span className="text-lg">{label}</span>
+            {badge && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 size-5 bg-primary text-[10px] text-white rounded-full flex items-center justify-center font-bold border-2 border-background">
+                    {badge}
+                </span>
+            )}
+        </Link>
     )
 }

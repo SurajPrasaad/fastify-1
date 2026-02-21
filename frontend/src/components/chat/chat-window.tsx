@@ -1,26 +1,21 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Phone, Video, MoreVertical, Send } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 import { useQuery } from "@tanstack/react-query"
 import { ChatService } from "@/services/chat.service"
 import { useChatSocket } from "@/hooks/use-chat-socket"
 import { ChatRoom } from "@/types/chat"
 import { useUser } from "@/hooks/use-auth"
-
-import { BlockButton } from "@/features/block/components/BlockButton"
 import { BlockGuard } from "@/features/block/components/BlockGuard"
 
 interface ChatWindowProps {
     roomId: string
     room: ChatRoom | undefined
+    onBack?: () => void
 }
 
-export function ChatWindow({ roomId, room }: ChatWindowProps) {
+export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
     const { data: currentUser } = useUser();
     const { messages: socketMessages, sendMessage, sendTyping, typingUsers } = useChatSocket(roomId)
 
@@ -35,7 +30,6 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
     const [input, setInput] = useState("")
     const scrollRef = useRef<HTMLDivElement>(null)
 
-    // ... Deduplication and message sorting logic ...
     const history = initialMessages ? [...initialMessages].reverse() : [];
     const combined = [...history, ...socketMessages];
 
@@ -76,94 +70,138 @@ export function ChatWindow({ roomId, room }: ChatWindowProps) {
         sendTyping(false);
     }
 
-    const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setInput(e.target.value);
         sendTyping(e.target.value.length > 0);
     }
 
     return (
-        <div className="flex h-full w-full flex-col bg-muted/10">
+        <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="flex h-16 items-center justify-between border-b bg-background px-4">
-                <div className="flex items-center gap-3">
-                    <Avatar>
-                        <AvatarFallback>{room?.name?.[0] || "?"}</AvatarFallback>
-                    </Avatar>
+            <header className="h-20 flex items-center justify-between px-8 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md z-10 transition-all">
+                <div className="flex items-center gap-4">
+                    {onBack && (
+                        <button onClick={onBack} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                            <span className="material-symbols-outlined">arrow_back</span>
+                        </button>
+                    )}
+                    <div className="relative">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800">
+                            <img
+                                alt={room?.name}
+                                className="w-full h-full object-cover"
+                                src={`https://api.dicebear.com/7.x/beta/svg?seed=${roomId}`}
+                            />
+                        </div>
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+                    </div>
                     <div>
-                        <span className="block font-semibold">{room?.name || "Chat"}</span>
-                        <div className="flex items-center gap-2">
-                            {typingUsers.length > 0 && <span className="text-xs text-primary animate-pulse">Typing...</span>}
-                            <span className="block text-xs text-muted-foreground">Active now</span>
+                        <h2 className="text-lg font-bold leading-none mb-1">{room?.name || "Chat"}</h2>
+                        <div className="flex items-center gap-1.5">
+                            <span className={cn("w-1.5 h-1.5 rounded-full", typingUsers.length > 0 ? "bg-primary animate-pulse" : "bg-green-500")}></span>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                {typingUsers.length > 0 ? "Typing..." : "Online"}
+                            </p>
                         </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {otherUserId && (
-                        <BlockButton
-                            userId={String(otherUserId)}
-                            size="sm"
-                            variant="ghost"
-                            showLabel={false}
-                        />
-                    )}
-                    <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                    <HeaderButton icon="call" />
+                    <HeaderButton icon="videocam" />
+                    <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-800 mx-2 hidden sm:block"></div>
+                    <HeaderButton icon="info" />
                 </div>
-            </div>
+            </header>
 
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-                <div className="flex flex-col gap-4">
-                    {isLoading && <div className="text-center text-sm">Loading messages...</div>}
-                    {allMessages.map((msg, i) => {
-                        const currentUserId = currentUser?.id;
-                        const isSelf = String(msg.senderId) === String(currentUserId) || msg.senderId === 'me';
+            {/* Message Area */}
+            <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 hidden-scrollbar bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent">
+                <div className="flex justify-center my-4">
+                    <span className="px-4 py-1 rounded-full bg-slate-100 dark:bg-slate-800/50 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Today</span>
+                </div>
 
-                        return (
-                            <div key={msg._id || i} className={`flex w-full ${isSelf ? "justify-end" : "justify-start"}`}>
-                                <div
-                                    className={`max-w-[75%] px-4 py-2 shadow-sm rounded-xl ${isSelf
-                                        ? "bg-primary text-primary-foreground rounded-tr-none shadow-primary/20"
-                                        : "bg-white dark:bg-zinc-800 text-foreground border dark:border-zinc-700 rounded-tl-none"
-                                        }`}
-                                >
-                                    <div className="text-sm leading-relaxed break-words">
-                                        {msg.content}
-                                    </div>
-                                    <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isSelf ? "text-green-100" : "text-muted-foreground"}`}>
-                                        {msg.status === 'SENDING' && <span className="animate-pulse">Sending...</span>}
+                {isLoading && <div className="text-center text-sm text-slate-500">Loading messages...</div>}
+
+                {allMessages.map((msg, i) => {
+                    const isSelf = String(msg.senderId) === String(currentUser?.id) || msg.senderId === 'me';
+                    return (
+                        <div key={msg._id || i} className={cn("flex gap-3 max-w-[80%]", isSelf ? "ml-auto flex-row-reverse" : "mr-auto")}>
+                            {!isSelf && (
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 self-end mb-1 shrink-0">
+                                    <img alt="User" src={`https://api.dicebear.com/7.x/beta/svg?seed=${msg.senderId}`} className="w-full h-full object-cover" />
+                                </div>
+                            )}
+                            <div className={cn("flex flex-col gap-1", isSelf ? "items-end" : "items-start")}>
+                                <div className={cn(
+                                    "px-5 py-3 rounded-2xl shadow-sm leading-relaxed text-sm",
+                                    isSelf
+                                        ? "bg-primary text-white rounded-br-none shadow-primary/20"
+                                        : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none"
+                                )}>
+                                    {msg.content}
+                                </div>
+                                <div className="flex items-center gap-1 mx-2">
+                                    <span className="text-[10px] text-slate-400 font-medium">
                                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
+                                    </span>
+                                    {isSelf && (
+                                        <span className="material-symbols-outlined text-[14px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                            check_circle
+                                        </span>
+                                    )}
                                 </div>
                             </div>
-                        )
-                    })}
-                    <div ref={scrollRef} />
-                </div>
-            </ScrollArea>
-
-            {/* Input Overlay with BlockGuard */}
-            <div className="p-4 bg-background border-t">
-                {otherUserId ? (
-                    <BlockGuard userId={String(otherUserId)}>
-                        <div className="flex items-center gap-2">
-                            <Input
-                                placeholder="Type a message..."
-                                className="flex-1"
-                                value={input}
-                                onChange={handleTyping}
-                                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                            />
-                            <Button size="icon" onClick={handleSend}>
-                                <Send className="h-4 w-4" />
-                            </Button>
                         </div>
-                    </BlockGuard>
-                ) : (
-                    <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
-                        Select a chat to start messaging
-                    </div>
-                )}
+                    )
+                })}
+                <div ref={scrollRef} />
             </div>
+
+            {/* Bottom Input Tray */}
+            <footer className="p-6 bg-white dark:bg-background-dark/95 border-t border-slate-200 dark:border-slate-800 transition-all">
+                <div className="max-w-4xl mx-auto flex items-end gap-3 px-4">
+                    <div className="flex items-center gap-1 mb-1">
+                        <IconButton icon="add_circle" />
+                        <IconButton icon="mood" />
+                    </div>
+                    <div className="flex-1 relative">
+                        <textarea
+                            className="w-full py-3 px-5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-primary/20 resize-none max-h-32 text-sm leading-relaxed placeholder:text-slate-500 outline-none transition-all"
+                            placeholder="Type a message..."
+                            rows={1}
+                            value={input}
+                            onChange={handleTyping}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
+                        />
+                    </div>
+                    <button
+                        onClick={handleSend}
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center bg-primary text-white shadow-lg shadow-primary/30 hover:scale-105 transition-all active:scale-95"
+                    >
+                        <span className="material-symbols-outlined rotate-[-45deg] mb-0.5 ml-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+                    </button>
+                </div>
+            </footer>
         </div>
+    )
+}
+
+function HeaderButton({ icon }: { icon: string }) {
+    return (
+        <button className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
+            <span className="material-symbols-outlined transition-transform group-active:scale-90">{icon}</span>
+        </button>
+    )
+}
+
+function IconButton({ icon }: { icon: string }) {
+    return (
+        <button className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
+            <span className="material-symbols-outlined transition-transform group-active:scale-90">{icon}</span>
+        </button>
     )
 }

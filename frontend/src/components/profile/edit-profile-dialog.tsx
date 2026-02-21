@@ -5,28 +5,25 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Camera } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
     Dialog,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
     DialogTrigger,
-    DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
 const profileSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     username: z.string().min(3, "Username must be at least 3 characters"),
     bio: z.string().max(160, "Bio must be at most 160 characters").optional(),
+    location: z.string().optional(),
+    website: z.string().optional(),
     avatarUrl: z.string().url("Invalid URL").or(z.literal("")).optional().nullable(),
+    coverUrl: z.string().url("Invalid URL").or(z.literal("")).optional().nullable(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -51,18 +48,23 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
             name: "",
             username: "",
             bio: "",
+            location: "",
+            website: "",
             avatarUrl: "",
+            coverUrl: "",
         },
     });
 
-    // Sync form with user data when dialog opens
     useEffect(() => {
         if (open && user) {
             reset({
                 name: user.name,
                 username: user.username,
                 bio: user.bio || "",
+                location: "San Francisco, CA", // Placeholder
+                website: "alexrivera.design", // Placeholder
                 avatarUrl: user.avatarUrl || "",
+                coverUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDkT_S_emkmhBPd3hj4lHCLieCjlKjw-iWzJZF5Dj_rryO7vtVxmscQpp_b7HOelm6nMv12vaNuXFga_XA_H5nCy5KsKLhg34FSaiFPPm91YhiwVdnFkCMpQRMpA7XevQV7qRKgi9uqTmSnwKctLTWZwEOZdkOn4nqsIaor3ySwePaNLKtpZNB96MXgvPDLqeBa1eGSA0KeaGhelqXxAKruWEXgG0anCSpT9IYoMdXhO3Ou0F_FMS_Zds3SVc7Qq-7eEHc_7DrkGW8",
             });
         }
     }, [open, user, reset]);
@@ -75,11 +77,7 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
                     if (user) {
                         queryClient.invalidateQueries({ queryKey: ["profile", user.username] });
                     }
-                    if (data.username !== user?.username) {
-                        // If username changed, we might need to redirect, 
-                        // but for now let's just invalidate.
-                        queryClient.invalidateQueries({ queryKey: ["profile", data.username] });
-                    }
+                    toast.success("Profile updated successfully");
                     setOpen(false);
                 },
                 onError: () => {
@@ -96,102 +94,146 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                {trigger || <Button variant="outline">Edit Profile</Button>}
+                {trigger || (
+                    <button className="px-6 py-2 rounded-full border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        Edit Profile
+                    </button>
+                )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Edit Profile</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
-                    {/* Avatar Preview & URL */}
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="relative group">
-                            <Avatar className="h-24 w-24 border-2 border-primary/10">
-                                <AvatarImage src={user.avatarUrl || undefined} />
-                                <AvatarFallback className="text-xl">
-                                    {user.name.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Camera className="w-6 h-6 text-white" />
+            <DialogContent className="max-w-[600px] p-0 overflow-hidden border-slate-200 dark:border-slate-800 bg-background-light dark:bg-background-dark max-h-[90vh] flex flex-col rounded-2xl">
+                <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
+                    {/* Header */}
+                    <header className="flex items-center justify-between px-4 py-3 sticky top-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md z-30 border-b border-slate-200 dark:border-slate-800 transition-all">
+                        <div className="flex items-center gap-6">
+                            <button
+                                type="button"
+                                onClick={() => setOpen(false)}
+                                className="size-9 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-xl">close</span>
+                            </button>
+                            <h2 className="text-xl font-bold tracking-tight">Edit Profile</h2>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isUpdatingProfile || !isDirty}
+                            className="bg-primary hover:bg-primary/90 text-white font-bold py-1.5 px-6 rounded-full transition-all text-sm shadow-lg shadow-primary/20 disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
+                        >
+                            {isUpdatingProfile && <Loader2 className="size-4 animate-spin" />}
+                            Save
+                        </button>
+                    </header>
+
+                    {/* Scrollable Content */}
+                    <div className="overflow-y-auto hidden-scrollbar flex-1 pb-8">
+                        {/* Media Section */}
+                        <div className="relative mb-4">
+                            {/* Cover Photo Update */}
+                            <div className="h-48 w-full bg-slate-800 relative group overflow-hidden">
+                                <div
+                                    className="w-full h-full bg-cover bg-center opacity-70 transition-transform group-hover:scale-105 duration-700"
+                                    style={{ backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuDkT_S_emkmhBPd3hj4lHCLieCjlKjw-iWzJZF5Dj_rryO7vtVxmscQpp_b7HOelm6nMv12vaNuXFga_XA_H5nCy5KsKLhg34FSaiFPPm91YhiwVdnFkCMpQRMpA7XevQV7qRKgi9uqTmSnwKctLTWZwEOZdkOn4nqsIaor3ySwePaNLKtpZNB96MXgvPDLqeBa1eGSA0KeaGhelqXxAKruWEXgG0anCSpT9IYoMdXhO3Ou0F_FMS_Zds3SVc7Qq-7eEHc_7DrkGW8')` }}
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center gap-4 bg-black/20 group-hover:bg-black/30 transition-all">
+                                    <button type="button" className="size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20">
+                                        <span className="material-symbols-outlined">add_a_photo</span>
+                                    </button>
+                                    <button type="button" className="size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20">
+                                        <span className="material-symbols-outlined">close</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Avatar Update */}
+                            <div className="px-6 relative -mt-14">
+                                <div className="size-28 rounded-full border-4 border-background-light dark:border-background-dark bg-slate-200 overflow-hidden relative group shadow-xl">
+                                    <img
+                                        alt="Avatar preview"
+                                        className="w-full h-full object-cover opacity-80"
+                                        src={user.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuC6XQDdldxZ14dMrKRDcPZeXH8AYNsmhSFFfDlWgOqbioiu8K_8_VnkwKCK_M0JLBJBiZigdWO-ttT8kUJyZmy7hHg2r8IzezDAA-rDfJjriM9hF_Velnw5yII7ROO6yekYPVPqBgFMQUuE68b3sU8vcYaVjVXzsJMfBPZYn5uau7lZJlVEaH96IGtPOZ0vRT8fQdtReMfgRfmmhjvY2dsbHhUehUT3HK95BdmWFNYTr5lrgrA349kFs06-xQB2LLkyp0ZbQ_8OWoI"}
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-all cursor-pointer">
+                                        <button type="button" className="size-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20">
+                                            <span className="material-symbols-outlined text-[20px]">add_a_photo</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div className="w-full space-y-2">
-                            <Label htmlFor="avatarUrl">Avatar URL</Label>
-                            <Input
-                                id="avatarUrl"
-                                placeholder="https://example.com/avatar.jpg"
-                                {...register("avatarUrl")}
+
+                        {/* Form Inputs */}
+                        <div className="px-6 flex flex-col gap-6">
+                            <FormField
+                                id="name"
+                                label="Name"
+                                register={register("name")}
+                                error={errors.name?.message}
                                 disabled={isUpdatingProfile}
-                                className="h-9"
                             />
-                            {errors.avatarUrl && (
-                                <p className="text-xs text-destructive">{errors.avatarUrl.message}</p>
-                            )}
+
+                            <div className="relative group">
+                                <label className="absolute left-4 top-2 z-10 text-[10px] font-bold text-slate-500 uppercase tracking-wider group-focus-within:text-primary transition-colors">Bio</label>
+                                <textarea
+                                    className={cn(
+                                        "w-full bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl pt-7 pb-4 px-4 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none min-h-[120px] text-[15px] leading-relaxed",
+                                        errors.bio && "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                                    )}
+                                    {...register("bio")}
+                                    disabled={isUpdatingProfile}
+                                />
+                                {errors.bio && <p className="mt-1 ml-2 text-xs text-red-500 font-medium">{errors.bio.message}</p>}
+                            </div>
+
+                            <FormField
+                                id="location"
+                                label="Location"
+                                register={register("location")}
+                                error={errors.location?.message}
+                                disabled={isUpdatingProfile}
+                            />
+
+                            <FormField
+                                id="website"
+                                label="Website"
+                                register={register("website")}
+                                error={errors.website?.message}
+                                disabled={isUpdatingProfile}
+                            />
                         </div>
                     </div>
-
-                    {/* Name */}
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Display Name</Label>
-                        <Input
-                            id="name"
-                            placeholder="Your Name"
-                            {...register("name")}
-                            disabled={isUpdatingProfile}
-                        />
-                        {errors.name && (
-                            <p className="text-xs text-destructive">{errors.name.message}</p>
-                        )}
-                    </div>
-
-                    {/* Username */}
-                    <div className="grid gap-2">
-                        <Label htmlFor="username">Username</Label>
-                        <Input
-                            id="username"
-                            placeholder="username"
-                            {...register("username")}
-                            disabled={isUpdatingProfile}
-                        />
-                        {errors.username && (
-                            <p className="text-xs text-destructive">{errors.username.message}</p>
-                        )}
-                    </div>
-
-                    {/* Bio */}
-                    <div className="grid gap-2">
-                        <Label htmlFor="bio">Bio</Label>
-                        <textarea
-                            id="bio"
-                            className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                            placeholder="Tell us about yourself..."
-                            {...register("bio")}
-                            disabled={isUpdatingProfile}
-                        />
-                        {errors.bio && (
-                            <p className="text-xs text-destructive">{errors.bio.message}</p>
-                        )}
-                    </div>
-
-                    <DialogFooter className="pt-4">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setOpen(false)}
-                            disabled={isUpdatingProfile}
-                        >
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={isUpdatingProfile || !isDirty}>
-                            {isUpdatingProfile && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Save Changes
-                        </Button>
-                    </DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function FormField({ id, label, register, error, disabled, type = "text" }: {
+    id: string;
+    label: string;
+    register: any;
+    error?: string;
+    disabled?: boolean;
+    type?: string;
+}) {
+    return (
+        <div className="relative group">
+            <label
+                htmlFor={id}
+                className="absolute left-4 top-2 z-10 text-[10px] font-bold text-slate-500 uppercase tracking-wider group-focus-within:text-primary transition-colors"
+            >
+                {label}
+            </label>
+            <input
+                id={id}
+                type={type}
+                className={cn(
+                    "w-full bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl pt-7 pb-3 px-4 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-[15px]",
+                    error && "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+                )}
+                {...register}
+                disabled={disabled}
+            />
+            {error && <p className="mt-1 ml-2 text-xs text-red-500 font-medium">{error}</p>}
+        </div>
     );
 }

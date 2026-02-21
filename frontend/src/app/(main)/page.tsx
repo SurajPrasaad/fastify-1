@@ -1,77 +1,95 @@
+"use client"
+
+import * as React from "react"
 import { FeedList } from "@/components/feed/feed-list"
 import { Post } from "@/components/feed/post-card"
 import { PostComposer } from "@/components/feed/post-composer"
-import { postService } from "@/services/post.service"
+import { cn } from "@/lib/utils"
 
-export const dynamic = "force-dynamic";
+export default function FeedPage() {
+    const [activeTab, setActiveTab] = React.useState<"for-you" | "following">("for-you")
+    const [posts, setPosts] = React.useState<Post[]>([])
 
-async function getInitialPosts(): Promise<Post[]> {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
-    try {
-        console.log(`FeedPage: Fetching from ${API_URL}/posts`);
-        const res = await fetch(`${API_URL}/posts`, { cache: 'no-store' });
+    React.useEffect(() => {
+        const fetchPosts = async () => {
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
+            try {
+                const res = await fetch(`${API_URL}/posts`);
+                if (!res.ok) return;
+                const data = await res.json();
 
-        if (!res.ok) {
-            console.error(`FeedPage: Fetch failed with status ${res.status}: ${res.statusText}`);
-            return [];
-        }
+                const mappedPosts = data.map((p: any) => ({
+                    id: p.id,
+                    userId: p.userId,
+                    author: {
+                        username: p.author?.username || "anonymous",
+                        displayName: p.author?.name || "Anonymous",
+                        avatarUrl: p.author?.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${p.userId}`,
+                        isVerified: true,
+                    },
+                    content: p.content,
+                    media: p.mediaUrls?.map((url: string) => ({ type: "image", url })),
+                    stats: {
+                        likes: p.likesCount || 0,
+                        comments: p.commentsCount || 0,
+                        shares: 0,
+                    },
+                    createdAt: new Date(p.createdAt),
+                    isLiked: !!p.isLiked,
+                    isBookmarked: !!p.isBookmarked,
+                }));
+                setPosts(mappedPosts);
+            } catch (error) {
+                console.error("Failed to fetch posts:", error);
+            }
+        };
 
-        const data = await res.json();
-        console.log(`FeedPage: Received ${data?.length} posts`);
-
-        if (!Array.isArray(data)) {
-            console.error("FeedPage: Received non-array data:", data);
-            return [];
-        }
-
-        // Map backend DTO to frontend Post interface
-        return data.map((p: any) => ({
-            id: p.id,
-            userId: p.userId,
-            author: {
-                username: p.author?.username || "anonymous",
-                displayName: p.author?.name || "Anonymous",
-                avatarUrl: p.author?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.userId}`,
-                isVerified: false,
-            },
-            content: p.content,
-            media: p.mediaUrls?.map((url: string) => {
-                const isVideo = url.toLowerCase().match(/\.(mp4|webm|ogg|mov)$/) || url.includes('/video/upload/');
-                return {
-                    type: isVideo ? "video" : "image",
-                    url,
-                };
-            }),
-            stats: {
-                likes: p.likesCount || 0,
-                comments: p.commentsCount || 0,
-                shares: 0,
-            },
-            createdAt: new Date(p.createdAt),
-            isLiked: !!p.isLiked,
-            isBookmarked: !!p.isBookmarked,
-        }));
-    } catch (error) {
-        console.error("Failed to fetch posts:", error);
-        return [];
-    }
-}
-
-export default async function FeedPage() {
-    const posts = await getInitialPosts();
+        fetchPosts();
+    }, []);
 
     return (
-        <div className="flex flex-col gap-4">
-            {/* Feed Header (Mobile) or just spacers */}
-            <h1 className="text-2xl font-bold px-4 py-4 md:hidden">Home</h1>
+        <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark">
+            {/* Sticky Header Tabs */}
+            <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50">
+                <div className="flex w-full">
+                    <TabItem
+                        label="For You"
+                        active={activeTab === "for-you"}
+                        onClick={() => setActiveTab("for-you")}
+                    />
+                    <TabItem
+                        label="Following"
+                        active={activeTab === "following"}
+                        onClick={() => setActiveTab("following")}
+                    />
+                </div>
+            </header>
 
-            {/* Create Post Composer */}
-            <div className="hidden sm:block">
+            {/* Composer */}
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800/50">
                 <PostComposer />
             </div>
 
-            {/* The Infinite Feed */}
-            <FeedList initialPosts={posts} />
+            {/* The Feed */}
+            <div className="flex-1">
+                <FeedList initialPosts={posts} />
+            </div>
         </div>
+    )
+}
+
+function TabItem({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            className={cn(
+                "flex-1 py-4 text-sm font-bold transition-all border-b-2",
+                active
+                    ? "border-primary text-slate-900 dark:text-slate-100"
+                    : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            )}
+        >
+            {label}
+        </button>
     )
 }
