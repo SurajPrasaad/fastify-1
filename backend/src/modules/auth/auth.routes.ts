@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
 import { AuthRepository } from "./auth.repository.js";
-import { registerSchema, loginSchema, verify2FASchema, verify2FALoginSchema, userResponseSchema, verifyEmailSchema, googleLoginSchema } from "./auth.schema.js";
+import { registerSchema, loginSchema, verify2FASchema, verify2FALoginSchema, userResponseSchema, verifyEmailSchema, googleLoginSchema, changePasswordSchema } from "./auth.schema.js";
 import { requireAuth } from "../../middleware/auth.js";
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -126,6 +126,19 @@ export async function authRoutes(fastify: FastifyInstance) {
             }
         },
         authController.verify2FAHandler
+    );
+
+    fastify.withTypeProvider<ZodTypeProvider>().post(
+        "/password/change",
+        {
+            preHandler: requireAuth,
+            schema: {
+                body: changePasswordSchema,
+                description: "Change user password",
+                tags: ["Auth"],
+            }
+        },
+        authController.changePasswordHandler
     );
 
     fastify.withTypeProvider<ZodTypeProvider>().post(

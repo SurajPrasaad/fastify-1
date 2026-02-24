@@ -15,6 +15,12 @@ export const users = pgTable("users", {
     status: text("status").$type<"ACTIVE" | "DEACTIVATED" | "SUSPENDED" | "DELETED">().default("ACTIVE").notNull(),
     regionAffinity: varchar("region_affinity", { length: 20 }), // For multi-region routing
     techStack: jsonb("tech_stack").$type<string[]>().default([]),
+    website: text("website"),
+    location: text("location"),
+    coverUrl: text("cover_url"),
+    phoneNumber: text("phone_number"),
+    passwordChangedAt: timestamp("password_changed_at"),
+    subscriptionPlan: text("subscription_plan").$type<"FREE" | "PREMIUM" | "PREMIUM_PRO">().default("FREE").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -476,6 +482,35 @@ export const notificationSettings = pgTable("notification_settings", {
     quietHoursStart: text("quiet_hours_start"), // e.g., "22:00"
     quietHoursEnd: text("quiet_hours_end"), // e.g., "07:00"
     timezone: text("timezone").default("UTC").notNull(),
+    granularSettings: jsonb("granular_settings").$type<{
+        push: {
+            likes: boolean;
+            comments: boolean;
+            mentions: boolean;
+            follows: boolean;
+            reposts: boolean;
+            messages: boolean;
+        },
+        email: {
+            weeklySummary: boolean;
+            securityAlerts: boolean;
+            productUpdates: boolean;
+        }
+    }>().default({
+        push: {
+            likes: true,
+            comments: true,
+            mentions: true,
+            follows: true,
+            reposts: true,
+            messages: true,
+        },
+        email: {
+            weeklySummary: true,
+            securityAlerts: true,
+            productUpdates: false,
+        }
+    }).notNull(),
 });
 
 export const bookmarks = pgTable("bookmarks", {

@@ -56,7 +56,7 @@ export const AuthService = {
         return api.get(`/auth/verify-email?token=${token}`);
     },
 
-    setup2FA: async (): Promise<{ secret: string; qrCode: string }> => {
+    setup2FA: async (): Promise<{ secret: string; qrCodeUrl: string }> => {
         return api.post("/auth/2fa/setup");
     },
 
@@ -76,5 +76,17 @@ export const AuthService = {
         }
 
         return response;
+    },
+
+    changePassword: async (data: any): Promise<{ message: string }> => {
+        return api.post("/auth/password/change", data);
+    },
+
+    deactivateAccount: async (): Promise<{ message: string }> => {
+        return api.post("/users/me/deactivate");
+    },
+
+    deleteAccount: async (): Promise<{ message: string }> => {
+        return api.delete("/users/me");
     },
 };

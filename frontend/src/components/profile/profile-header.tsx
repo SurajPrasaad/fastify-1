@@ -33,11 +33,15 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
         <div className="flex flex-col">
             {/* Cover Photo */}
             <div className="relative w-full">
-                <div className="h-48 w-full bg-gradient-to-br from-primary/30 to-purple-600/30 overflow-hidden">
-                    <div
-                        className="w-full h-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${profile.coverUrl || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200'})` }}
-                    />
+                <div className="h-48 w-full bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
+                    {profile.coverUrl ? (
+                        <div
+                            className="w-full h-full bg-cover bg-center transition-opacity duration-500"
+                            style={{ backgroundImage: `url(${profile.coverUrl})` }}
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/5 to-purple-600/20" />
+                    )}
                 </div>
 
                 {/* Avatar & Action Button Area */}

@@ -9,7 +9,7 @@ export interface UserAuth {
     isEmailVerified: boolean;
     twoFactorEnabled: boolean;
     role: string;
-    status: string;
+    status: "ACTIVE" | "DEACTIVATED" | "SUSPENDED" | "DELETED";
     activeSessionsCount: number;
     lastLoginAt?: string;
 }
@@ -25,6 +25,12 @@ export interface UserResponse {
     name: string;
     bio: string | null;
     avatarUrl: string | null;
+    coverUrl: string | null;
+    website: string | null;
+    location: string | null;
+    phoneNumber: string | null;
+    subscriptionPlan: "FREE" | "PREMIUM" | "PREMIUM_PRO";
+    passwordChangedAt: string | null;
     profile: UserProfile;
     auth: UserAuth;
     connectedAccounts: ConnectedAccount[];
@@ -39,13 +45,7 @@ export interface AuthTokens {
 export interface LoginResponse {
     message: string;
     accessToken: string;
-    user: {
-        id: string;
-        email: string;
-        name: string;
-        username: string;
-        avatarUrl: string | null;
-    };
+    user: UserResponse;
     mfaRequired?: boolean;
     tempToken?: string;
     userId?: string;
@@ -54,11 +54,5 @@ export interface LoginResponse {
 export interface RegisterResponse {
     message: string;
     accessToken: string;
-    user: {
-        id: string;
-        email: string;
-        name: string;
-        username: string;
-        avatarUrl: string | null;
-    };
+    user: UserResponse;
 }

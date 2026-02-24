@@ -1,6 +1,6 @@
 import { redis } from "../../config/redis.js";
 import { UserRepository } from "./user.repository.js";
-import type { CreateUserDto, UpdateUserDto } from "./user.dto.js";
+import type { CreateUserDto, UpdateUserDto, UpdateUserPrivacyDto, NotificationSettingsDto, UpdateNotificationSettingsDto } from "./user.dto.js";
 import { AppError } from "../../utils/AppError.js";
 import { triggerFollowNotification } from "../notification/notification.triggers.js";
 
@@ -43,6 +43,9 @@ export class UserService {
       name: user.name,
       bio: user.bio || null,
       avatarUrl: user.avatarUrl || null,
+      coverUrl: user.coverUrl || null,
+      website: user.website || null,
+      location: user.location || null,
       profile: {
         techStack: user.techStack || [],
         followersCount: user.followersCount,
@@ -102,11 +105,23 @@ export class UserService {
   }
 
   async updateProfile(userId: string, data: UpdateUserDto) {
-    const user = await this.userRepository.update(userId, data);
-    if (!user) throw new AppError("User not found", 404);
+    const existingUser = await this.userRepository.findById(userId);
+    if (!existingUser) throw new AppError("User not found", 404);
 
-    // Invalidate cache
-    await redis.del(`user:profile:${user.username}`);
+    if (data.username && data.username !== existingUser.username) {
+      const isTaken = await this.userRepository.findByUsername(data.username);
+      if (isTaken) throw new AppError("Username already taken", 409);
+    }
+
+    const user = await this.userRepository.update(userId, data);
+    if (!user) throw new AppError("Failed to update profile", 500);
+
+    // Invalidate cache for both old and new username if it changed
+    await redis.del(`user:profile:${existingUser.username}`);
+    if (data.username) {
+      await redis.del(`user:profile:${data.username}`);
+    }
+
     return user;
   }
 
@@ -148,5 +163,95 @@ export class UserService {
     }));
 
     return enrichedFollowing;
+  }
+
+  async getPrivacy(userId: string) {
+    return this.userRepository.getPrivacy(userId);
+  }
+
+  async updatePrivacy(userId: string, data: UpdateUserPrivacyDto) {
+    return this.userRepository.updatePrivacy(userId, data);
+  }
+  async getSecurity(userId: string, currentSessionId?: string) {
+    const data = await this.userRepository.getSecurityOverview(userId);
+
+    return {
+      ...data,
+      sessions: data.sessions.map(s => ({
+        id: s.id,
+        deviceId: s.deviceId,
+        ipAddress: s.ipAddress,
+        userAgent: s.userAgent,
+        lastActiveAt: s.lastActiveAt,
+        isCurrent: s.id === currentSessionId,
+      })),
+    };
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    return this.userRepository.revokeSession(userId, sessionId);
+  }
+
+  async revokeApp(userId: string, appId: string) {
+    return this.userRepository.revokeApp(userId, appId);
+  }
+
+  async getNotificationSettings(userId: string): Promise<NotificationSettingsDto> {
+    const settings = await this.userRepository.getNotificationSettings(userId);
+    if (!settings) throw new AppError("Failed to fetch notification settings", 500);
+
+    return {
+      pushNotifications: {
+        likes: settings.granularSettings.push.likes,
+        comments: settings.granularSettings.push.comments,
+        mentions: settings.granularSettings.push.mentions,
+        follows: settings.granularSettings.push.follows,
+        reposts: settings.granularSettings.push.reposts,
+        messages: settings.granularSettings.push.messages,
+      },
+      emailNotifications: {
+        weeklySummary: settings.granularSettings.email.weeklySummary,
+        securityAlerts: settings.granularSettings.email.securityAlerts,
+        productUpdates: settings.granularSettings.email.productUpdates,
+      }
+    };
+  }
+
+  async updateNotificationSettings(userId: string, data: UpdateNotificationSettingsDto): Promise<NotificationSettingsDto> {
+    const current = await this.userRepository.getNotificationSettings(userId);
+    if (!current) throw new AppError("Settings not found", 404);
+
+    const updatedGranular = {
+      push: {
+        ...current.granularSettings.push,
+        ...data.pushNotifications
+      },
+      email: {
+        ...current.granularSettings.email,
+        ...data.emailNotifications
+      }
+    };
+
+    const updated = await this.userRepository.updateNotificationSettings(userId, {
+      granularSettings: updatedGranular
+    });
+
+    if (!updated) throw new AppError("Failed to update settings", 500);
+
+    return {
+      pushNotifications: {
+        likes: updated.granularSettings.push.likes,
+        comments: updated.granularSettings.push.comments,
+        mentions: updated.granularSettings.push.mentions,
+        follows: updated.granularSettings.push.follows,
+        reposts: updated.granularSettings.push.reposts,
+        messages: updated.granularSettings.push.messages,
+      },
+      emailNotifications: {
+        weeklySummary: updated.granularSettings.email.weeklySummary,
+        securityAlerts: updated.granularSettings.email.securityAlerts,
+        productUpdates: updated.granularSettings.email.productUpdates,
+      }
+    };
   }
 }

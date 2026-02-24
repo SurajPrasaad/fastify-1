@@ -90,7 +90,7 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
     const canPost = (content.trim().length > 0 || selectedGifs.length > 0 || selectedImages.length > 0 || poll) && !isPosting
 
     return (
-        <div className="flex gap-4 p-4 border-b border-slate-800">
+        <div className="flex gap-4 px-4 py-3 border-b border-slate-800">
             <div className="size-12 rounded-full bg-slate-500 overflow-hidden shrink-0">
                 <img
                     className="w-full h-full object-cover"

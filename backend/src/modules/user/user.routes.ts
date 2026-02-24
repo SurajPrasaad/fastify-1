@@ -13,6 +13,13 @@ import {
     getAllUsersSchema,
     updateProfileRouteSchema,
     getFollowsSchema,
+    getUserPrivacySchema,
+    updatePrivacyRouteSchema,
+    getSecuritySchema,
+    revokeSessionRouteSchema,
+    revokeAppRouteSchema,
+    getNotificationSettingsRouteSchema,
+    updateNotificationSettingsRouteSchema,
 } from "./user.schema.js";
 
 import { requireAuth } from "../../middleware/auth.js";
@@ -152,6 +159,84 @@ export async function userRoutes(fastify: FastifyInstance) {
                 }
             },
             getUserLikedPostsHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().post(
+            "/me/deactivate",
+            {
+                schema: {
+                    tags: ["Account"],
+                    description: "Deactivate account",
+                }
+            },
+            userController.deactivateAccountHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().delete(
+            "/me",
+            {
+                schema: {
+                    tags: ["Account"],
+                    description: "Delete account",
+                }
+            },
+            userController.deleteAccountHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().get(
+            "/me/privacy",
+            {
+                schema: getUserPrivacySchema,
+            },
+            userController.getPrivacyHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().patch(
+            "/me/privacy",
+            {
+                schema: updatePrivacyRouteSchema,
+            },
+            userController.updatePrivacyHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().get(
+            "/me/security",
+            {
+                schema: getSecuritySchema,
+            },
+            userController.getSecurityHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().delete(
+            "/me/security/sessions/:sessionId",
+            {
+                schema: revokeSessionRouteSchema,
+            },
+            userController.revokeSessionHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().delete(
+            "/me/security/apps/:appId",
+            {
+                schema: revokeAppRouteSchema,
+            },
+            userController.revokeAppHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().get(
+            "/me/notifications/settings",
+            {
+                schema: getNotificationSettingsRouteSchema,
+            },
+            userController.getNotificationSettingsHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().patch(
+            "/me/notifications/settings",
+            {
+                schema: updateNotificationSettingsRouteSchema,
+            },
+            userController.updateNotificationSettingsHandler
         );
     });
 }

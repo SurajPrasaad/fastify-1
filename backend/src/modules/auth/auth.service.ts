@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { sendVerificationEmail } from "../../utils/email.js";
 import { AuthRepository } from "./auth.repository.js";
-import type { RegisterDto, LoginDto } from "./auth.dto.js";
+import type { RegisterDto, LoginDto, ChangePasswordDto } from "./auth.dto.js";
 import { AppError } from "../../utils/AppError.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -177,7 +177,13 @@ export class AuthService {
             email: user.email,
             name: user.name,
             bio: user.bio,
-            avatarUrl: user.avatarUrl,
+            avatarUrl: user.avatarUrl || null,
+            coverUrl: user.coverUrl || null,
+            website: user.website || null,
+            location: user.location || null,
+            phoneNumber: user.phoneNumber || null,
+            subscriptionPlan: user.subscriptionPlan,
+            passwordChangedAt: user.passwordChangedAt,
             profile: {
                 techStack: user.techStack,
                 followersCount: user.followersCount,
@@ -187,7 +193,7 @@ export class AuthService {
                 isEmailVerified: user.isEmailVerified,
                 twoFactorEnabled,
                 role: "user", // Static for now
-                status: "active", // Static for now or derive from user state 
+                status: user.status,
                 activeSessionsCount,
                 lastLoginAt: lastLoginAt || user.createdAt, // Fallback to createdAt
             },
@@ -286,6 +292,25 @@ export class AuthService {
         // Generate QR Code
         const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
         return { secret: secret.base32, qrCodeUrl };
+    }
+
+    async verify2FALoginWithBackupCode(userId: string, code: string) {
+        // Implementation for backup codes
+    }
+
+    async changePassword(userId: string, data: ChangePasswordDto) {
+        const user = await this.authRepository.findUserById(userId);
+        if (!user || !user.password) {
+            throw new AppError("User not found or password not set", 400);
+        }
+
+        const isValid = await bcrypt.compare(data.currentPassword, user.password);
+        if (!isValid) {
+            throw new AppError("Invalid current password", 401);
+        }
+
+        const passwordHash = await bcrypt.hash(data.newPassword, 12);
+        await this.authRepository.updatePassword(userId, passwordHash);
     }
 
     async verify2FA(userId: string, token: string) {

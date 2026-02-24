@@ -1,13 +1,14 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { AuthService } from "./auth.service.js";
-import type { RegisterInput, LoginInput, RefreshTokenInput, Verify2FAInput, Verify2FALoginInput } from "./auth.schema.js";
+import type { RegisterDto, LoginDto, ChangePasswordDto } from "./auth.dto.js";
+import type { Verify2FAInput, Verify2FALoginInput } from "./auth.schema.js";
 import { AppError } from "../../utils/AppError.js";
 
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   registerHandler = async (
-    request: FastifyRequest<{ Body: RegisterInput }>,
+    request: FastifyRequest<{ Body: RegisterDto }>,
     reply: FastifyReply
   ) => {
     const meta = {
@@ -27,6 +28,10 @@ export class AuthController {
         name: user.name,
         username: user.username,
         avatarUrl: user.avatarUrl,
+        coverUrl: user.coverUrl,
+        bio: user.bio,
+        website: user.website,
+        location: user.location,
       },
     });
   };
@@ -44,7 +49,7 @@ export class AuthController {
   };
 
   loginHandler = async (
-    request: FastifyRequest<{ Body: LoginInput }>,
+    request: FastifyRequest<{ Body: LoginDto }>,
     reply: FastifyReply
   ) => {
     const meta = {
@@ -73,6 +78,10 @@ export class AuthController {
         name: result.user.name,
         username: result.user.username,
         avatarUrl: result.user.avatarUrl,
+        coverUrl: result.user.coverUrl,
+        bio: result.user.bio,
+        website: result.user.website,
+        location: result.user.location,
       },
     });
   };
@@ -99,6 +108,10 @@ export class AuthController {
         name: user.name,
         username: user.username,
         avatarUrl: user.avatarUrl,
+        coverUrl: user.coverUrl,
+        bio: user.bio,
+        website: user.website,
+        location: user.location,
       }
     });
   };
@@ -151,6 +164,10 @@ export class AuthController {
         name: user!.name,
         username: user!.username,
         avatarUrl: user!.avatarUrl,
+        coverUrl: user!.coverUrl,
+        bio: user!.bio,
+        website: user!.website,
+        location: user!.location,
       },
     });
   };
@@ -202,6 +219,17 @@ export class AuthController {
     const userId = request.user.sub;
     const user = await this.authService.getMe(userId);
     return reply.status(200).send(user);
+  };
+
+  changePasswordHandler = async (
+    request: FastifyRequest,
+    reply: FastifyReply
+  ) => {
+    // @ts-ignore
+    const userId = request.user.sub;
+    const body = request.body as ChangePasswordDto;
+    await this.authService.changePassword(userId, body);
+    return reply.status(200).send({ message: "Password changed successfully" });
   };
 
   private setRefreshTokenCookie(reply: FastifyReply, token: string) {

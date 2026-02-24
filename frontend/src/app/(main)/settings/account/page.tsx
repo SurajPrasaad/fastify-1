@@ -1,12 +1,70 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Switch } from "@/components/ui/switch";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Loader2, Shield, Info, AlertTriangle, CheckCircle2, Crown, Trash2, Power } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
-export default function SettingsAccountPage() {
-    const { user } = useAuth();
+const accountSchema = z.object({
+    email: z.string().email("Invalid email address"),
+    phoneNumber: z.string().max(20).optional().nullable(),
+});
+
+type AccountFormValues = z.infer<typeof accountSchema>;
+
+export default function AccountSettingsPage() {
+    const { user, updateProfile, isUpdatingProfile, deactivateAccount, deleteAccount, logout } = useAuth();
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+
+    const {
+        register,
+        handleSubmit,
+        reset,
+        formState: { errors, isDirty },
+    } = useForm<AccountFormValues>({
+        resolver: zodResolver(accountSchema),
+        defaultValues: {
+            email: "",
+            phoneNumber: "",
+        },
+    });
+
+    useEffect(() => {
+        if (user) {
+            reset({
+                email: user.email,
+                phoneNumber: user.phoneNumber || "",
+            });
+            setIs2FAEnabled(user.auth?.twoFactorEnabled || false);
+        }
+    }, [user, reset]);
+
+    const onSubmit = (data: AccountFormValues) => {
+        updateProfile(data, {
+            onSuccess: () => {
+                setShowSuccess(true);
+                toast.success("Account information updated");
+                setTimeout(() => setShowSuccess(false), 3000);
+            }
+        });
+    };
+
+    const handleDeactivate = () => {
+        if (confirm("Are you sure you want to deactivate your account? Your profile and content will be hidden.")) {
+            deactivateAccount();
+        }
+    };
+
+    const handleDelete = () => {
+        if (confirm("CRITICAL: Are you sure you want to PERMANENTLY delete your account? This action cannot be undone.")) {
+            deleteAccount();
+        }
+    };
 
     if (!user) {
         return (
@@ -16,127 +74,193 @@ export default function SettingsAccountPage() {
         );
     }
 
+    // Helper for "Last changed X months ago"
+    const getPasswordAge = () => {
+        if (!user.passwordChangedAt) return "Never changed";
+        const date = new Date(user.passwordChangedAt);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - date.getTime());
+        const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
+
+        if (diffMonths === 0) {
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays === 0) return "Changed today";
+            return `Changed ${diffDays} days ago`;
+        }
+        return `Last changed ${diffMonths} months ago`;
+    };
+
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-500">
             <header className="mb-10">
                 <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Account Settings</h1>
                 <p className="text-slate-500 dark:text-slate-400 mt-2">Manage your account credentials, security preferences, and subscription status.</p>
             </header>
 
-            <div className="space-y-6">
-                {/* Account Information */}
-                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm">
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="size-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-blue-500">info</span>
+            <div className="space-y-8">
+                {/* Account Information Section */}
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                        <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                            <Info className="size-6" />
                         </div>
-                        <h3 className="text-lg font-bold">Account Information</h3>
+                        <div>
+                            <h2 className="text-xl font-bold">Account Information</h2>
+                            <p className="text-sm text-slate-500">Your primary account contact details.</p>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Email Address</label>
-                            <div className="relative group">
-                                <input
-                                    className="w-full pl-4 pr-11 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-900 dark:text-white text-[15px]"
-                                    type="email"
-                                    defaultValue={user.email || "alex.premium@example.com"}
-                                />
-                                <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-500 text-[20px] fill-icon">check_circle</span>
+                    <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-2">
+                                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider ml-1">Email Address</label>
+                                <div className="relative group">
+                                    <input
+                                        type="email"
+                                        className={cn(
+                                            "w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white",
+                                            errors.email && "border-red-500"
+                                        )}
+                                        {...register("email")}
+                                        disabled={isUpdatingProfile}
+                                    />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500">
+                                        <CheckCircle2 className="size-5" />
+                                    </div>
+                                </div>
+                                {errors.email && <p className="text-xs text-red-500 px-1">{errors.email.message}</p>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider ml-1">Phone Number</label>
+                                <div className="relative group">
+                                    <input
+                                        type="tel"
+                                        placeholder="+1 (555) 000-0000"
+                                        className={cn(
+                                            "w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white",
+                                            errors.phoneNumber && "border-red-500"
+                                        )}
+                                        {...register("phoneNumber")}
+                                        disabled={isUpdatingProfile}
+                                    />
+                                </div>
+                                {errors.phoneNumber && <p className="text-xs text-red-500 px-1">{errors.phoneNumber.message}</p>}
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Phone Number</label>
-                            <input
-                                className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-900 dark:text-white text-[15px]"
-                                placeholder="+1 (555) 000-0000"
-                                type="text"
-                            />
+
+                        <div className="flex justify-end pt-2">
+                            <button
+                                type="submit"
+                                disabled={isUpdatingProfile || !isDirty}
+                                className="px-8 py-3 bg-primary text-white text-sm font-bold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                            >
+                                {isUpdatingProfile && <Loader2 className="size-4 animate-spin" />}
+                                Update Profile
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                {/* Security Section */}
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                        <div className="size-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                            <Shield className="size-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold">Security</h2>
+                            <p className="text-sm text-slate-500">Manage your password and authentication methods.</p>
                         </div>
                     </div>
 
-                    <div className="mt-8 flex justify-end">
-                        <button className="px-8 py-3 bg-primary text-white text-sm font-bold rounded-full shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                            Update Profile
-                        </button>
-                    </div>
-                </div>
-
-                {/* Security */}
-                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm">
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="size-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-amber-500">security</span>
-                        </div>
-                        <h3 className="text-lg font-bold">Security</h3>
-                    </div>
-
-                    <div className="space-y-1">
-                        <div className="flex items-center justify-between py-4 border-b border-slate-100 dark:border-slate-800">
-                            <div className="space-y-0.5">
-                                <p className="font-bold text-[15px]">Password</p>
-                                <p className="text-sm text-slate-500">Last changed 3 months ago</p>
+                    <div className="p-8 space-y-6">
+                        <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <div>
+                                <h3 className="font-bold text-slate-900 dark:text-white">Password</h3>
+                                <p className="text-sm text-slate-500 mt-1">{getPasswordAge()}</p>
                             </div>
-                            <button className="px-5 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                            <button className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                 Change Password
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-between py-4">
-                            <div className="space-y-0.5">
-                                <p className="font-bold text-[15px]">Two-factor authentication</p>
-                                <p className="text-sm text-slate-500">Add an extra layer of security to your account.</p>
+                        <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <div className="max-w-[70%]">
+                                <h3 className="font-bold text-slate-900 dark:text-white">Two-factor authentication</h3>
+                                <p className="text-sm text-slate-500 mt-1 leading-relaxed">Add an extra layer of security to your account by requiring more than just a password to log in.</p>
                             </div>
-                            <Switch className="data-[state=checked]:bg-primary" />
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={is2FAEnabled}
+                                    onChange={() => setIs2FAEnabled(!is2FAEnabled)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-12 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
                         </div>
                     </div>
-                </div>
+                </section>
 
                 {/* Account Status */}
-                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex items-center justify-between shadow-sm">
-                    <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-primary text-[20px] fill-icon">stars</span>
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-8 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="size-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                                <Crown className="size-6" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold">Account Status</h2>
+                                <p className="text-sm text-slate-500">Current plan: <span className="text-primary font-bold">{user.subscriptionPlan === "PREMIUM_PRO" ? "Premium Pro" : user.subscriptionPlan === "PREMIUM" ? "Premium" : "Free"}</span></p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-bold text-[15px]">Account Status</p>
-                            <p className="text-sm text-slate-500">Current plan: <span className="text-primary font-bold">Premium Pro</span></p>
+                        <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-black tracking-widest rounded-lg">
+                            {user.auth?.status?.toUpperCase() || "ACTIVE"}
                         </div>
                     </div>
-                    <span className="px-4 py-1.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-[0.15em] rounded-full border border-emerald-500/20">
-                        Active
-                    </span>
-                </div>
+                </section>
 
                 {/* Danger Zone */}
-                <div className="border border-rose-500/20 bg-rose-500/[0.03] dark:bg-rose-500/[0.02] rounded-2xl p-8">
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="size-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-rose-500">warning</span>
+                <section className="border border-red-500/20 bg-red-50/30 dark:bg-red-950/10 rounded-3xl overflow-hidden shadow-sm shadow-red-500/5">
+                    <div className="p-8 border-b border-red-500/10 flex items-center gap-4">
+                        <div className="size-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
+                            <AlertTriangle className="size-6" />
                         </div>
-                        <h3 className="text-lg font-bold text-rose-500">Danger Zone</h3>
+                        <h2 className="text-xl font-bold text-red-500">Danger Zone</h2>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="p-5 bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/60 rounded-2xl flex items-center justify-between group hover:border-rose-500/30 transition-colors">
-                            <div className="space-y-1">
-                                <p className="font-bold text-[15px]">Deactivate Account</p>
-                                <p className="text-sm text-slate-500">Temporarily hide your profile and content.</p>
+                    <div className="p-8 space-y-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900/60 rounded-2xl border border-red-500/10">
+                            <div>
+                                <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    Deactivate Account
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-1">Temporarily hide your profile and content.</p>
                             </div>
-                            <button className="text-rose-500 font-bold text-sm hover:underline">Deactivate</button>
+                            <button
+                                onClick={handleDeactivate}
+                                className="px-6 py-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors font-bold text-sm text-right"
+                            >
+                                Deactivate
+                            </button>
                         </div>
 
-                        <div className="p-5 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-between group">
-                            <div className="space-y-1">
-                                <p className="font-bold text-rose-500 text-[15px]">Delete Account</p>
-                                <p className="text-sm text-rose-500/70">Permanently remove all your data. This cannot be undone.</p>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-red-500/5 rounded-2xl border border-red-500/20">
+                            <div>
+                                <h3 className="font-bold text-red-600 dark:text-red-400">Delete Account</h3>
+                                <p className="text-sm text-slate-500 mt-1 font-medium">Permanently remove all your data. This cannot be undone.</p>
                             </div>
-                            <button className="px-6 py-3 bg-rose-500 text-white text-sm font-bold rounded-xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-500/20 hover:scale-[1.02] active:scale-[0.98]">
+                            <button
+                                onClick={handleDelete}
+                                className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+                            >
+                                <Trash2 className="size-4" />
                                 Delete Account
                             </button>
                         </div>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     );

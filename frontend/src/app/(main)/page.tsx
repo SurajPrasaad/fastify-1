@@ -76,7 +76,7 @@ export default function FeedPage() {
 
             {/* Composer */}
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800/50">
-                <PostComposer onSuccess={handlePostSuccess} />
+            <PostComposer onSuccess={handlePostSuccess} />
             </div>
 
             {/* The Feed */}

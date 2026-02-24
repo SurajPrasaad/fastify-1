@@ -7,11 +7,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUpload } from "@/hooks/use-upload";
+import { useRef } from "react";
 
 const profileSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     username: z.string().min(3, "Username must be at least 3 characters"),
-    bio: z.string().max(250, "Bio must be at most 250 characters").optional(),
+    bio: z.string().max(500, "Bio must be at most 500 characters").optional(),
     location: z.string().optional(),
     website: z.string().url("Invalid URL").or(z.literal("")).optional(),
     avatarUrl: z.string().url("Invalid URL").or(z.literal("")).optional().nullable(),
@@ -22,6 +24,8 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 export default function SettingsProfilePage() {
     const { user, updateProfile, isUpdatingProfile } = useAuth();
     const [showSuccess, setShowSuccess] = useState(false);
+    const { upload, isUploading } = useUpload();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const {
         register,
@@ -49,8 +53,8 @@ export default function SettingsProfilePage() {
                 name: user.name,
                 username: user.username,
                 bio: user.bio || "",
-                location: "San Francisco, CA", // Default placeholder
-                website: "https://alexj.design", // Default placeholder
+                location: user.location || "",
+                website: user.website || "",
                 avatarUrl: user.avatarUrl || "",
             });
         }
@@ -63,6 +67,20 @@ export default function SettingsProfilePage() {
                 setTimeout(() => setShowSuccess(false), 5000);
             }
         });
+    };
+
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const url = await upload(file, "avatars");
+        if (url) {
+            updateProfile({ avatarUrl: url });
+        }
+    };
+
+    const handleRemoveAvatar = () => {
+        updateProfile({ avatarUrl: null });
     };
 
     if (!user) {
@@ -106,12 +124,28 @@ export default function SettingsProfilePage() {
                             <div className="relative group shrink-0">
                                 <img
                                     className="w-24 h-24 lg:w-32 lg:h-32 rounded-full border-4 border-white dark:border-slate-800 shadow-lg object-cover"
-                                    src={user.avatarUrl || "https://api.dicebear.com/7.x/beta/svg?seed=Alex"}
+                                    src={user.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${user.username}`}
                                     alt={user.name}
                                 />
-                                <button type="button" className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="material-symbols-outlined text-white">photo_camera</span>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                    disabled={isUploading}
+                                >
+                                    {isUploading ? (
+                                        <Loader2 className="h-6 w-6 animate-spin text-white" />
+                                    ) : (
+                                        <span className="material-symbols-outlined text-white">photo_camera</span>
+                                    )}
                                 </button>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleAvatarChange}
+                                />
                             </div>
                             <div className="flex-1 space-y-3">
                                 <h3 className="text-lg font-bold">Your Profile Picture</h3>
@@ -119,10 +153,21 @@ export default function SettingsProfilePage() {
                                     We recommend an image of at least 400x400. Gifs and static images are supported.
                                 </p>
                                 <div className="flex gap-3 pt-1">
-                                    <button type="button" className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                        className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {isUploading && <Loader2 className="size-4 animate-spin" />}
                                         Change avatar
                                     </button>
-                                    <button type="button" className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveAvatar}
+                                        disabled={isUploading || !user.avatarUrl}
+                                        className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                                    >
                                         Remove
                                     </button>
                                 </div>
@@ -165,7 +210,7 @@ export default function SettingsProfilePage() {
                                     ) : (
                                         <div />
                                     )}
-                                    <p className="text-xs text-slate-500">{bioValue.length} / 250 characters</p>
+                                    <p className="text-xs text-slate-500">{bioValue.length} / 500 characters</p>
                                 </div>
                             </div>
                             <SettingsInput

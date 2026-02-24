@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 const NAV_ITEMS = [
     { label: "Profile", href: "/settings/profile" },
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
 
 export function SettingsSidebar() {
     const pathname = usePathname();
+    const { logout } = useAuth();
 
     return (
         <aside className="w-full flex flex-col h-full bg-slate-50/50 dark:bg-background-dark/30 overflow-y-auto custom-scrollbar">
@@ -50,6 +52,7 @@ export function SettingsSidebar() {
 
                     <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
                         <button
+                            onClick={() => logout()}
                             className="w-full flex items-center justify-between px-4 py-2.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all mt-1"
                         >
                             <span className="text-sm font-bold uppercase tracking-wider">Logout</span>

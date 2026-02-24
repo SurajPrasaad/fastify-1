@@ -255,4 +255,26 @@ export class AuthRepository {
             providerId
         });
     }
+
+    async updatePassword(userId: string, passwordHash: string) {
+        await db
+            .update(users)
+            .set({
+                password: passwordHash,
+                passwordChangedAt: new Date(),
+                updatedAt: new Date()
+            })
+            .where(eq(users.id, userId));
+    }
+
+    async updateStatus(userId: string, status: "ACTIVE" | "DEACTIVATED" | "SUSPENDED" | "DELETED") {
+        await db
+            .update(users)
+            .set({ status, updatedAt: new Date() })
+            .where(eq(users.id, userId));
+    }
+
+    async deleteUser(userId: string) {
+        await db.delete(users).where(eq(users.id, userId));
+    }
 }

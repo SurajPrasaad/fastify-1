@@ -1,4 +1,4 @@
-import type { RegisterInput, LoginInput, RefreshTokenInput, GoogleLoginInput } from "./auth.schema.js";
+import type { RegisterInput, LoginInput, RefreshTokenInput, GoogleLoginInput, ChangePasswordInput } from "./auth.schema.js";
 
 export type GoogleLoginDto = GoogleLoginInput;
 
@@ -18,3 +18,4 @@ export interface AuthTokens {
 export type RegisterDto = RegisterInput;
 export type LoginDto = LoginInput;
 export type RefreshTokenDto = RefreshTokenInput;
+export type ChangePasswordDto = ChangePasswordInput;

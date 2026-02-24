@@ -7,6 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useUpload } from "@/hooks/use-upload";
+import { useRef } from "react";
 
 import {
     Dialog,
@@ -36,11 +38,16 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
     const [open, setOpen] = useState(false);
     const { user, updateProfile, isUpdatingProfile } = useAuth();
     const queryClient = useQueryClient();
+    const { upload, isUploading } = useUpload();
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const coverInputRef = useRef<HTMLInputElement>(null);
 
     const {
         register,
         handleSubmit,
         reset,
+        setValue,
+        watch,
         formState: { errors, isDirty },
     } = useForm<ProfileFormValues>({
         resolver: zodResolver(profileSchema),
@@ -55,19 +62,40 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
         },
     });
 
+    const avatarUrl = watch("avatarUrl");
+    const coverUrl = watch("coverUrl");
+
     useEffect(() => {
         if (open && user) {
             reset({
                 name: user.name,
                 username: user.username,
                 bio: user.bio || "",
-                location: "San Francisco, CA", // Placeholder
-                website: "alexrivera.design", // Placeholder
+                location: user.location || "",
+                website: user.website || "",
                 avatarUrl: user.avatarUrl || "",
-                coverUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDkT_S_emkmhBPd3hj4lHCLieCjlKjw-iWzJZF5Dj_rryO7vtVxmscQpp_b7HOelm6nMv12vaNuXFga_XA_H5nCy5KsKLhg34FSaiFPPm91YhiwVdnFkCMpQRMpA7XevQV7qRKgi9uqTmSnwKctLTWZwEOZdkOn4nqsIaor3ySwePaNLKtpZNB96MXgvPDLqeBa1eGSA0KeaGhelqXxAKruWEXgG0anCSpT9IYoMdXhO3Ou0F_FMS_Zds3SVc7Qq-7eEHc_7DrkGW8",
+                coverUrl: user.coverUrl || "",
             });
         }
     }, [open, user, reset]);
+
+    const onAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const url = await upload(file, "avatars");
+        if (url) {
+            setValue("avatarUrl", url, { shouldDirty: true });
+        }
+    };
+
+    const onCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const url = await upload(file, "covers");
+        if (url) {
+            setValue("coverUrl", url, { shouldDirty: true });
+        }
+    };
 
     const onSubmit = async (data: ProfileFormValues) => {
         try {
@@ -130,18 +158,36 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
                         <div className="relative mb-4">
                             {/* Cover Photo Update */}
                             <div className="h-48 w-full bg-slate-800 relative group overflow-hidden">
-                                <div
-                                    className="w-full h-full bg-cover bg-center opacity-70 transition-transform group-hover:scale-105 duration-700"
-                                    style={{ backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuDkT_S_emkmhBPd3hj4lHCLieCjlKjw-iWzJZF5Dj_rryO7vtVxmscQpp_b7HOelm6nMv12vaNuXFga_XA_H5nCy5KsKLhg34FSaiFPPm91YhiwVdnFkCMpQRMpA7XevQV7qRKgi9uqTmSnwKctLTWZwEOZdkOn4nqsIaor3ySwePaNLKtpZNB96MXgvPDLqeBa1eGSA0KeaGhelqXxAKruWEXgG0anCSpT9IYoMdXhO3Ou0F_FMS_Zds3SVc7Qq-7eEHc_7DrkGW8')` }}
-                                />
+                                {coverUrl && (
+                                    <div
+                                        className="w-full h-full bg-cover bg-center transition-transform group-hover:scale-105 duration-700"
+                                        style={{ backgroundImage: `url('${coverUrl}')` }}
+                                    />
+                                )}
                                 <div className="absolute inset-0 flex items-center justify-center gap-4 bg-black/20 group-hover:bg-black/30 transition-all">
-                                    <button type="button" className="size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20">
+                                    <button
+                                        type="button"
+                                        onClick={() => coverInputRef.current?.click()}
+                                        disabled={isUploading}
+                                        className="size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20"
+                                    >
                                         <span className="material-symbols-outlined">add_a_photo</span>
                                     </button>
-                                    <button type="button" className="size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20">
+                                    <button
+                                        type="button"
+                                        onClick={() => setValue("coverUrl", "", { shouldDirty: true })}
+                                        className="size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20"
+                                    >
                                         <span className="material-symbols-outlined">close</span>
                                     </button>
                                 </div>
+                                <input
+                                    type="file"
+                                    ref={coverInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={onCoverChange}
+                                />
                             </div>
 
                             {/* Avatar Update */}
@@ -149,14 +195,30 @@ export function EditProfileDialog({ trigger }: EditProfileDialogProps) {
                                 <div className="size-28 rounded-full border-4 border-background-light dark:border-background-dark bg-slate-200 overflow-hidden relative group shadow-xl">
                                     <img
                                         alt="Avatar preview"
-                                        className="w-full h-full object-cover opacity-80"
-                                        src={user.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuC6XQDdldxZ14dMrKRDcPZeXH8AYNsmhSFFfDlWgOqbioiu8K_8_VnkwKCK_M0JLBJBiZigdWO-ttT8kUJyZmy7hHg2r8IzezDAA-rDfJjriM9hF_Velnw5yII7ROO6yekYPVPqBgFMQUuE68b3sU8vcYaVjVXzsJMfBPZYn5uau7lZJlVEaH96IGtPOZ0vRT8fQdtReMfgRfmmhjvY2dsbHhUehUT3HK95BdmWFNYTr5lrgrA349kFs06-xQB2LLkyp0ZbQ_8OWoI"}
+                                        className="w-full h-full object-cover"
+                                        src={avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${user.username}`}
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-all cursor-pointer">
-                                        <button type="button" className="size-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20">
-                                            <span className="material-symbols-outlined text-[20px]">add_a_photo</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => avatarInputRef.current?.click()}
+                                            disabled={isUploading}
+                                            className="size-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors border border-white/20"
+                                        >
+                                            {isUploading ? (
+                                                <Loader2 className="size-4 animate-spin" />
+                                            ) : (
+                                                <span className="material-symbols-outlined text-[20px]">add_a_photo</span>
+                                            )}
                                         </button>
                                     </div>
+                                    <input
+                                        type="file"
+                                        ref={avatarInputRef}
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={onAvatarChange}
+                                    />
                                 </div>
                             </div>
                         </div>

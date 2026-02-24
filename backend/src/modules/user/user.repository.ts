@@ -1,5 +1,5 @@
 import { db } from "../../config/drizzle.js";
-import { users, follows, userCounters } from "../../db/schema.js";
+import { users, follows, userCounters, userPrivacy, sessions, mfaSecrets, identityProviders, notificationSettings } from "../../db/schema.js";
 import { eq, sql, and, inArray } from "drizzle-orm";
 import { AppError } from "../../utils/AppError.js";
 
@@ -319,5 +319,110 @@ export class UserRepository {
             );
 
         return new Set(result.map(r => r.followingId));
+    }
+
+    async getPrivacy(userId: string) {
+        const [privacy] = await db
+            .select()
+            .from(userPrivacy)
+            .where(eq(userPrivacy.userId, userId))
+            .limit(1);
+
+        if (!privacy) {
+            // Create default privacy if not exists
+            const [newPrivacy] = await db
+                .insert(userPrivacy)
+                .values({ userId })
+                .returning();
+            return newPrivacy;
+        }
+
+        return privacy;
+    }
+
+    async updatePrivacy(userId: string, data: Partial<typeof userPrivacy.$inferInsert>) {
+        const [privacy] = await db
+            .update(userPrivacy)
+            .set({ ...data, updatedAt: new Date() })
+            .where(eq(userPrivacy.userId, userId))
+            .returning();
+        return privacy;
+    }
+    async getSecurityOverview(userId: string) {
+        const [user] = await db
+            .select({ passwordChangedAt: users.passwordChangedAt })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+
+        const [mfa] = await db
+            .select({ isEnabled: mfaSecrets.isEnabled })
+            .from(mfaSecrets)
+            .where(eq(mfaSecrets.userId, userId))
+            .limit(1);
+
+        const userSessions = await db
+            .select()
+            .from(sessions)
+            .where(and(eq(sessions.userId, userId), eq(sessions.isValid, true)))
+            .orderBy(sql`${sessions.lastActiveAt} DESC`);
+
+        const apps = await db
+            .select()
+            .from(identityProviders)
+            .where(eq(identityProviders.userId, userId));
+
+        return {
+            passwordMetadata: {
+                lastChangedAt: user?.passwordChangedAt ?? null,
+            },
+            mfaStatus: {
+                isEnabled: mfa?.isEnabled ?? false,
+            },
+            sessions: userSessions,
+            connectedApps: apps,
+        };
+    }
+
+    async revokeSession(userId: string, sessionId: string) {
+        return await db
+            .update(sessions)
+            .set({ isValid: false })
+            .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)));
+    }
+
+    async revokeApp(userId: string, appId: string) {
+        return await db
+            .delete(identityProviders)
+            .where(and(eq(identityProviders.id, appId), eq(identityProviders.userId, userId)));
+    }
+
+    async getNotificationSettings(userId: string) {
+        const [settings] = await db
+            .select()
+            .from(notificationSettings)
+            .where(eq(notificationSettings.userId, userId))
+            .limit(1);
+
+        if (!settings) {
+            // Create default settings if not exists
+            const [newSettings] = await db
+                .insert(notificationSettings)
+                .values({ userId })
+                .returning();
+            return newSettings;
+        }
+
+        return settings;
+    }
+
+    async updateNotificationSettings(userId: string, data: any) {
+        const [settings] = await db
+            .update(notificationSettings)
+            .set({ ...data })
+            .where(eq(notificationSettings.userId, userId))
+            .returning();
+
+        return settings;
     }
 }

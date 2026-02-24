@@ -56,16 +56,16 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
         id: profile.id,
         username: profile.username,
         displayName: profile.name,
-        bio: profile.bio || "Product Designer & Tech Enthusiast. Building the future of social connectivity. Currently exploring the intersection of AI and UX.",
-        location: "San Francisco, CA",
-        website: "alexrivera.design",
+        bio: profile.bio || "",
+        location: profile.location || "",
+        website: profile.website || "",
         joinDate: new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         followers: profile.profile.followersCount,
         following: profile.profile.followingCount,
         posts: profile.profile.postsCount,
-        isVerified: true, // For demo purposes to match the image precisely
-        avatarUrl: profile.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuC6XQDdldxZ14dMrKRDcPZeXH8AYNsmhSFFfDlWgOqbioiu8K_8_VnkwKCK_M0JLBJBiZigdWO-ttT8kUJyZmy7hHg2r8IzezDAA-rDfJjriM9hF_Velnw5yII7ROO6yekYPVPqBgFMQUuE68b3sU8vcYaVjVXzsJMfBPZYn5uau7lZJlVEaH96IGtPOZ0vRT8fQdtReMfgRfmmhjvY2dsbHhUehUT3HK95BdmWFNYTr5lrgrA349kFs06-xQB2LLkyp0ZbQ_8OWoI",
-        coverUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDkT_S_emkmhBPd3hj4lHCLieCjlKjw-iWzJZF5Dj_rryO7vtVxmscQpp_b7HOelm6nMv12vaNuXFga_XA_H5nCy5KsKLhg34FSaiFPPm91YhiwVdnFkCMpQRMpA7XevQV7qRKgi9uqTmSnwKctLTWZwEOZdkOn4nqsIaor3ySwePaNLKtpZNB96MXgvPDLqeBa1eGSA0KeaGhelqXxAKruWEXgG0anCSpT9IYoMdXhO3Ou0F_FMS_Zds3SVc7Qq-7eEHc_7DrkGW8",
+        isVerified: profile.auth.status === "ACTIVE", // Just for UI consistency in demo, ideally a real flag
+        avatarUrl: profile.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${profile.username}`,
+        coverUrl: profile.coverUrl || "",
         isFollowing: profile.isFollowing,
         isSelf: currentUser?.id === profile.id,
     };

@@ -59,6 +59,32 @@ export const useAuth = () => {
         },
     });
 
+    const changePasswordMutation = useMutation({
+        mutationFn: (data: any) => AuthService.changePassword(data),
+        onSuccess: () => {
+            toast.success("Password updated successfully");
+        },
+        onError: (error: any) => {
+            toast.error(error.message || "Failed to update password");
+        }
+    });
+
+    const deactivateAccountMutation = useMutation({
+        mutationFn: AuthService.deactivateAccount,
+        onSuccess: () => {
+            toast.success("Account deactivated");
+            logoutMutation.mutate();
+        },
+    });
+
+    const deleteAccountMutation = useMutation({
+        mutationFn: AuthService.deleteAccount,
+        onSuccess: () => {
+            toast.success("Account deleted");
+            logoutMutation.mutate();
+        },
+    });
+
     return {
         login: loginMutation.mutate,
         isLoggingIn: loginMutation.isPending,
@@ -68,6 +94,12 @@ export const useAuth = () => {
         isLoggingOut: logoutMutation.isPending,
         updateProfile: updateProfileMutation.mutate,
         isUpdatingProfile: updateProfileMutation.isPending,
+        changePassword: changePasswordMutation.mutate,
+        isChangingPassword: changePasswordMutation.isPending,
+        deactivateAccount: deactivateAccountMutation.mutate,
+        isDeactivating: deactivateAccountMutation.isPending,
+        deleteAccount: deleteAccountMutation.mutate,
+        isDeleting: deleteAccountMutation.isPending,
         user: useUser().data,
         isLoading: useUser().isLoading,
     };
