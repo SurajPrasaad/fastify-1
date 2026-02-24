@@ -3,43 +3,76 @@
 import * as React from "react"
 import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
-
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { useToggleLike } from "@/features/interaction/hooks"
+import { useToggleLike, useCreateComment } from "@/features/interaction/hooks"
+import { Textarea } from "@/components/ui/textarea"
+import { MapPin, CheckCircle2, MoreHorizontal } from "lucide-react"
+import { PostPoll } from "@/features/feed/components/PostPoll"
+import { PostMedia } from "@/features/feed/components/PostMedia"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+
 
 export interface Post {
     id: string
     userId: string
     author: {
         username: string
-        displayName: string
-        avatarUrl?: string
+        name: string
+        avatarUrl?: string | null
         isVerified?: boolean
     }
     content: string
-    media?: {
-        type: "image" | "video"
-        url: string
-        aspectRatio?: number
-    }[]
-    stats: {
-        likes: number
-        comments: number
-        shares: number
-    }
-    createdAt: Date
+    mediaUrls?: string[]
+    location?: string | null
+    pollId?: string | null
+    poll?: {
+        id: string
+        question: string
+        options: {
+            id: string
+            text: string
+            votesCount: number
+        }[]
+        expiresAt: string | Date
+        userVotedOptionId?: string | null
+    } | null
+    likesCount: number
+    commentsCount: number
+    sharesCount?: number
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "DELETED"
+    createdAt: string | Date
+    updatedAt: string | Date
     isLiked?: boolean
     isBookmarked?: boolean
+    originalPostId?: string | null
+    originalPost?: {
+        id: string
+        content: string
+        createdAt: string | Date
+        author: {
+            username: string
+            name: string
+            avatarUrl?: string | null
+        }
+    } | null
 }
 
 interface PostCardProps {
     post: Post;
     onLikeToggle?: (isLiked: boolean) => void;
+    onRemove?: (id: string) => void;
+    onUpdate?: (id: string, updatedData: Partial<Post>) => void;
 }
 
-export function PostCard({ post, onLikeToggle }: PostCardProps) {
+export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardProps) {
     const router = useRouter()
-    const { isLiked, count: likesCount, toggleLike } = useToggleLike(post.isLiked, post.stats.likes, onLikeToggle);
+    const { isLiked, count: currentLikesCount, toggleLike } = useToggleLike(post.isLiked, post.likesCount || 0, onLikeToggle);
+    const { createComment, isSubmitting: isPostingComment } = useCreateComment();
+
+    const [isCommentOpen, setIsCommentOpen] = React.useState(false);
+    const [commentContent, setCommentContent] = React.useState("");
 
     const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -48,15 +81,15 @@ export function PostCard({ post, onLikeToggle }: PostCardProps) {
 
     const timeAgo = (() => {
         try {
-            return post.createdAt instanceof Date && !isNaN(post.createdAt.getTime())
-                ? formatDistanceToNow(post.createdAt, { addSuffix: false })
+            const date = new Date(post.createdAt);
+            return !isNaN(date.getTime())
+                ? formatDistanceToNow(date, { addSuffix: false })
                 : "just now";
         } catch (e) {
             return "just now";
         }
     })()
 
-    // Function to highlight hashtags
     const renderContent = (content: string) => {
         return content.split(/(\s+)/).map((part, i) => {
             if (part && part.startsWith('#')) {
@@ -71,6 +104,7 @@ export function PostCard({ post, onLikeToggle }: PostCardProps) {
             return part
         })
     }
+
 
     return (
         <article
@@ -91,7 +125,7 @@ export function PostCard({ post, onLikeToggle }: PostCardProps) {
                     {/* Header */}
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1 flex-wrap min-w-0">
-                            <span className="font-bold hover:underline truncate">{post.author.displayName}</span>
+                            <span className="font-bold hover:underline truncate">{post.author.name}</span>
                             {post.author.isVerified && (
                                 <span className="material-symbols-outlined text-primary text-[18px] select-none" style={{ fontVariationSettings: "'FILL' 1" }}>
                                     verified
@@ -105,23 +139,62 @@ export function PostCard({ post, onLikeToggle }: PostCardProps) {
                         </span>
                     </div>
 
-                    {/* Content */}
-                    <div className="text-[15px] leading-relaxed mb-3 whitespace-pre-wrap dark:text-slate-200">
-                        {renderContent(post.content)}
-                    </div>
-
-                    {/* Media */}
-                    {post.media && post.media.length > 0 && (
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden mb-3 aspect-video bg-slate-200 dark:bg-slate-800/30">
-                            <img className="w-full h-full object-cover" alt="Post content" src={post.media[0].url} />
+                    {/* Location */}
+                    {post.location && (
+                        <div className="flex items-center gap-1 text-slate-500 text-[13px] mb-1">
+                            <MapPin size={12} />
+                            {post.location}
                         </div>
                     )}
 
+                    {/* Content */}
+                    {post.content && (
+                        <div className="text-[15px] leading-relaxed mb-3 whitespace-pre-wrap dark:text-slate-200">
+                            {renderContent(post.content)}
+                        </div>
+                    )}
+
+                    {/* Original Post (Repost/Quote) */}
+                    {post.originalPost && (
+                        <div
+                            className="mt-3 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (post.originalPost) router.push(`/post/${post.originalPost.id}`);
+                            }}
+                        >
+                            <div className="flex items-center space-x-2 mb-2">
+                                <div className="size-5 rounded-full bg-slate-500 overflow-hidden shrink-0">
+                                    <img
+                                        src={post.originalPost.author.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${post.originalPost.author.username}`}
+                                        className="w-full h-full object-cover"
+                                        alt={post.originalPost.author.username}
+                                    />
+                                </div>
+                                <span className="font-bold text-sm truncate">{post.originalPost.author.name}</span>
+                                <span className="text-slate-500 text-sm truncate">@{post.originalPost.author.username}</span>
+                            </div>
+                            <div className="text-[14px] leading-normal dark:text-slate-300">
+                                {renderContent(post.originalPost.content)}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Poll */}
+                    {post.poll && <PostPoll poll={post.poll as any} postId={post.id} />}
+
+                    {/* Media */}
+                    <PostMedia mediaUrls={post.mediaUrls} type={post.poll ? 'POLL' : 'IMAGE'} />
+
                     {/* Engagement Bar */}
-                    <div className="flex items-center justify-between max-w-md text-slate-500 -ml-2">
+                    <div className="flex items-center justify-between mt-3 text-slate-500 max-w-md -ml-2">
                         <EngagementAction
                             icon="chat_bubble"
-                            count={post.stats.comments}
+                            count={post.commentsCount || 0}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsCommentOpen(!isCommentOpen);
+                            }}
                             hoverClass="hover:text-primary hover:bg-primary/10"
                         />
                         <EngagementAction
@@ -131,7 +204,7 @@ export function PostCard({ post, onLikeToggle }: PostCardProps) {
                         />
                         <EngagementAction
                             icon="favorite"
-                            count={likesCount}
+                            count={currentLikesCount}
                             active={isLiked}
                             onClick={handleLike}
                             hoverClass="hover:text-red-500 hover:bg-red-500/10"
@@ -142,6 +215,41 @@ export function PostCard({ post, onLikeToggle }: PostCardProps) {
                             hoverClass="hover:text-primary hover:bg-primary/10"
                         />
                     </div>
+
+                    {/* Inline Comment Input */}
+                    {isCommentOpen && (
+                        <div className="mt-4 space-y-3 pl-0 animate-in fade-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
+                            <Textarea
+                                placeholder="Post your reply"
+                                value={commentContent}
+                                onChange={(e) => setCommentContent(e.target.value)}
+                                className="min-h-[100px] w-full bg-transparent border-none focus-visible:ring-0 text-[17px] p-0 resize-none placeholder:text-slate-500"
+                                autoFocus
+                            />
+                            <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800/50">
+                                <Button
+                                    size="sm"
+                                    className="rounded-full px-5 font-bold"
+                                    disabled={!commentContent.trim() || isPostingComment}
+                                    onClick={async () => {
+                                        try {
+                                            await createComment(post.id, commentContent, undefined, () => {
+                                                setCommentContent("");
+                                                setIsCommentOpen(false);
+                                                if (onUpdate) {
+                                                    onUpdate(post.id, { commentsCount: (post.commentsCount || 0) + 1 });
+                                                }
+                                            });
+                                        } catch (err) {
+                                            // Error handled by hook
+                                        }
+                                    }}
+                                >
+                                    {isPostingComment ? "Posting..." : "Reply"}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </article>
@@ -176,3 +284,4 @@ function EngagementAction({ icon, count, hoverClass, active, onClick }: {
         </div>
     )
 }
+

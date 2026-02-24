@@ -61,5 +61,12 @@ export const postService = {
      */
     async getTrendingHashtags() {
         return api.get("/posts/trending/hashtags");
+    },
+
+    /**
+     * Vote on a poll
+     */
+    async votePoll(pollId: string, optionId: string) {
+        return api.post(`/posts/polls/${pollId}/vote`, { optionId });
     }
 };

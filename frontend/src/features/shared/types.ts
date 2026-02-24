@@ -29,19 +29,52 @@ export interface IEngagementStats {
     isReposted?: boolean;
 }
 
+export interface IPollOption {
+    id: string;
+    text: string;
+    votesCount: number;
+}
+
+export interface IPoll {
+    id: string;
+    question: string;
+    options: IPollOption[];
+    expiresAt: string;
+    userVotedOptionId?: string | null;
+}
+
 export interface IPost {
     id: string;
     userId: string;
     content: string;
     mediaUrl?: string;
-    type: 'TEXT' | 'IMAGE' | 'VIDEO';
+    mediaUrls?: string[];
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'POLL';
     createdAt: string;
     updatedAt: string;
     user: IUser;
+    author?: IUser;
     stats: IEngagementStats;
     isLiked?: boolean;
     isBookmarked?: boolean;
     isReposted?: boolean;
+    pollId?: string | null;
+    poll?: IPoll | null;
+    originalPostId?: string | null;
+    originalPost?: {
+        id: string;
+        content: string;
+        createdAt: string;
+        author: {
+            username: string;
+            name: string;
+            avatarUrl?: string | null;
+        };
+    } | null;
+    location?: string | null;
+    likesCount: number;
+    commentsCount: number;
+    repostCount?: number;
 }
 
 export interface IComment {

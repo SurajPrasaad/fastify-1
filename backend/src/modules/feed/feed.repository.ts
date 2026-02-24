@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { posts, users, follows, celebrityAccounts, rankingFeatures } from "../../db/schema.js";
+import { posts, users, follows, celebrityAccounts, rankingFeatures, polls, pollOptions } from "../../db/schema.js";
 import { and, desc, eq, inArray, lt, sql, exists } from "drizzle-orm";
 
 export class FeedRepository {
@@ -8,42 +8,48 @@ export class FeedRepository {
     async findByIds(ids: string[]) {
         if (ids.length === 0) return [];
 
-        const result = await db
+        const items = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrl: sql<string>`${posts.mediaUrls}->>0`, // Frontend expects single string for now or adapt frontend
-                type: sql<string>`CASE 
-                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
-                    ELSE 'TEXT' 
-                END`.as('type'), // Basic inference
+                mediaUrls: posts.mediaUrls,
+                pollId: posts.pollId,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
+                publishedAt: posts.publishedAt,
                 user: {
                     id: users.id,
                     username: users.username,
                     name: users.name,
                     avatarUrl: users.avatarUrl,
                 },
-                stats: {
-                    likeCount: posts.likesCount,
-                    commentCount: posts.commentsCount,
-                    repostCount: sql<number>`0`.as('repostCount'), // Placeholder until reposts count is added to posts table or separate query
-                }
+                likesCount: posts.likesCount,
+                commentsCount: posts.commentsCount,
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
             .where(inArray(posts.id, ids));
 
-        return result.map(post => ({
-            ...post,
-            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
-            stats: {
-                ...post.stats,
-                repostCount: Number(post.stats.repostCount)
-            }
+        // Hydrate polls
+        const postsWithPolls = await Promise.all(items.map(async (item) => {
+            if (!item.pollId) return { ...item, poll: null };
+
+            const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
+            if (!pollData) return { ...item, poll: null };
+
+            const options = await db.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+
+            return {
+                ...item,
+                poll: {
+                    ...pollData,
+                    options,
+                }
+            };
         }));
+
+        return postsWithPolls;
     }
 
     // 2. Hybrid model: Fetch posts from followed celebrities (Pull model)
@@ -55,16 +61,13 @@ export class FeedRepository {
             .innerJoin(celebrityAccounts, eq(follows.followingId, celebrityAccounts.userId))
             .where(eq(follows.followerId, userId));
 
-        const result = await db
+        const items = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
-                type: sql<string>`CASE 
-                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
-                    ELSE 'TEXT' 
-                END`.as('type'),
+                mediaUrls: posts.mediaUrls,
+                pollId: posts.pollId,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
                 publishedAt: posts.publishedAt,
@@ -74,11 +77,8 @@ export class FeedRepository {
                     name: users.name,
                     avatarUrl: users.avatarUrl,
                 },
-                stats: {
-                    likeCount: posts.likesCount,
-                    commentCount: posts.commentsCount,
-                    repostCount: sql<number>`0`.as('repostCount'),
-                }
+                likesCount: posts.likesCount,
+                commentsCount: posts.commentsCount,
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -92,11 +92,15 @@ export class FeedRepository {
             .orderBy(desc(posts.publishedAt))
             .limit(limit);
 
-        return result.map(post => ({
-            ...post,
-            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
-            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        const withPolls = await Promise.all(items.map(async (item) => {
+            if (!item.pollId) return { ...item, poll: null };
+            const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
+            if (!pollData) return { ...item, poll: null };
+            const options = await db.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+            return { ...item, poll: { ...pollData, options } };
         }));
+
+        return withPolls;
     }
 
     // 3. Follower fetching for Fan-out on Write
@@ -137,16 +141,13 @@ export class FeedRepository {
             .from(follows)
             .where(eq(follows.followerId, userId));
 
-        const result = await db
+        const items = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
-                type: sql<string>`CASE 
-                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
-                    ELSE 'TEXT' 
-                END`.as('type'),
+                mediaUrls: posts.mediaUrls,
+                pollId: posts.pollId,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
                 publishedAt: posts.publishedAt,
@@ -156,11 +157,8 @@ export class FeedRepository {
                     name: users.name,
                     avatarUrl: users.avatarUrl,
                 },
-                stats: {
-                    likeCount: posts.likesCount,
-                    commentCount: posts.commentsCount,
-                    repostCount: sql<number>`0`.as('repostCount'),
-                }
+                likesCount: posts.likesCount,
+                commentsCount: posts.commentsCount,
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -174,25 +172,26 @@ export class FeedRepository {
             .orderBy(desc(posts.publishedAt))
             .limit(limit);
 
-        return result.map(post => ({
-            ...post,
-            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
-            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        const withPolls = await Promise.all(items.map(async (item) => {
+            if (!item.pollId) return { ...item, poll: null };
+            const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
+            if (!pollData) return { ...item, poll: null };
+            const options = await db.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+            return { ...item, poll: { ...pollData, options } };
         }));
+
+        return withPolls;
     }
 
     // 7. Global Explore Feed
     async getExploreFeed(limit: number, cursor?: string) {
-        const result = await db
+        const items = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
-                type: sql<string>`CASE 
-                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
-                    ELSE 'TEXT' 
-                END`.as('type'),
+                mediaUrls: posts.mediaUrls,
+                pollId: posts.pollId,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
                 publishedAt: posts.publishedAt,
@@ -202,11 +201,8 @@ export class FeedRepository {
                     name: users.name,
                     avatarUrl: users.avatarUrl,
                 },
-                stats: {
-                    likeCount: posts.likesCount,
-                    commentCount: posts.commentsCount,
-                    repostCount: sql<number>`0`.as('repostCount'),
-                }
+                likesCount: posts.likesCount,
+                commentsCount: posts.commentsCount,
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -219,25 +215,26 @@ export class FeedRepository {
             .orderBy(desc(posts.publishedAt))
             .limit(limit);
 
-        return result.map(post => ({
-            ...post,
-            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
-            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        const withPolls = await Promise.all(items.map(async (item) => {
+            if (!item.pollId) return { ...item, poll: null };
+            const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
+            if (!pollData) return { ...item, poll: null };
+            const options = await db.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+            return { ...item, poll: { ...pollData, options } };
         }));
+
+        return withPolls;
     }
 
     // 8. Hashtag Feed
     async getHashtagFeed(tag: string, limit: number, cursor?: string) {
-        const result = await db
+        const items = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
                 content: posts.content,
-                mediaUrl: sql<string>`${posts.mediaUrls}->>0`,
-                type: sql<string>`CASE 
-                    WHEN jsonb_array_length(${posts.mediaUrls}) > 0 THEN 'IMAGE' 
-                    ELSE 'TEXT' 
-                END`.as('type'),
+                mediaUrls: posts.mediaUrls,
+                pollId: posts.pollId,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
                 publishedAt: posts.publishedAt,
@@ -247,11 +244,8 @@ export class FeedRepository {
                     name: users.name,
                     avatarUrl: users.avatarUrl,
                 },
-                stats: {
-                    likeCount: posts.likesCount,
-                    commentCount: posts.commentsCount,
-                    repostCount: sql<number>`0`.as('repostCount'),
-                }
+                likesCount: posts.likesCount,
+                commentsCount: posts.commentsCount,
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -265,10 +259,14 @@ export class FeedRepository {
             .orderBy(desc(posts.publishedAt))
             .limit(limit);
 
-        return result.map(post => ({
-            ...post,
-            type: post.type as 'TEXT' | 'IMAGE' | 'VIDEO',
-            stats: { ...post.stats, repostCount: Number(post.stats.repostCount) }
+        const withPolls = await Promise.all(items.map(async (item) => {
+            if (!item.pollId) return { ...item, poll: null };
+            const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
+            if (!pollData) return { ...item, poll: null };
+            const options = await db.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+            return { ...item, poll: { ...pollData, options } };
         }));
+
+        return withPolls;
     }
 }

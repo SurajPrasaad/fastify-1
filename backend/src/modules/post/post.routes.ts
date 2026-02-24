@@ -9,13 +9,16 @@ import {
     updatePostHandler,
     archivePostHandler,
     deletePostHandler,
-    publishDraftHandler
+    publishDraftHandler,
+    votePollHandler
 } from "./post.controller.js";
 import {
     createPostSchema,
     updatePostSchema,
     getPostsQuerySchema
 } from "./post.schema.js";
+
+import { z } from "zod";
 
 export async function postRoutes(app: FastifyInstance) {
     const provider = app.withTypeProvider<ZodTypeProvider>();
@@ -99,5 +102,18 @@ export async function postRoutes(app: FastifyInstance) {
             deletePostHandler
         );
 
+        protectedProvider.post(
+            "/polls/:id/vote",
+            {
+                schema: {
+                    params: z.object({ id: z.string().uuid() }),
+                    body: z.object({ optionId: z.string().uuid() }),
+                    tags: ["Posts"],
+                }
+            },
+            votePollHandler
+        );
+
     });
 }
+

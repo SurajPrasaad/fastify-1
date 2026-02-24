@@ -62,5 +62,12 @@ export const feedApi = {
      */
     async unbookmarkPost(postId: string) {
         return api.post(`/interaction/bookmark/${postId}`, {});
+    },
+
+    /**
+     * Repost or quote a post
+     */
+    async repost(postId: string, content?: string) {
+        return api.post(`/interaction/repost`, { postId, content });
     }
 };

@@ -10,6 +10,29 @@ export default function FeedPage() {
     const [activeTab, setActiveTab] = React.useState<"for-you" | "following">("for-you")
     const [posts, setPosts] = React.useState<Post[]>([])
 
+    const mapBackendPost = (p: any) => ({
+        id: p.id,
+        userId: p.userId,
+        author: {
+            username: p.author?.username || "anonymous",
+            name: p.author?.name || "Anonymous",
+            avatarUrl: p.author?.avatarUrl || null,
+            isVerified: true,
+        },
+        content: p.content,
+        mediaUrls: p.mediaUrls || [],
+        likesCount: p.likesCount || 0,
+        commentsCount: p.commentsCount || 0,
+        sharesCount: 0,
+        pollId: p.pollId,
+        poll: p.poll,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        isLiked: !!p.isLiked,
+        isBookmarked: !!p.isBookmarked,
+        status: p.status || "PUBLISHED"
+    });
+
     React.useEffect(() => {
         const fetchPosts = async () => {
             const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
@@ -18,26 +41,7 @@ export default function FeedPage() {
                 if (!res.ok) return;
                 const data = await res.json();
 
-                const mappedPosts = data.map((p: any) => ({
-                    id: p.id,
-                    userId: p.userId,
-                    author: {
-                        username: p.author?.username || "anonymous",
-                        displayName: p.author?.name || "Anonymous",
-                        avatarUrl: p.author?.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${p.userId}`,
-                        isVerified: true,
-                    },
-                    content: p.content,
-                    media: p.mediaUrls?.map((url: string) => ({ type: "image", url })),
-                    stats: {
-                        likes: p.likesCount || 0,
-                        comments: p.commentsCount || 0,
-                        shares: 0,
-                    },
-                    createdAt: new Date(p.createdAt),
-                    isLiked: !!p.isLiked,
-                    isBookmarked: !!p.isBookmarked,
-                }));
+                const mappedPosts = data.map(mapBackendPost);
                 setPosts(mappedPosts);
             } catch (error) {
                 console.error("Failed to fetch posts:", error);
@@ -46,6 +50,11 @@ export default function FeedPage() {
 
         fetchPosts();
     }, []);
+
+    const handlePostSuccess = (newPost: any) => {
+        const mapped = mapBackendPost(newPost);
+        setPosts(prev => [mapped, ...prev]);
+    };
 
     return (
         <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark">
@@ -67,7 +76,7 @@ export default function FeedPage() {
 
             {/* Composer */}
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800/50">
-                <PostComposer />
+                <PostComposer onSuccess={handlePostSuccess} />
             </div>
 
             {/* The Feed */}

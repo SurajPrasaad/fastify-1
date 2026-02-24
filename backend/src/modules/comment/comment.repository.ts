@@ -47,7 +47,9 @@ export class CommentRepository {
                         id: users.id,
                         username: users.username,
                         name: users.name,
+                        avatarUrl: users.avatarUrl,
                     },
+                    repliesCount: sql<number>`0`,
                 })
                 .from(comments)
                 .innerJoin(users, eq(comments.userId, users.id))
@@ -75,6 +77,17 @@ export class CommentRepository {
             conditions.push(lt(comments.createdAt, new Date(cursor)));
         }
 
+        // Subquery for replies count
+        const repliesCountSq = db
+            .select({
+                parentId: comments.parentId,
+                count: sql<number>`count(*)`.as("count"),
+            })
+            .from(comments)
+            .where(eq(comments.postId, postId))
+            .groupBy(comments.parentId)
+            .as("replies_count_sq");
+
         // Execute Query
         // Join with Users to get author info
         const result = await db
@@ -89,10 +102,13 @@ export class CommentRepository {
                     id: users.id,
                     username: users.username,
                     name: users.name,
+                    avatarUrl: users.avatarUrl,
                 },
+                repliesCount: sql<number>`COALESCE(${repliesCountSq.count}, 0)`,
             })
             .from(comments)
             .innerJoin(users, eq(comments.userId, users.id))
+            .leftJoin(repliesCountSq, eq(comments.id, repliesCountSq.parentId))
             .where(and(...conditions))
             .orderBy(desc(comments.createdAt)) // Composite Index (postId, createdAt DESC) used here
             .limit(limit + 1); // Fetch one extra to determine next cursor

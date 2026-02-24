@@ -1,104 +1,103 @@
-import { Heart, MessageCircle, Repeat, Bookmark, Share2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import { FeedPost } from "../types/feed.types";
-import { useFeed } from "../hooks/useFeed";
+import { memo } from 'react';
+import {
+    MessageCircle,
+    Repeat2,
+    Heart,
+    Bookmark,
+    Share2
+} from 'lucide-react';
+import { FeedPost } from '../types/feed.types';
+import { cn } from '@/lib/utils';
+import { useToggleLike } from '@/features/interaction/hooks';
 
 interface PostActionsProps {
     post: FeedPost;
+    onCommentClick?: () => void;
 }
 
 const AnimatedCounter = ({ value }: { value: number }) => (
-    <AnimatePresence mode="wait">
-        <motion.span
-            key={value}
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -10, opacity: 0 }}
-            className="text-xs font-medium text-gray-500 min-w-[12px]"
-        >
-            {value > 0 ? value : ""}
-        </motion.span>
-    </AnimatePresence>
+    <span className="text-[13px] font-medium transition-all tabular-nums min-w-[12px]">
+        {value > 0 ? value : ""}
+    </span>
 );
 
-export const PostActions = ({ post }: PostActionsProps) => {
-    const { like, unlike, bookmark, unbookmark } = useFeed();
+export const PostActions = memo(({ post, onCommentClick }: PostActionsProps) => {
+    const { isLiked, count: likesCount, toggleLike } = useToggleLike(
+        post.isLiked || false,
+        post.likesCount || 0
+    );
 
-    const handleLike = (e: React.MouseEvent) => {
+    const handleLikeClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (post.stats.isLiked) {
-            unlike(post.id);
-        } else {
-            like(post.id);
-        }
+        toggleLike(post.id, "POST");
     };
 
-    const handleBookmark = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (post.stats.isBookmarked) {
-            unbookmark(post.id);
-        } else {
-            bookmark(post.id);
+    const actions = [
+        {
+            icon: MessageCircle,
+            count: post.commentsCount,
+            color: "hover:text-blue-500",
+            bg: "hover:bg-blue-500/10",
+            onClick: (e: React.MouseEvent) => {
+                e.stopPropagation();
+                onCommentClick?.();
+            }
+        },
+        {
+            icon: Repeat2,
+            count: post.repostCount,
+            color: "hover:text-green-500",
+            bg: "hover:bg-green-500/10",
+        },
+        {
+            icon: Heart,
+            count: likesCount,
+            active: isLiked,
+            color: "hover:text-pink-500",
+            bg: "hover:bg-pink-500/10",
+            activeColor: "text-pink-500",
+            onClick: handleLikeClick
+        },
+        {
+            icon: Bookmark,
+            count: post.stats?.bookmarkCount,
+            color: "hover:text-blue-500",
+            bg: "hover:bg-blue-500/10",
         }
-    };
+    ];
 
     return (
-        <div className="flex items-center justify-between max-w-md pt-2">
-            <button
-                className="group flex items-center space-x-1.5 text-gray-500 hover:text-blue-500 transition-colors"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="p-2 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 rounded-full transition-colors">
-                    <MessageCircle className="h-[18px] w-[18px]" />
-                </div>
-                <AnimatedCounter value={post.stats.commentCount} />
-            </button>
-
-            <button
-                className={cn(
-                    "group flex items-center space-x-1.5 transition-colors",
-                    post.stats.isReposted ? "text-green-500" : "text-gray-500 hover:text-green-500"
-                )}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="p-2 group-hover:bg-green-50 dark:group-hover:bg-green-900/20 rounded-full transition-colors">
-                    <Repeat className="h-[18px] w-[18px]" />
-                </div>
-                <AnimatedCounter value={post.stats.repostCount} />
-            </button>
-
-            <button
-                className={cn(
-                    "group flex items-center space-x-1.5 transition-colors",
-                    post.stats.isLiked ? "text-red-500" : "text-gray-500 hover:text-red-500"
-                )}
-                onClick={handleLike}
-            >
-                <motion.div
-                    whileTap={{ scale: 1.4 }}
-                    className="p-2 group-hover:bg-red-50 dark:group-hover:bg-red-900/20 rounded-full transition-colors"
-                >
-                    <Heart className={cn("h-[18px] w-[18px]", post.stats.isLiked && "fill-current")} />
-                </motion.div>
-                <AnimatedCounter value={post.stats.likeCount} />
-            </button>
-
-            <div className="flex items-center">
+        <div className="flex items-center justify-between py-1 -ml-2 max-w-md w-full">
+            {actions.map((action, idx) => (
                 <button
+                    key={idx}
+                    onClick={action.onClick}
                     className={cn(
-                        "p-2 rounded-full transition-colors",
-                        post.stats.isBookmarked ? "text-blue-500" : "text-gray-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        "group flex items-center space-x-1 transition-colors",
+                        action.active ? action.activeColor : "text-gray-500",
+                        action.color
                     )}
-                    onClick={handleBookmark}
                 >
-                    <Bookmark className={cn("h-[18px] w-[18px]", post.stats.isBookmarked && "fill-current")} />
+                    <div className={cn(
+                        "p-2 rounded-full transition-all duration-200",
+                        action.bg
+                    )}>
+                        <action.icon
+                            className={cn(
+                                "h-[19px] w-[19px]",
+                                action.active && "fill-current"
+                            )}
+                        />
+                    </div>
+                    <AnimatedCounter value={action.count || 0} />
                 </button>
-                <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors">
-                    <Share2 className="h-[18px] w-[18px]" />
-                </button>
-            </div>
+            ))}
+
+            <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-500/10 rounded-full transition-all mr-2">
+                <Share2 className="h-[19px] w-[19px]" />
+            </button>
         </div>
     );
-};
+});
+
+PostActions.displayName = 'PostActions';

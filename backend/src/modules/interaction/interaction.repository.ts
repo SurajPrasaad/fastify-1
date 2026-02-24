@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { likes, comments, posts, users, bookmarks } from "../../db/schema.js";
+import { likes, comments, posts, users, bookmarks, reposts } from "../../db/schema.js";
 import { and, desc, eq, sql, lt, count, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { ResourceType } from "./interaction.dto.js";
@@ -357,5 +357,37 @@ export class InteractionRepository {
     async validatePostExists(postId: string) {
         const result = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, postId)).limit(1);
         return result.length > 0;
+    }
+
+    /**
+     * Creates a repost. 
+     * If content is provided, it's a quote post.
+     * Otherwise, it's a simple repost.
+     */
+    async createRepost(userId: string, originalPostId: string, content?: string) {
+        return await db.transaction(async (tx) => {
+            // 1. Create entry in reposts table for tracking
+            await tx.insert(reposts).values({
+                userId,
+                postId: originalPostId,
+                quoteText: content || null,
+            });
+
+            // 2. Create a new post entry with originalPostId set
+            // This allows it to show up in the feed easily
+            const [newPost] = await tx.insert(posts).values({
+                userId,
+                content: content || "", // Empty content for simple repost
+                originalPostId,
+                status: "PUBLISHED",
+                publishedAt: new Date(),
+            }).returning();
+
+            // 3. Increment counters (if we decide where to store them, for now following post table pattern)
+            // Note: In a real system we might update both posts table and engagement_counters
+            // but here we follow InteractionRepository's current pattern.
+
+            return newPost;
+        });
     }
 }

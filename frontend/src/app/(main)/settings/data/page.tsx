@@ -18,80 +18,52 @@ import {
     Shield
 } from "lucide-react";
 import { useState } from "react";
+import { useSettings } from "@/hooks/use-settings";
+import { formatDistanceToNow, format } from "date-fns";
 
-const ACTIVITY_LOG = [
-    {
-        id: 1,
-        title: "Password successfully changed",
-        time: "Just now",
-        location: "Berlin, DE",
-        ip: "192.168.1.1",
-        icon: LockKeyhole,
-        color: "text-blue-500 bg-blue-500/10"
-    },
-    {
-        id: 2,
-        title: "Recovery email updated",
-        time: "2 days ago",
-        location: "New York, USA",
-        ip: "45.12.98.2",
-        icon: Mail,
-        color: "text-purple-500 bg-purple-500/10"
-    },
-    {
-        id: 3,
-        title: "New login from Safari on macOS",
-        time: "Oct 24, 2023",
-        location: "Paris, FR",
-        ip: "88.22.41.9",
-        icon: LogIn,
-        color: "text-emerald-500 bg-emerald-500/10"
-    }
-];
-
-const SESSIONS = [
-    {
-        id: 1,
-        device: "MacBook Pro - Chrome",
-        location: "London, UK",
-        ip: "192.168.0.1",
-        active: true,
-        icon: Laptop
-    },
-    {
-        id: 2,
-        device: "iPhone 15 Pro - App",
-        location: "London, UK",
-        ip: "3G/4G Network",
-        active: false,
-        icon: Smartphone
-    }
-];
-
+// Mock data for connected apps - in a real app, this would come from an API
 const CONNECTED_APPS = [
     {
-        id: 1,
-        name: "Adobe Express",
-        desc: "Accessed profile and media",
-        time: "2 days ago",
-        initial: "A",
-        color: "bg-blue-600"
+        id: "1",
+        name: "Slack",
+        desc: "Chat and notifications",
+        initial: "S",
+        color: "bg-[#4A154B]",
+        time: "Connected 2 days ago"
     },
     {
-        id: 2,
-        name: "Canva",
-        desc: "Accessed media",
-        time: "Last month",
-        initial: "C",
-        color: "bg-teal-600"
+        id: "2",
+        name: "GitHub",
+        desc: "Repository access",
+        initial: "G",
+        color: "bg-[#24292F]",
+        time: "Connected 1 week ago"
+    },
+    {
+        id: "3",
+        name: "Google Drive",
+        desc: "Cloud storage",
+        initial: "D",
+        color: "bg-[#4285F4]",
+        time: "Connected 1 month ago"
     }
 ];
 
-export default function SettingsDataPage() {
-    const { user, isLoading } = useAuth();
-    const [isDownloading, setIsDownloading] = useState(false);
 
-    if (isLoading || !user) {
+export default function SettingsDataPage() {
+    const { user, isLoading: isAuthLoading } = useAuth();
+    const {
+        sessions,
+        auditLogs,
+        dataRequests,
+        requestDataArchive,
+        revokeSession,
+        revokeAllSessions
+    } = useSettings();
+
+    const isPageLoading = isAuthLoading || sessions.isLoading || auditLogs.isLoading || dataRequests.isLoading;
+
+    if (isPageLoading || !user) {
         return (
             <div className="flex items-center justify-center p-20">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -99,9 +71,37 @@ export default function SettingsDataPage() {
         );
     }
 
-    const handleDownloadRequest = () => {
-        setIsDownloading(true);
-        setTimeout(() => setIsDownloading(false), 2000);
+    const handleDownloadRequest = async () => {
+        try {
+            await requestDataArchive.mutateAsync();
+        } catch (error) {
+            // Error toast handled in hook
+        }
+    };
+
+    const parseUserAgent = (ua: string) => {
+        const isMobile = /mobile|iphone|android|tablet/i.test(ua);
+        const Icon = isMobile ? Smartphone : Laptop;
+
+        let name = "Unknown Device";
+        if (/chrome/i.test(ua)) name = "Chrome Browser";
+        else if (/safari/i.test(ua)) name = "Safari Browser";
+        else if (/firefox/i.test(ua)) name = "Firefox Browser";
+        else if (/edg/i.test(ua)) name = "Edge Browser";
+
+        if (/windows/i.test(ua)) name += " (Windows)";
+        else if (/mac/i.test(ua)) name += " (macOS)";
+        else if (/iphone/i.test(ua)) name = "iPhone App";
+        else if (/android/i.test(ua)) name = "Android App";
+
+        return { name, Icon };
+    };
+
+    const auditLogIcons: Record<string, { icon: any, color: string }> = {
+        'PASSWORD_CHANGE': { icon: LockKeyhole, color: "text-blue-500 bg-blue-500/10" },
+        'EMAIL_UPDATE': { icon: Mail, color: "text-purple-500 bg-purple-500/10" },
+        'LOGIN': { icon: LogIn, color: "text-emerald-500 bg-emerald-500/10" },
+        'DEFAULT': { icon: Shield, color: "text-slate-500 bg-slate-500/10" }
     };
 
     return (
@@ -123,10 +123,10 @@ export default function SettingsDataPage() {
                         </div>
                         <button
                             onClick={handleDownloadRequest}
-                            disabled={isDownloading}
+                            disabled={requestDataArchive.isPending}
                             className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-8 text-sm font-black text-white transition-all hover:bg-blue-700 active:scale-95 shadow-xl shadow-primary/20 disabled:opacity-70"
                         >
-                            {isDownloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                            {requestDataArchive.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
                             Request Download
                         </button>
                     </div>
@@ -140,23 +140,30 @@ export default function SettingsDataPage() {
                     </div>
                     <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {ACTIVITY_LOG.map((item) => (
-                                <div key={item.id} className="flex items-start gap-5 p-6 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
-                                    <div className={cn("size-10 shrink-0 items-center justify-center rounded-2xl flex", item.color)}>
-                                        <item.icon className="size-5" />
-                                    </div>
-                                    <div className="flex flex-1 flex-col gap-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <p className="font-bold text-slate-900 dark:text-white text-[15px]">{item.title}</p>
-                                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">{item.time}</span>
+                            {(auditLogs.data || []).length > 0 ? (auditLogs.data || []).map((item) => {
+                                const info = auditLogIcons[item.action] || auditLogIcons.DEFAULT;
+                                return (
+                                    <div key={item.id} className="flex items-start gap-5 p-6 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                                        <div className={cn("size-10 shrink-0 items-center justify-center rounded-2xl flex", info.color)}>
+                                            <info.icon className="size-5" />
                                         </div>
-                                        <div className="flex items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
-                                            <span className="flex items-center gap-1.5"><MapPin className="size-3.5" /> {item.location}</span>
-                                            <span className="flex items-center gap-1.5"><Network className="size-3.5" /> {item.ip}</span>
+                                        <div className="flex flex-1 flex-col gap-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-bold text-slate-900 dark:text-white text-[15px]">{item.action.replace(/_/g, ' ')}</p>
+                                                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                                                    {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                <span className="flex items-center gap-1.5"><MapPin className="size-3.5" /> Earth</span>
+                                                <span className="flex items-center gap-1.5"><Network className="size-3.5" /> {item.ipAddress}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            }) : (
+                                <div className="p-8 text-center text-slate-500 font-medium">No recent activity detected.</div>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -168,35 +175,48 @@ export default function SettingsDataPage() {
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Active Sessions</h3>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">You are currently logged in on these devices.</p>
                         </div>
-                        <button className="rounded-xl border-2 border-rose-500/20 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-500 transition-all hover:bg-rose-500 hover:text-white shadow-sm">
+                        <button
+                            onClick={() => revokeAllSessions.mutate()}
+                            disabled={revokeAllSessions.isPending}
+                            className="rounded-xl border-2 border-rose-500/20 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-500 transition-all hover:bg-rose-500 hover:text-white shadow-sm disabled:opacity-50"
+                        >
                             Log out from all devices
                         </button>
                     </div>
                     <div className="grid gap-5 sm:grid-cols-2">
-                        {SESSIONS.map((session) => (
-                            <div key={session.id} className="group relative flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 p-6 shadow-sm transition-all hover:border-primary/20">
-                                <div className="size-14 shrink-0 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                                    <session.icon className={cn("size-6", session.active ? "text-primary" : "text-slate-400")} />
-                                </div>
-                                <div className="flex-1 overflow-hidden">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="truncate font-bold text-slate-900 dark:text-white text-[15px]">{session.device}</p>
-                                        <button className="text-slate-300 hover:text-rose-500 transition-colors">
-                                            <X className="size-5" />
-                                        </button>
+                        {(sessions.data || []).map((session) => {
+                            const { name, Icon } = parseUserAgent(session.userAgent);
+                            return (
+                                <div key={session.id} className="group relative flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 p-6 shadow-sm transition-all hover:border-primary/20">
+                                    <div className="size-14 shrink-0 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                                        <Icon className={cn("size-6", session.isValid ? "text-primary" : "text-slate-400")} />
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        {session.active && (
-                                            <span className="flex w-fit items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black tracking-widest text-emerald-500 mb-1">
-                                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                ACTIVE NOW
-                                            </span>
-                                        )}
-                                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">{session.location} • {session.ip}</p>
+                                    <div className="flex-1 overflow-hidden">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="truncate font-bold text-slate-900 dark:text-white text-[15px]">{name}</p>
+                                            <button
+                                                onClick={() => revokeSession.mutate(session.id)}
+                                                disabled={revokeSession.isPending}
+                                                className="text-slate-300 hover:text-rose-500 transition-colors disabled:opacity-50"
+                                            >
+                                                <X className="size-5" />
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            {session.isValid && (
+                                                <span className="flex w-fit items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black tracking-widest text-emerald-500 mb-1">
+                                                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    ACTIVE NOW
+                                                </span>
+                                            )}
+                                            <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium tracking-tight">
+                                                {formatDistanceToNow(new Date(session.lastActiveAt), { addSuffix: true })} • {session.ipAddress}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </section>
 

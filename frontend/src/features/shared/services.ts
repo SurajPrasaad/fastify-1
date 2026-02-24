@@ -50,20 +50,38 @@ export const EngagementService = {
 };
 
 export const InteractionService = {
-    fetchComments: async (postId: string, limit = 20, cursor?: string) => {
-        const params = new URLSearchParams({ limit: limit.toString() });
-        if (cursor) params.set('cursor', cursor);
-        return api.get<CommentResponse>(`/interactions/post/${postId}/comments?${params.toString()}`);
+    fetchComments: async (postId: string, limit = 20, cursor?: string, parentId?: string): Promise<CommentResponse> => {
+        const query = new URLSearchParams({
+            postId,
+            limit: limit.toString()
+        });
+        if (cursor) query.set('cursor', cursor);
+        if (parentId) query.set('parentId', parentId);
+
+        const response = await api.get<{ comments: any[], nextCursor?: string }>(`/comments/${postId}?${query.toString()}`);
+
+        return {
+            data: response.comments.map(c => ({
+                ...c,
+                likeCount: c.likesCount || 0,
+                replyCount: c.repliesCount || 0
+            })),
+            nextCursor: response.nextCursor || undefined,
+            hasMore: !!response.nextCursor
+        };
     },
 
-    fetchReplies: async (parentId: string, limit = 20, cursor?: string) => {
-        const params = new URLSearchParams({ limit: limit.toString() });
-        if (cursor) params.set('cursor', cursor);
-        return api.get<CommentResponse>(`/interactions/comment/${parentId}/replies?${params.toString()}`);
+    fetchReplies: async (postId: string, parentId: string, limit = 20, cursor?: string): Promise<CommentResponse> => {
+        return InteractionService.fetchComments(postId, limit, cursor, parentId);
     },
 
-    addComment: async (postId: string, content: string, parentId?: string) => {
-        return api.post<IComment>(`/interactions/comment`, { postId, content, parentId });
+    addComment: async (postId: string, content: string, parentId?: string): Promise<IComment> => {
+        const response = await api.post<any>(`/comments/${postId}`, { content, parentId });
+        return {
+            ...response,
+            likeCount: response.likesCount || 0,
+            replyCount: response.repliesCount || 0
+        };
     },
 
     fetchUserLikedPosts: async (limit = 20, cursor?: string) => {

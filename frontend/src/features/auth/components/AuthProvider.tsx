@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useEffect } from "react";
 import { useCurrentUser, useAuthActions } from "../hooks";
 import { User } from "../types";
+import { useAuthStore } from "../stores/auth.store";
 
 interface AuthContextType {
     user: User | null;
@@ -16,6 +17,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: user, isLoading, isFetching } = useCurrentUser();
     const { logout } = useAuthActions();
+    const setUser = useAuthStore((state) => state.setUser);
+
+    useEffect(() => {
+        if (user) {
+            setUser(user);
+        } else if (!isLoading && !isFetching) {
+            setUser(null);
+        }
+    }, [user, setUser, isLoading, isFetching]);
 
     const isAuthenticated = !!user;
 

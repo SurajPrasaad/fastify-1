@@ -1,26 +1,148 @@
 
 import { db } from "../../config/drizzle.js";
-import { posts, users, postVersions, hashtags, postHashtags, media } from "../../db/schema.js";
+import { posts, users, postVersions, hashtags, postHashtags, media, polls, pollOptions, pollVotes } from "../../db/schema.js";
 import { and, desc, eq, lt, sql, count } from "drizzle-orm";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 
 export class PostRepository {
     async create(data: CreatePostInput & { userId: string; status?: "DRAFT" | "PUBLISHED" }) {
         const status = data.status || 'PUBLISHED';
-        const [post] = await db
-            .insert(posts)
-            .values({
-                userId: data.userId,
-                content: data.content,
-                codeSnippet: data.codeSnippet || null,
-                language: data.language || null,
-                mediaUrls: data.mediaUrls || [],
-                status: status,
-                publishedAt: status === 'PUBLISHED' ? new Date() : null,
-            })
-            .returning();
-        return post;
+
+        return await db.transaction(async (tx) => {
+            let pollId: string | null = null;
+
+            // 1. Create poll if exists
+            if (data.poll) {
+                const [newPoll] = await tx.insert(polls).values({
+                    question: data.content.slice(0, 255), // Use part of content as internal question
+                    expiresAt: data.poll.expiresAt,
+                }).returning();
+
+                if (!newPoll) {
+                    throw new Error("Failed to create poll");
+                }
+
+                pollId = newPoll.id;
+
+                // Create poll options
+                await tx.insert(pollOptions).values(
+                    data.poll.options.map(opt => ({
+                        pollId: newPoll.id,
+                        text: opt
+                    }))
+                );
+            }
+
+            // 2. Create post
+            const [post] = await tx
+                .insert(posts)
+                .values({
+                    userId: data.userId,
+                    content: data.content,
+                    codeSnippet: data.codeSnippet || null,
+                    language: data.language || null,
+                    mediaUrls: data.mediaUrls || [],
+                    location: data.location || null,
+                    pollId: pollId,
+                    status: status,
+                    publishedAt: status === 'PUBLISHED' ? new Date() : null,
+                })
+                .returning();
+
+            if (!post) {
+                throw new Error("Failed to create post");
+            }
+
+            return await this.findByIdHydrated(post.id, undefined, tx);
+        });
     }
+
+    async findByIdHydrated(id: string, currentUserId?: string, tx?: any) {
+        // const client = tx || db;
+        const [item] = await tx
+            .select({
+                id: posts.id,
+                userId: posts.userId,
+                content: posts.content,
+                codeSnippet: posts.codeSnippet,
+                language: posts.language,
+                mediaUrls: posts.mediaUrls,
+                location: posts.location,
+                pollId: posts.pollId,
+                originalPostId: posts.originalPostId,
+                status: posts.status,
+                commentsCount: posts.commentsCount,
+                likesCount: posts.likesCount,
+                publishedAt: posts.publishedAt,
+                createdAt: posts.createdAt,
+                updatedAt: posts.updatedAt,
+                author: {
+                    username: users.username,
+                    name: users.name,
+                    avatarUrl: users.avatarUrl,
+                },
+                isLiked: currentUserId
+                    ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE target_id = ${posts.id} AND user_id = ${currentUserId} AND target_type = 'POST')`
+                    : sql<boolean>`false`,
+                isBookmarked: currentUserId
+                    ? sql<boolean>`EXISTS (SELECT 1 FROM bookmarks WHERE post_id = ${posts.id} AND user_id = ${currentUserId})`
+                    : sql<boolean>`false`,
+            })
+            .from(posts)
+            .innerJoin(users, eq(posts.userId, users.id))
+            .where(eq(posts.id, id))
+            .limit(1);
+
+        if (!item) return null;
+        const client = tx || db;
+
+        let poll = null;
+        let originalPost = null;
+
+        // 1. Fetch Poll
+        if (item.pollId) {
+            const [pollData] = await client.select().from(polls).where(eq(polls.id, item.pollId));
+            if (pollData) {
+                const options = await client.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+                let userVotedOptionId = null;
+                if (currentUserId) {
+                    const [vote] = await client.select()
+                        .from(pollVotes)
+                        .where(and(eq(pollVotes.pollId, item.pollId), eq(pollVotes.userId, currentUserId)));
+                    userVotedOptionId = vote?.optionId || null;
+                }
+                poll = { ...pollData, options, userVotedOptionId };
+            }
+        }
+
+        // 2. Fetch Original Post
+        if (item.originalPostId) {
+            const [orig] = await client
+                .select({
+                    id: posts.id,
+                    content: posts.content,
+                    createdAt: posts.createdAt,
+                    author: {
+                        username: users.username,
+                        name: users.name,
+                        avatarUrl: users.avatarUrl,
+                    }
+                })
+                .from(posts)
+                .innerJoin(users, eq(posts.userId, users.id))
+                .where(eq(posts.id, item.originalPostId))
+                .limit(1);
+
+            originalPost = orig || null;
+        }
+
+        return {
+            ...item,
+            poll,
+            originalPost
+        };
+    }
+
 
     async findById(id: string, includePrivate = false) {
         const query = db
@@ -55,7 +177,7 @@ export class PostRepository {
             conditions.push(lt(posts.publishedAt, new Date(cursor)));
         }
 
-        const query = db
+        const items = await db
             .select({
                 id: posts.id,
                 userId: posts.userId,
@@ -63,6 +185,9 @@ export class PostRepository {
                 codeSnippet: posts.codeSnippet,
                 language: posts.language,
                 mediaUrls: posts.mediaUrls,
+                location: posts.location,
+                pollId: posts.pollId,
+                originalPostId: posts.originalPostId,
                 status: posts.status,
                 commentsCount: posts.commentsCount,
                 likesCount: posts.likesCount,
@@ -74,7 +199,6 @@ export class PostRepository {
                     name: users.name,
                     avatarUrl: users.avatarUrl,
                 },
-                // subqueries for isLiked and isBookmarked
                 isLiked: currentUserId
                     ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE target_id = ${posts.id} AND user_id = ${currentUserId} AND target_type = 'POST')`
                     : sql<boolean>`false`,
@@ -88,8 +212,60 @@ export class PostRepository {
             .orderBy(desc(posts.publishedAt))
             .limit(limit + 1);
 
-        return await query;
+        // Fetch additional data (polls and original posts)
+        const hydratedPosts = await Promise.all(items.map(async (item) => {
+            let poll = null;
+            let originalPost = null;
+
+            // 1. Fetch Poll if exists
+            if (item.pollId) {
+                const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
+                if (pollData) {
+                    const options = await db.select().from(pollOptions).where(eq(pollOptions.pollId, item.pollId));
+                    let userVotedOptionId = null;
+                    if (currentUserId) {
+                        const [vote] = await db.select()
+                            .from(pollVotes)
+                            .where(and(eq(pollVotes.pollId, item.pollId), eq(pollVotes.userId, currentUserId)));
+                        userVotedOptionId = vote?.optionId || null;
+                    }
+                    poll = { ...pollData, options, userVotedOptionId };
+                }
+            }
+
+            // 2. Fetch Original Post if it's a repost
+            if (item.originalPostId) {
+                // We fetch a simple version of the original post to avoid deep recursion
+                // but include author info for UI
+                const [orig] = await db
+                    .select({
+                        id: posts.id,
+                        content: posts.content,
+                        createdAt: posts.createdAt,
+                        author: {
+                            username: users.username,
+                            name: users.name,
+                            avatarUrl: users.avatarUrl,
+                        }
+                    })
+                    .from(posts)
+                    .innerJoin(users, eq(posts.userId, users.id))
+                    .where(eq(posts.id, item.originalPostId))
+                    .limit(1);
+
+                originalPost = orig || null;
+            }
+
+            return {
+                ...item,
+                poll,
+                originalPost
+            };
+        }));
+
+        return hydratedPosts;
     }
+
 
     async update(id: string, userId: string, data: UpdatePostInput) {
         return await db.transaction(async (tx) => {
@@ -127,6 +303,10 @@ export class PostRepository {
                 .where(and(eq(posts.id, id), eq(posts.userId, userId)))
                 .returning();
 
+            if (!updated) {
+                throw new Error("Failed to update post");
+            }
+
             return updated;
         });
     }
@@ -147,6 +327,9 @@ export class PostRepository {
                 )
             )
             .returning();
+        if (!published) {
+            throw new Error("Failed to publish post");
+        }
         return published;
     }
 
@@ -164,6 +347,9 @@ export class PostRepository {
                 )
             )
             .returning();
+        if (!archived) {
+            throw new Error("Failed to archive post");
+        }
         return archived;
     }
 
@@ -181,6 +367,9 @@ export class PostRepository {
                 )
             )
             .returning();
+        if (!deleted) {
+            throw new Error("Failed to delete post");
+        }
         return deleted;
     }
 
@@ -232,4 +421,35 @@ export class PostRepository {
             }
         });
     }
+
+    async vote(userId: string, pollId: string, optionId: string) {
+        return await db.transaction(async (tx) => {
+            // Check if already voted (enforced by PK anyway, but let's be explicit)
+            const [existing] = await tx
+                .select()
+                .from(pollVotes)
+                .where(and(eq(pollVotes.pollId, pollId), eq(pollVotes.userId, userId)))
+                .limit(1);
+
+            if (existing) return null;
+
+            // 1. Record vote
+            await tx.insert(pollVotes).values({
+                userId,
+                pollId,
+                optionId,
+            });
+
+            // 2. Increment count
+            await tx
+                .update(pollOptions)
+                .set({
+                    votesCount: sql`${pollOptions.votesCount} + 1`,
+                })
+                .where(eq(pollOptions.id, optionId));
+
+            return true;
+        });
+    }
 }
+

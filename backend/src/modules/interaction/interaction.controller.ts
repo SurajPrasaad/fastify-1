@@ -7,7 +7,8 @@ import type {
     CreateCommentInput,
     GetCommentsQuery,
     GetRepliesQuery,
-    GetUserRepliesQuery
+    GetUserRepliesQuery,
+    RepostInput
 } from "./interaction.dto.js";
 
 const service = new InteractionService();
@@ -126,4 +127,14 @@ export async function getUserLikedPostsHandler(
             hasNext: posts.length === limit
         }
     });
+}
+
+export async function createRepostHandler(
+    request: FastifyRequest<{ Body: RepostInput }>,
+    reply: FastifyReply
+) {
+    const userId = request.user!.sub;
+    const { postId, content } = request.body;
+    const result = await service.createRepost(userId, postId, content);
+    return reply.status(201).send(result);
 }

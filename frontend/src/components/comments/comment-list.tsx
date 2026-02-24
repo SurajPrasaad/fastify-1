@@ -1,218 +1,127 @@
 "use client"
 
 import * as React from "react"
-import {
-    useToggleLike,
-    useCreateComment
-} from "@/features/interaction/hooks"
 import { useInfiniteComments } from "@/features/comments/hooks"
-import { commentApi } from "@/features/comments/api"
 import { Comment } from "@/features/interaction/types"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Loader2, MessageCircle, AlertCircle, RefreshCcw } from "lucide-react"
+import { ReplyItem, Reply } from "@/components/thread/reply-item"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Loader2, MessageSquare, Heart, ChevronDown, ChevronUp } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
-import { cn } from "@/lib/utils"
 
-interface CommentItemProps {
-    comment: Comment;
+interface CommentListProps {
     postId: string;
 }
 
-function CommentItem({ comment, postId }: CommentItemProps) {
-    const [showReplies, setShowReplies] = React.useState(false);
-    const [replies, setReplies] = React.useState<Comment[]>([]);
-    const [isLoadingReplies, setIsLoadingReplies] = React.useState(false);
-    const [isReplyOpen, setIsReplyOpen] = React.useState(false);
-    const [replyContent, setReplyContent] = React.useState("");
+export function CommentList({ postId }: CommentListProps) {
+    const {
+        comments,
+        isLoading,
+        hasMore,
+        fetchMore,
+        error
+    } = useInfiniteComments(postId);
 
-    const { isLiked, count, toggleLike } = useToggleLike(comment.isLiked, comment.stats?.likes || 0);
-    const { createComment, isSubmitting } = useCreateComment();
+    // Map the API Comment type to the Reply type expected by ReplyItem
+    const mapCommentToReply = (c: Comment): Reply => ({
+        id: c.id,
+        author: {
+            username: c.author?.username || "anonymous",
+            displayName: c.author?.name || c.author?.username || "Anonymous",
+            avatarUrl: c.author?.avatarUrl || undefined,
+        },
+        content: c.content,
+        stats: {
+            likes: c.stats?.likes || 0,
+            comments: c.stats?.replies || 0,
+        },
+        createdAt: new Date(c.createdAt),
+        isLiked: c.isLiked,
+        replyTo: undefined,
+    });
 
-    const handleFetchReplies = async () => {
-        if (showReplies) {
-            setShowReplies(false);
-            return;
-        }
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4 px-6 text-center">
+                <AlertCircle className="h-10 w-10 text-red-500 opacity-50" />
+                <div className="space-y-1">
+                    <p className="font-bold text-red-500">Failed to load comments</p>
+                    <p className="text-sm text-muted-foreground">{error}</p>
+                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchMore(true)}
+                    className="gap-2 rounded-full"
+                >
+                    <RefreshCcw className="h-4 w-4" />
+                    Try again
+                </Button>
+            </div>
+        );
+    }
 
-        setShowReplies(true);
-        if (replies.length > 0) return;
+    if (isLoading && comments.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                <p className="text-sm text-muted-foreground animate-pulse">Fetching comments...</p>
+            </div>
+        );
+    }
 
-        setIsLoadingReplies(true);
-        try {
-            const data = await commentApi.getCommentReplies(comment.id);
-            setReplies(data);
-        } catch (error) {
-            setShowReplies(false);
-        } finally {
-            setIsLoadingReplies(false);
-        }
-    };
-
-    const handleReply = async () => {
-        await createComment(postId, replyContent, comment.id, (newReply) => {
-            setReplies(prev => [newReply, ...prev]);
-            setReplyContent("");
-            setIsReplyOpen(false);
-            setShowReplies(true);
-        });
-    };
+    if (!isLoading && comments.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+                <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-900 rounded-full flex items-center justify-center mb-4">
+                    <MessageCircle className="h-8 w-8 text-muted-foreground/30" />
+                </div>
+                <h3 className="text-lg font-bold">No comments yet</h3>
+                <p className="text-muted-foreground text-sm max-w-[250px]">
+                    Be the first to share your thoughts on this post!
+                </p>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex gap-3 py-3 px-4 group/comment">
-            <Avatar className="h-8 w-8 shrink-0">
-                <AvatarImage src={comment.author.avatarUrl || ""} />
-                <AvatarFallback>{comment.author.username[0].toUpperCase()}</AvatarFallback>
-            </Avatar>
+        <div className="flex flex-col">
+            <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800 transition-all">
+                {comments.map((comment, index) => (
+                    <ReplyItem
+                        key={comment.id}
+                        reply={mapCommentToReply(comment)}
+                        postId={postId}
+                        isLast={index === comments.length - 1 && !hasMore}
+                        hasConnector={index !== comments.length - 1 || hasMore}
+                    />
+                ))}
+            </div>
 
-            <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm">@{comment.author.username}</span>
-                    <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                    </span>
-                </div>
-
-                <p className="text-sm leading-snug whitespace-pre-wrap">{comment.content}</p>
-
-                <div className="flex items-center gap-4 pt-1">
-                    <button
-                        onClick={() => toggleLike(comment.id, "COMMENT")}
-                        className={cn(
-                            "flex items-center gap-1.5 text-xs font-medium transition-colors",
-                            isLiked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
-                        )}
+            {hasMore && (
+                <div className="p-4 flex justify-center border-t border-gray-100 dark:divide-gray-800">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isLoading}
+                        onClick={() => fetchMore(false)}
+                        className="text-blue-500 font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full h-10 px-6"
                     >
-                        <Heart className={cn("h-4 w-4", isLiked && "fill-current")} />
-                        {count > 0 && <span>{count}</span>}
-                    </button>
-
-                    <button
-                        onClick={() => setIsReplyOpen(!isReplyOpen)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
-                    >
-                        <MessageSquare className="h-4 w-4" />
-                        Reply
-                    </button>
-                </div>
-
-                {isReplyOpen && (
-                    <div className="mt-3 space-y-2">
-                        <Textarea
-                            placeholder="Write a reply..."
-                            className="text-sm min-h-[80px]"
-                            value={replyContent}
-                            onChange={(e) => setReplyContent(e.target.value)}
-                        />
-                        <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => setIsReplyOpen(false)}>Cancel</Button>
-                            <Button size="sm" onClick={handleReply} disabled={isSubmitting || !replyContent.trim()}>
-                                {isSubmitting && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
-                                Reply
-                            </Button>
-                        </div>
-                    </div>
-                )}
-
-                {(comment.stats?.replies || 0) > 0 && (
-                    <button
-                        onClick={handleFetchReplies}
-                        className="flex items-center gap-1.5 text-xs font-bold text-blue-500 hover:text-blue-600 pt-2 transition-colors"
-                    >
-                        {showReplies ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        {showReplies ? "Hide replies" : `View ${comment.stats?.replies || 0} replies`}
-                    </button>
-                )}
-
-                {showReplies && (
-                    <div className="mt-2 space-y-1 border-l-2 pl-4 border-muted">
-                        {isLoadingReplies ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground py-4" />
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Loading...
+                            </>
                         ) : (
-                            Array.isArray(replies) && replies.map(reply => (
-                                <CommentItem key={reply.id} comment={reply} postId={postId} />
-                            ))
+                            "Show more comments"
                         )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
-export function CommentList({ postId }: { postId: string }) {
-    const [comments, setComments] = React.useState<Comment[]>([]);
-    const [isLoading, setIsLoading] = React.useState(true);
-    const [content, setContent] = React.useState("");
-    const { createComment, isSubmitting } = useCreateComment();
-
-    React.useEffect(() => {
-        async function load() {
-            try {
-                const data = await commentApi.getPostComments(postId);
-                setComments(data);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-        load();
-    }, [postId]);
-
-    const handleSubmit = async () => {
-        await createComment(postId, content, undefined, (newComment) => {
-            setComments(prev => [newComment, ...prev]);
-            setContent("");
-        });
-    };
-
-    return (
-        <div className="flex flex-col h-full bg-background border-t">
-            <div className="p-4 border-b sticky top-0 bg-background/80 backdrop-blur-md z-10 flex items-center justify-between">
-                <h3 className="font-bold">Comments</h3>
-                <span className="text-xs text-muted-foreground">{comments.length} total</span>
-            </div>
-
-            <div className="p-4 space-y-4">
-                <div className="flex gap-3">
-                    <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarImage src="/avatars/user.jpg" />
-                        <AvatarFallback>U</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-3">
-                        <Textarea
-                            placeholder="Add a comment..."
-                            className="resize-none min-h-[100px]"
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                        />
-                        <div className="flex justify-end">
-                            <Button size="sm" onClick={handleSubmit} disabled={isSubmitting || !content.trim()}>
-                                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                                Comment
-                            </Button>
-                        </div>
-                    </div>
+                    </Button>
                 </div>
-            </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto">
-                {isLoading ? (
-                    <div className="flex justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                ) : comments.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground">
-                        No comments yet. Be the first to share your thoughts!
-                    </div>
-                ) : (
-                    <div className="divide-y divide-muted/50">
-                        {Array.isArray(comments) && comments.map(comment => (
-                            <CommentItem key={comment.id} comment={comment} postId={postId} />
-                        ))}
-                    </div>
-                )}
-            </div>
+            {isLoading && comments.length > 0 && (
+                <div className="p-8 flex justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                </div>
+            )}
         </div>
     );
 }

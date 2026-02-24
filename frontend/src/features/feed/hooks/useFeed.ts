@@ -64,10 +64,19 @@ export const useFeed = () => {
         }
     });
 
+    const repostMutation = useMutation({
+        mutationFn: ({ postId, content }: { postId: string, content?: string }) => feedApi.repost(postId, content),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['feed'] });
+            // We could also prepend the new post if the API returns it
+        }
+    });
+
     return {
         like: (postId: string) => likeMutation.mutate(postId),
         unlike: (postId: string) => unlikeMutation.mutate(postId),
         bookmark: (postId: string) => bookmarkMutation.mutate(postId),
         unbookmark: (postId: string) => unbookmarkMutation.mutate(postId),
+        repost: (postId: string, content?: string) => repostMutation.mutate({ postId, content }),
     };
 };

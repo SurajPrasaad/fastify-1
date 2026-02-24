@@ -9,6 +9,7 @@ import {
     createCommentHandler,
     getCommentsHandler,
     getRepliesHandler,
+    createRepostHandler,
 } from "./interaction.controller.js";
 import { z } from "zod";
 import {
@@ -16,6 +17,7 @@ import {
     createCommentSchema,
     getCommentsSchema,
     getRepliesSchema,
+    repostSchema,
 } from "./interaction.schema.js";
 
 export async function interactionRoutes(app: FastifyInstance) {
@@ -27,7 +29,7 @@ export async function interactionRoutes(app: FastifyInstance) {
 
     // --- Public Routes (with optional auth for isLiked status) ---
     const publicApp = app.withTypeProvider<ZodTypeProvider>();
-   
+
 
     publicApp.get(
         "/post/:postId/comments",
@@ -105,6 +107,19 @@ export async function interactionRoutes(app: FastifyInstance) {
                 },
             },
             createCommentHandler
+        );
+
+        // Reposts
+        protectedApp.post(
+            "/repost",
+            {
+                schema: {
+                    body: repostSchema,
+                    tags: ["Interactions"],
+                    description: "Repost or quote a post",
+                },
+            },
+            createRepostHandler
         );
     });
 }

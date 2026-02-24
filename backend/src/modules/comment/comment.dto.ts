@@ -5,6 +5,7 @@ export interface CommentDto {
         id: string;
         username: string;
         name: string;
+        avatarUrl?: string | null;
     };
     content: string;
     likesCount: number;

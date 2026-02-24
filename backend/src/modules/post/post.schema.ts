@@ -2,14 +2,30 @@
 import { z } from "zod";
 
 const postCore = {
-    content: z.string().min(1).max(3000),
+    content: z.string().max(3000).optional().default(""),
     codeSnippet: z.string().optional(),
     language: z.string().max(50).optional(),
-    mediaUrls: z.array(z.string().url()).optional().default([]),
+    mediaUrls: z.array(z.string()).optional().default([]),
+    location: z.string().optional().nullable(),
+    poll: z.object({
+        options: z.array(z.string().min(1)).min(2).max(4),
+        expiresAt: z.coerce.date(),
+    }).optional().nullable(),
 };
 
 export const createPostSchema = z.object({
     ...postCore,
+}).refine((data) => {
+    // Check if at least one of the primary content types is present
+    const hasContent = data.content && data.content.trim().length > 0;
+    const hasMedia = data.mediaUrls && data.mediaUrls.length > 0;
+    const hasPoll = !!data.poll;
+    const hasCode = !!data.codeSnippet;
+
+    return !!(hasContent || hasMedia || hasPoll || hasCode);
+}, {
+    message: "Post must have either content, media, code, or a poll",
+    path: ["content"],
 }).refine((data) => {
     if (data.codeSnippet && !data.language) {
         return false;
@@ -25,6 +41,7 @@ export const updatePostSchema = z.object({
     codeSnippet: z.string().optional(),
     language: z.string().max(50).optional(),
     mediaUrls: z.array(z.string().url()).optional(),
+    location: z.string().optional().nullable(),
 }).refine((data) => {
     if (data.codeSnippet && !data.language) {
         return false;
@@ -42,6 +59,8 @@ export const postResponseSchema = z.object({
     codeSnippet: z.string().nullable().optional(),
     language: z.string().nullable().optional(),
     mediaUrls: z.array(z.string()),
+    location: z.string().nullable().optional(),
+    pollId: z.string().uuid().nullable().optional(),
     status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED', 'DELETED']),
     commentsCount: z.number(),
     likesCount: z.number(),
@@ -51,8 +70,20 @@ export const postResponseSchema = z.object({
     author: z.object({
         username: z.string(),
         name: z.string(),
+        avatarUrl: z.string().nullable().optional(),
     }).optional(),
+    poll: z.object({
+        id: z.string().uuid(),
+        options: z.array(z.object({
+            id: z.string().uuid(),
+            text: z.string(),
+            votesCount: z.number(),
+        })),
+        expiresAt: z.date(),
+        userVotedOptionId: z.string().uuid().nullable().optional(),
+    }).nullable().optional(),
 });
+
 
 export const getPostsQuerySchema = z.object({
     cursor: z.string().optional(),

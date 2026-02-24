@@ -7,7 +7,8 @@ import {
     createCommentSchema,
     getCommentsSchema,
     getRepliesSchema,
-    getUserRepliesSchema
+    getUserRepliesSchema,
+    repostSchema
 } from "./interaction.schema.js";
 
 export type ResourceType = z.infer<typeof resourceTypeSchema>;
@@ -17,6 +18,7 @@ export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type GetCommentsQuery = z.infer<typeof getCommentsSchema>;
 export type GetRepliesQuery = z.infer<typeof getRepliesSchema>;
 export type GetUserRepliesQuery = z.infer<typeof getUserRepliesSchema>;
+export type RepostInput = z.infer<typeof repostSchema>;
 
 export interface CommentWithAuthor {
     id: string;

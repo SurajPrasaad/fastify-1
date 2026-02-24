@@ -39,3 +39,13 @@ export interface ToggleLikeResponse {
 export interface ToggleBookmarkResponse {
     bookmarked: boolean;
 }
+
+export interface RepostPayload {
+    postId: string;
+    content?: string;
+}
+
+export interface RepostResponse {
+    success: boolean;
+    repostId: string;
+}

@@ -110,3 +110,17 @@ export async function getUserPostsHandler(
     });
 }
 
+export async function votePollHandler(
+
+    request: FastifyRequest<{ Params: { id: string }, Body: { optionId: string } }>,
+    reply: FastifyReply
+) {
+    const { id } = request.params;
+    const { optionId } = request.body;
+    const userId = request.user!.sub;
+
+    await postService.votePoll(userId, id, optionId);
+    return reply.send({ message: "Vote recorded" });
+}
+
+

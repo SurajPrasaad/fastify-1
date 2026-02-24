@@ -4,52 +4,21 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { Loader2, Search, Info, UserPlus } from "lucide-react";
 import { useState } from "react";
+import { useSettings } from "@/hooks/use-settings";
+import { format } from "date-fns";
 import Image from "next/image";
 
-const BLOCKED_USERS = [
-    {
-        id: 1,
-        name: "Alex Rivera",
-        username: "arivera",
-        avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDzSZK3gRkFZ-vIGwbH6_U5SVuch7a2FJernnUVNz_pAq0PNaypuWp02_hueTJuiCxdd3_qXT0AbuGBhaJbXMBBWv8hKM3OQvrEm-P6995Pg8XknXMpk8ctBou1GWzXVyQjzZk7NiBA3bvi_Jg77sCyw8ucXZIQnhUI1ALUgIn2-0vUh5I-5Sggl_0-KjAjj7M1VYtZlVwA_VK6I3tGSQxOIU3fboKpQFyfdH2GvOIEFQxM_GoeBvL-YOULjrbD82YpjCGw2YNcYXE",
-        date: "Oct 12, 2023"
-    },
-    {
-        id: 2,
-        name: "Sarah Jenkins",
-        username: "sjenkins_design",
-        avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuBcUUFPUJxejWIbvukBNxPIidprAIN7g__1bHr7FxABW1fklrSh9QfkTljcp9DeilTBfuFmQz8k-ux53uyeTowwygrjcsLA3AvWXj_7Pye6uWwZ32PA8rXgSzkCpT6bLJ5_e81UObw0PBSZ43Gn7T1JBIcwnVqMgM3yZ5uA7CmTZnrtjFT_XFfeHtNCiTBTlV2nlRhpCTtsbTaV5SorHNIl63mph2ZXtnz4lCiFrD7nPyFV475A4Wwl0gl1eZjZgmFXn102YmgZ_-k",
-        date: "Sep 28, 2023"
-    },
-    {
-        id: 3,
-        name: "Marcus Thorne",
-        username: "mthorne",
-        avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuD5tFc-ay2fiC_CVCnW9Tf7RkV4LiwFXP4_-ZmNgiVbt3xW9qBI0B2oj9lDIj2o_3ufQ5Icua1PNRD0YBN8unyHyD5aCwg7DiXueGx3meO01qn2WYcEAtLCoI-4Hh9PdWvaZTtKwhNgd_VSucfFiLRDQfn4OxlSZFzMhlWobE_L36CcvLm-re_qZ0FzrKy_YlXQck8456Rd2j1WxGiwLozMcfQeG2ZEbRLb7zoxYXDJ2qCcuwPJbbfZ_bKWq1IepOOF8uJWLz7RP9c",
-        date: "Aug 15, 2023"
-    },
-    {
-        id: 4,
-        name: "Elena Vance",
-        username: "evance_off",
-        avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuAjHwd6O8jvLScBScLJ7oQ6c7Idh5yk8gW6xl1u7OL7wegzqoYl-WYYCSsAPs8mpEJvjXx9ICmgdyjtVVFh1t3cwJTMUT7fGRu2HSbG6drlFP2KK6dE3Wwu20DnzHwwWHnRis5EyNs-wUzLAtF5AfCGvY4NJlKQC-roJjKCIxQxEBqhxNFWuBDI1a2q590h6GLt_yGfsJ79M2SZZ0y1mnRhcbLQW_dCIClnypvCS9AHRiCI-B1gSsnfGA-bQ7cY2E_LWVS_cT0t60I",
-        date: "Aug 02, 2023"
-    },
-    {
-        id: 5,
-        name: "Mia Cho",
-        username: "m_cho_99",
-        avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDqaMXGKyfSqrdnVdbAbTbaVRUeX4rElh1p3cKByb_6N5KLpeVSg6NWYzPnMbesVAooSv49Vtdnb4tR0QWAZ9NjhVi0zqJaabyxMDVWF7E4ztFek2HDkapSU4yGjWMgMTTq1zeBQG4s4a1HReGBi0XjEBLZ4Dwgf67dV2S8EM5Tz07yOEokT9e5Heu2gKqLPuRPJbIkixa1abXOG_m3G3L_9TlKitCvDgL0LN-CBaG3h7Uhyp-52nW2EOeNZlaWKzFCfbRz2U66S-g",
-        date: "Jul 10, 2023"
-    }
-];
+// Removed mock blocked users
 
 export default function SettingsBlockingPage() {
-    const { user, isLoading } = useAuth();
+    const { user, isLoading: isAuthLoading } = useAuth();
+    const { blockedUsers, unblockUser } = useSettings();
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedUser, setSelectedUser] = useState<any>(null);
 
-    if (isLoading || !user) {
+    const isPageLoading = isAuthLoading || blockedUsers.isLoading;
+
+    if (isPageLoading || !user) {
         return (
             <div className="flex items-center justify-center p-20">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -57,9 +26,9 @@ export default function SettingsBlockingPage() {
         );
     }
 
-    const filteredUsers = BLOCKED_USERS.filter(u =>
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.username.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredUsers = (blockedUsers.data || []).filter(u =>
+        u.blockedUser.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.blockedUser.username.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -93,30 +62,32 @@ export default function SettingsBlockingPage() {
                     {/* User List */}
                     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
                         {filteredUsers.length > 0 ? (
-                            filteredUsers.map((blockedUser) => (
+                            filteredUsers.map((item) => (
                                 <div
-                                    key={blockedUser.id}
+                                    key={item.blockedUser.id}
                                     className="group flex items-center justify-between p-4 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300"
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className="relative h-14 w-14 group-hover:scale-105 transition-transform duration-300">
                                             <Image
-                                                src={blockedUser.avatar}
-                                                alt={blockedUser.name}
+                                                src={item.blockedUser.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.blockedUser.username}`}
+                                                alt={item.blockedUser.name}
                                                 fill
                                                 className="rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-800 group-hover:ring-primary/20 transition-all"
                                             />
                                         </div>
                                         <div className="flex flex-col gap-0.5">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors text-[15px]">{blockedUser.name}</span>
-                                                <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium tracking-tight">@{blockedUser.username}</span>
+                                                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors text-[15px]">{item.blockedUser.name}</span>
+                                                <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium tracking-tight">@{item.blockedUser.username}</span>
                                             </div>
-                                            <span className="text-[11px] font-black uppercase tracking-[0.05em] text-slate-400 dark:text-slate-500">Blocked {blockedUser.date}</span>
+                                            <span className="text-[11px] font-black uppercase tracking-[0.05em] text-slate-400 dark:text-slate-500">
+                                                Blocked {format(new Date(item.createdAt), "MMM d, yyyy")}
+                                            </span>
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => setSelectedUser(blockedUser)}
+                                        onClick={() => setSelectedUser(item.blockedUser)}
                                         className="px-6 py-2.5 text-xs font-black uppercase tracking-widest border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:bg-primary hover:border-primary hover:text-white transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-sm"
                                     >
                                         Unblock
@@ -136,7 +107,7 @@ export default function SettingsBlockingPage() {
 
                     {/* Footer */}
                     <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/10 flex items-center justify-between">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Total items: {BLOCKED_USERS.length}</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Total items: {blockedUsers.data?.length || 0}</p>
                         <button className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-primary hover:underline group">
                             <Info className="size-4" />
                             Help Center
@@ -168,10 +139,14 @@ export default function SettingsBlockingPage() {
                                 Cancel
                             </button>
                             <button
-                                onClick={() => setSelectedUser(null)} // Simulation
-                                className="flex-1 py-5 px-6 text-sm font-black text-primary hover:bg-primary/5 transition-all"
+                                onClick={async () => {
+                                    await unblockUser.mutateAsync(selectedUser.id);
+                                    setSelectedUser(null);
+                                }}
+                                disabled={unblockUser.isPending}
+                                className="flex-1 py-5 px-6 text-sm font-black text-primary hover:bg-primary/5 transition-all disabled:opacity-50"
                             >
-                                Unblock
+                                {unblockUser.isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Unblock"}
                             </button>
                         </div>
                     </div>

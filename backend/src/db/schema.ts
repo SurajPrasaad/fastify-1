@@ -179,6 +179,8 @@ export const posts = pgTable("posts", {
     mediaUrls: jsonb("media_urls").$type<string[]>().default([]),
     tags: jsonb("tags").$type<string[]>().default([]),
     status: text("status").$type<"DRAFT" | "PUBLISHED" | "ARCHIVED" | "DELETED">().default("PUBLISHED").notNull(),
+    location: text("location"),
+    pollId: uuid("poll_id").references(() => polls.id),
     commentsCount: integer("comments_count").default(0).notNull(),
     likesCount: integer("likes_count").default(0).notNull(),
     publishedAt: timestamp("published_at"),
@@ -249,6 +251,29 @@ export const comments = pgTable("comments", {
 }, (t) => ({
     postCreatedAtIndex: index("post_created_at_idx").on(t.postId, t.createdAt.desc()),
     parentIndex: index("parent_id_idx").on(t.parentId),
+}));
+
+export const polls = pgTable("polls", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    question: text("question").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pollOptions = pgTable("poll_options", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pollId: uuid("poll_id").references(() => polls.id, { onDelete: 'cascade' }).notNull(),
+    text: text("text").notNull(),
+    votesCount: integer("votes_count").default(0).notNull(),
+});
+
+export const pollVotes = pgTable("poll_votes", {
+    userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    pollId: uuid("poll_id").references(() => polls.id, { onDelete: 'cascade' }).notNull(),
+    optionId: uuid("option_id").references(() => pollOptions.id, { onDelete: 'cascade' }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.pollId] }),
 }));
 
 export const postsRelations = relations(posts, ({ one, many }) => ({
@@ -478,6 +503,65 @@ export const postsSelfRelations = relations(posts, ({ one }) => ({
         fields: [posts.originalPostId],
         references: [posts.id],
         relationName: "reposts",
+    }),
+}));
+
+// --- SUPPORT & HELP SYSTEM ---
+
+export const supportTickets = pgTable("support_tickets", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    subject: text("subject").notNull(),
+    description: text("description").notNull(),
+    category: text("category").$type<"ACCOUNT" | "PRIVACY" | "BILLING" | "TECHNICAL" | "OTHER">().notNull(),
+    status: text("status").$type<"OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED">().default("OPEN").notNull(),
+    priority: text("priority").$type<"LOW" | "MEDIUM" | "HIGH" | "URGENT">().default("MEDIUM").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// --- DATA ARCHIVE SYSTEM ---
+
+export const dataRequests = pgTable("data_requests", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    status: text("status").$type<"PENDING" | "PROCESSING" | "COMPLETED" | "FAILED">().default("PENDING").notNull(),
+    archiveUrl: text("archive_url"),
+    expiresAt: timestamp("expires_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// --- USER CHAT SETTINGS ---
+
+export const userChatSettings = pgTable("user_chat_settings", {
+    userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+    enterToSend: boolean("enter_to_send").default(true).notNull(),
+    typingIndicators: boolean("typing_indicators").default(true).notNull(),
+    readReceipts: boolean("read_receipts").default(true).notNull(),
+    mediaAutoDownload: boolean("media_auto_download").default(false).notNull(),
+    saveToGallery: boolean("save_to_gallery").default(false).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Relations for new tables
+export const supportTicketsRelations = relations(supportTickets, ({ one }) => ({
+    user: one(users, {
+        fields: [supportTickets.userId],
+        references: [users.id],
+    }),
+}));
+
+export const dataRequestsRelations = relations(dataRequests, ({ one }) => ({
+    user: one(users, {
+        fields: [dataRequests.userId],
+        references: [users.id],
+    }),
+}));
+
+export const userChatSettingsRelations = relations(userChatSettings, ({ one }) => ({
+    user: one(users, {
+        fields: [userChatSettings.userId],
+        references: [users.id],
     }),
 }));
 

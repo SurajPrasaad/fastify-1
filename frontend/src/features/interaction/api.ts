@@ -4,7 +4,9 @@ import {
     ToggleLikeResponse,
     ToggleBookmarkResponse,
     CreateCommentPayload,
-    Comment
+    Comment,
+    RepostPayload,
+    RepostResponse
 } from "./types";
 
 export const interactionApi = {
@@ -26,13 +28,28 @@ export const interactionApi = {
      * Create a new comment or reply
      */
     async createComment(payload: CreateCommentPayload): Promise<Comment> {
-        const c = await api.post<any>("/interaction/comment", payload);
+        const c = await api.post<any>(`/comments/${payload.postId}`, {
+            content: payload.content,
+            parentId: payload.parentId
+        });
+
+        // Robust mapping of the response
         return {
             ...c,
+            postId: payload.postId,
+            userId: c.user?.id || c.userId,
+            author: {
+                username: c.user?.username || "anonymous",
+                name: c.user?.name || "Anonymous",
+                avatarUrl: c.user?.avatarUrl || null
+            },
             stats: {
-                likes: c.stats?.likes || 0,
-                replies: c.stats?.replies || 0
-            }
+                likes: c.likesCount || c.stats?.likes || 0,
+                replies: c.repliesCount || c.stats?.replies || 0
+            },
+            createdAt: c.createdAt || new Date().toISOString(),
+            updatedAt: c.updatedAt || new Date().toISOString(),
+            parentId: c.parentId || null
         };
     },
 
@@ -40,18 +57,28 @@ export const interactionApi = {
      * Fetch root comments for a post
      */
     async getComments(postId: string, cursor?: string, limit: number = 20): Promise<Comment[]> {
-        const query = new URLSearchParams();
+        const query = new URLSearchParams({
+            limit: limit.toString()
+        });
         if (cursor) query.set("cursor", cursor);
-        query.set("postId", postId);
-        query.set("limit", limit.toString());
 
-        const response = await api.get<{ data: any[] }>(`/interaction/post/${postId}/comments?${query.toString()}`);
+        const response = await api.get<{ comments: any[]; nextCursor?: string | null }>(`/comments/${postId}?${query.toString()}`);
 
-        return response.data.map(c => ({
+        // Ensure comments exist as an array
+        const rawComments = Array.isArray(response?.comments) ? response.comments : [];
+
+        return rawComments.map((c: any) => ({
             ...c,
+            postId,
+            userId: c.user?.id || c.userId,
+            author: {
+                username: c.user?.username || "anonymous",
+                name: c.user?.name || "Anonymous",
+                avatarUrl: c.user?.avatarUrl || null
+            },
             stats: {
-                likes: c.stats?.likes || 0,
-                replies: c.stats?.replies || 0
+                likes: c.likesCount || Number(c.stats?.likes) || 0,
+                replies: Number(c.repliesCount) || Number(c.stats?.replies) || 0
             }
         }));
     },
@@ -59,20 +86,37 @@ export const interactionApi = {
     /**
      * Fetch replies for a specific comment
      */
-    async getReplies(parentId: string, cursor?: string, limit: number = 20): Promise<Comment[]> {
-        const query = new URLSearchParams();
+    async getReplies(postId: string, parentId: string, cursor?: string, limit: number = 20): Promise<Comment[]> {
+        const query = new URLSearchParams({
+            parentId,
+            limit: limit.toString()
+        });
         if (cursor) query.set("cursor", cursor);
-        query.set("parentId", parentId);
-        query.set("limit", limit.toString());
 
-        const response = await api.get<{ data: any[] }>(`/interaction/comment/${parentId}/replies?${query.toString()}`);
+        const response = await api.get<{ comments: any[]; nextCursor?: string | null }>(`/comments/${postId}?${query.toString()}`);
 
-        return response.data.map(c => ({
+        const rawComments = Array.isArray(response?.comments) ? response.comments : [];
+
+        return rawComments.map((c: any) => ({
             ...c,
+            postId,
+            userId: c.user?.id || c.userId,
+            author: {
+                username: c.user?.username || "anonymous",
+                name: c.user?.name || "Anonymous",
+                avatarUrl: c.user?.avatarUrl || null
+            },
             stats: {
-                likes: c.stats?.likes || 0,
-                replies: c.stats?.replies || 0
+                likes: c.likesCount || Number(c.stats?.likes) || 0,
+                replies: Number(c.repliesCount) || Number(c.stats?.replies) || 0
             }
         }));
+    },
+
+    /**
+     * Repost or quote a post
+     */
+    async repost(payload: RepostPayload): Promise<RepostResponse> {
+        return api.post("/interaction/repost", payload);
     }
 };

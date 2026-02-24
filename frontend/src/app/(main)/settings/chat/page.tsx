@@ -4,14 +4,24 @@ import { useAuth } from "@/hooks/use-auth";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSettings, ChatSettings } from "@/hooks/use-settings";
 
 export default function SettingsChatPage() {
-    const { user, isLoading } = useAuth();
-    const [isSaving, setIsSaving] = useState(false);
+    const { user, isLoading: isAuthLoading } = useAuth();
+    const { chatSettings, updateChatSettings } = useSettings();
+    const [localSettings, setLocalSettings] = useState<ChatSettings | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-    if (isLoading || !user) {
+    useEffect(() => {
+        if (chatSettings.data) {
+            setLocalSettings(chatSettings.data);
+        }
+    }, [chatSettings.data]);
+
+    const isPageLoading = isAuthLoading || chatSettings.isLoading;
+
+    if (isPageLoading || !user || !localSettings) {
         return (
             <div className="flex items-center justify-center p-20">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -19,9 +29,23 @@ export default function SettingsChatPage() {
         );
     }
 
-    const handleSave = () => {
-        setIsSaving(true);
-        setTimeout(() => setIsSaving(false), 1000);
+    const handleSave = async () => {
+        if (!localSettings) return;
+        try {
+            await updateChatSettings.mutateAsync(localSettings);
+        } catch (error) {
+            // Error handled in hook
+        }
+    };
+
+    const handleToggle = (key: keyof ChatSettings) => {
+        setLocalSettings(prev => prev ? { ...prev, [key]: !prev[key] } : null);
+    };
+
+    const handleDiscard = () => {
+        if (chatSettings.data) {
+            setLocalSettings(chatSettings.data);
+        }
     };
 
     return (
@@ -48,17 +72,20 @@ export default function SettingsChatPage() {
                             <ChatToggle
                                 title="Enter to send"
                                 desc="The Enter key will send your message"
-                                defaultChecked
+                                checked={localSettings.enterToSend}
+                                onCheckedChange={() => handleToggle('enterToSend')}
                             />
                             <ChatToggle
                                 title="Typing indicator"
                                 desc="Let others know when you are typing"
-                                defaultChecked
+                                checked={localSettings.typingIndicators}
+                                onCheckedChange={() => handleToggle('typingIndicators')}
                             />
                             <ChatToggle
                                 title="Read receipts"
                                 desc="Show when you've read messages"
-                                defaultChecked
+                                checked={localSettings.readReceipts}
+                                onCheckedChange={() => handleToggle('readReceipts')}
                             />
                         </div>
                     </section>
@@ -75,10 +102,14 @@ export default function SettingsChatPage() {
                             <ChatToggle
                                 title="Media auto-download"
                                 desc="Automatically download images and videos"
+                                checked={localSettings.mediaAutoDownload}
+                                onCheckedChange={() => handleToggle('mediaAutoDownload')}
                             />
                             <ChatToggle
                                 title="Save to gallery"
                                 desc="Save photos and videos to your device gallery"
+                                checked={localSettings.saveToGallery}
+                                onCheckedChange={() => handleToggle('saveToGallery')}
                             />
                         </div>
                     </section>
@@ -104,17 +135,19 @@ export default function SettingsChatPage() {
                         </div>
                     </section>
 
-                    {/* Footer Actions */}
                     <div className="flex items-center justify-end gap-5 pt-4 pb-12">
-                        <button className="px-6 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                        <button
+                            onClick={handleDiscard}
+                            className="px-6 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        >
                             Discard Changes
                         </button>
                         <button
                             onClick={handleSave}
-                            disabled={isSaving}
+                            disabled={updateChatSettings.isPending}
                             className="px-10 py-3 bg-primary text-white text-sm font-black rounded-xl shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:pointer-events-none flex items-center gap-2"
                         >
-                            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                            {updateChatSettings.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                             Save Changes
                         </button>
                     </div>
@@ -157,7 +190,17 @@ export default function SettingsChatPage() {
     );
 }
 
-function ChatToggle({ title, desc, defaultChecked }: { title: string, desc: string, defaultChecked?: boolean }) {
+function ChatToggle({
+    title,
+    desc,
+    checked,
+    onCheckedChange
+}: {
+    title: string,
+    desc: string,
+    checked: boolean,
+    onCheckedChange: () => void
+}) {
     return (
         <label className="flex items-center justify-between px-6 py-5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-all cursor-pointer group">
             <div className="flex flex-col gap-0.5">
@@ -165,7 +208,8 @@ function ChatToggle({ title, desc, defaultChecked }: { title: string, desc: stri
                 <span className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</span>
             </div>
             <Switch
-                defaultChecked={defaultChecked}
+                checked={checked}
+                onCheckedChange={onCheckedChange}
                 className="data-[state=checked]:bg-primary"
             />
         </label>

@@ -148,16 +148,20 @@ export class InteractionService {
     /**
      * Reposts a post by creating a new post entry referencing the original.
      */
-    async createRepost(userId: string, originalPostId: string, content: string) {
+    async createRepost(userId: string, originalPostId: string, content?: string) {
         const exists = await this.repo.validatePostExists(originalPostId);
         if (!exists) {
             throw new Error("Original post does not exist");
         }
 
-        // A repost is technically a new post with originalPostId set.
-        // We reuse the Repo validation but for actually creating the post, 
-        // we would ideally call PostService or PostRepository.
-        // For this module's scope, we demonstrate the validation and reference pattern.
-        return { success: true, originalPostId, userId };
+        const repost = await this.repo.createRepost(userId, originalPostId, content);
+        if (!repost) {
+            throw new Error("Failed to create repost");
+        }
+
+        // 🔔 Optional: Trigger Repost Notification
+        // In a real app, you'd notify the owner of originalPostId
+
+        return { success: true, repostId: repost.id };
     }
 }

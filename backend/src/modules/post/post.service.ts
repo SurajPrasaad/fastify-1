@@ -98,6 +98,23 @@ export class PostService {
         if (!deleted) {
             throw new AppError("Post not found or unauthorized", 404);
         }
-        return deleted;
+    }
+
+    async votePoll(userId: string, postId: string, optionId: string) {
+        const post = await this.postRepository.findById(postId);
+        if (!post) {
+            throw new AppError("Post not found", 404);
+        }
+
+        if (!post.pollId) {
+            throw new AppError("This post does not have a poll", 400);
+        }
+
+        const result = await this.postRepository.vote(userId, post.pollId, optionId);
+        if (!result) {
+            throw new AppError("You have already voted in this poll or the vote could not be recorded", 400);
+        }
+
+        return result;
     }
 }

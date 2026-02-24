@@ -1,141 +1,150 @@
 "use client";
 
 import * as React from "react";
-import { Image as ImageIcon, Smile, List, MapPin, Loader2 } from "lucide-react";
+import { Smile, Image as ImageIcon, List, MapPin, Loader2, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/features/auth/stores/auth.store";
 
 interface ReplyComposerProps {
     replyTo?: string;
-    onReply?: (content: string) => void;
+    onReply: (content: string) => void;
     isSubmitting?: boolean;
+    placeholder?: string;
 }
 
-export function ReplyComposer({ replyTo, onReply, isSubmitting }: ReplyComposerProps) {
-    const { user } = useAuth();
+export function ReplyComposer({ replyTo, onReply, isSubmitting, placeholder = "Post your reply" }: ReplyComposerProps) {
+    const { user } = useAuthStore();
     const [content, setContent] = React.useState("");
+    const [isFocused, setIsFocused] = React.useState(false);
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-    const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setContent(e.target.value);
-        if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-        }
+    const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+        const target = e.target as HTMLTextAreaElement;
+        target.style.height = "auto";
+        target.style.height = `${target.scrollHeight}px`;
+        setContent(target.value);
     };
 
     const handleSubmit = () => {
-        if (content.trim() && onReply) {
-            onReply(content);
-            setContent("");
-            if (textareaRef.current) textareaRef.current.style.height = "auto";
+        if (!content.trim() || isSubmitting) return;
+        onReply(content);
+        setContent("");
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
         }
     };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit();
-        }
-    };
-
-    if (!user) return null;
-
-    const charLimit = 280;
-    const isOverLimit = content.length > charLimit;
-    const progress = Math.min((content.length / charLimit) * 100, 100);
 
     return (
-        <div className="flex px-4 py-3 gap-3 bg-background border-b border-border/50 transition-all focus-within:bg-accent/5">
-            <Avatar className="w-10 h-10 mt-1">
-                <AvatarImage src={user.avatarUrl || undefined} />
-                <AvatarFallback>{user.name[0]}</AvatarFallback>
-            </Avatar>
+        <div className={cn(
+            "p-4 border-b border-border/50 transition-all duration-300",
+            isFocused ? "bg-background" : "bg-background/50"
+        )}>
+            {isFocused && replyTo && (
+                <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="flex items-center gap-2 mb-3 ml-12 text-sm text-muted-foreground"
+                >
+                    <span>Replying to</span>
+                    <span className="text-blue-500 font-medium">@{replyTo}</span>
+                </motion.div>
+            )}
 
-            <div className="flex-1 flex flex-col gap-2 min-w-0">
-                {replyTo && (
-                    <span className="text-sm text-muted-foreground">
-                        Replying to <span className="text-primary hover:underline cursor-pointer">@{replyTo}</span>
-                    </span>
-                )}
+            <div className="flex gap-3">
+                <Avatar className="w-10 h-10 border border-border/50">
+                    <AvatarImage src={user?.avatarUrl || undefined} alt={user?.username || "user"} />
+                    <AvatarFallback>{user?.username?.[0]?.toUpperCase()}</AvatarFallback>
+                </Avatar>
 
-                <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={handleInput}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Post your reply"
-                    className="w-full bg-transparent border-none resize-none text-[20px] leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none min-h-[44px] max-h-[600px] py-2"
-                />
+                <div className="flex-1 min-w-0 space-y-3">
+                    <textarea
+                        ref={textareaRef}
+                        rows={1}
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        onInput={handleInput}
+                        onFocus={() => setIsFocused(true)}
+                        placeholder={placeholder}
+                        className="w-full bg-transparent border-none focus:ring-0 text-[18px] md:text-[20px] resize-none py-1.5 placeholder:text-muted-foreground/60 leading-normal"
+                    />
 
-                <div className="flex items-center justify-between pt-2 border-t border-transparent">
-                    <div className="flex items-center -ml-2 text-primary">
-                        <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 hover:bg-primary/10 transition-colors">
-                            <ImageIcon className="w-5 h-5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 hover:bg-primary/10 transition-colors">
-                            <Smile className="w-5 h-5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 hover:bg-primary/10 transition-colors">
-                            <List className="w-5 h-5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 hover:bg-primary/10 transition-colors">
-                            <MapPin className="w-5 h-5" />
-                        </Button>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        {content.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <div className="relative w-7 h-7">
-                                    <svg className="w-full h-full -rotate-90" viewBox="0 0 32 32">
-                                        <circle
-                                            cx="16"
-                                            cy="16"
-                                            r="14"
-                                            fill="transparent"
-                                            stroke="currentColor"
-                                            strokeWidth="2.5"
-                                            className="text-border"
-                                        />
-                                        <motion.circle
-                                            cx="16"
-                                            cy="16"
-                                            r="14"
-                                            fill="transparent"
-                                            stroke="currentColor"
-                                            strokeWidth="2.5"
-                                            strokeDasharray={88}
-                                            animate={{ strokeDashoffset: 88 - (88 * progress) / 100 }}
-                                            className={cn(
-                                                progress >= 100 ? "text-destructive" : progress > 80 ? "text-yellow-500" : "text-primary"
-                                            )}
-                                        />
-                                    </svg>
+                    <AnimatePresence>
+                        {isFocused || content.length > 0 ? (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex items-center justify-between pt-2 border-t border-border/50"
+                            >
+                                <div className="flex items-center -ml-2 text-blue-500">
+                                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-blue-500/10">
+                                        <ImageIcon className="w-[18px] h-[18px]" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-blue-500/10">
+                                        <Smile className="w-[18px] h-[18px]" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-blue-500/10">
+                                        <List className="w-[18px] h-[18px]" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-blue-500/10">
+                                        <MapPin className="w-[18px] h-[18px]" />
+                                    </Button>
                                 </div>
-                                {isOverLimit && (
-                                    <span className="text-xs text-destructive font-medium">-{content.length - charLimit}</span>
-                                )}
-                            </div>
-                        )}
 
-                        <Button
-                            size="sm"
-                            onClick={handleSubmit}
-                            disabled={!content.trim() || isSubmitting || isOverLimit}
-                            className="rounded-full px-5 font-bold transition-all active:scale-95"
-                        >
-                            {isSubmitting ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                "Reply"
-                            )}
-                        </Button>
-                    </div>
+                                <div className="flex items-center gap-4">
+                                    {content.length > 0 && (
+                                        <div className="relative w-7 h-7 flex items-center justify-center">
+                                            <svg className="w-full h-full -rotate-90">
+                                                <circle
+                                                    cx="14"
+                                                    cy="14"
+                                                    r="12"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    className="text-muted-foreground/20"
+                                                />
+                                                <circle
+                                                    cx="14"
+                                                    cy="14"
+                                                    r="12"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeDasharray={75.4}
+                                                    strokeDashoffset={75.4 - (Math.min(content.length, 280) / 280) * 75.4}
+                                                    className={cn(
+                                                        "transition-all",
+                                                        content.length > 260 ? "text-orange-500" : "text-blue-500",
+                                                        content.length > 280 && "text-red-500"
+                                                    )}
+                                                />
+                                            </svg>
+                                            {content.length > 260 && (
+                                                <span className="absolute text-[10px] font-medium">
+                                                    {280 - content.length}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <Button
+                                        onClick={handleSubmit}
+                                        disabled={!content.trim() || content.length > 280 || isSubmitting}
+                                        className="rounded-full px-5 font-bold transition-all disabled:opacity-50"
+                                    >
+                                        {isSubmitting ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            "Reply"
+                                        )}
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        ) : null}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>

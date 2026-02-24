@@ -15,6 +15,7 @@ import { privacyRoutes } from './modules/privacy/privacy.routes.js'
 import { engagementRoutes } from './modules/engagement/engagement.routes.js'
 import { chatRoutes } from './modules/chat/chat.routes.js'
 import { mediaRoutes } from './modules/media/media.routes.js'
+import { settingsRoutes } from './modules/settings/settings.routes.js'
 import fastifySocketIO from 'fastify-socket.io'
 import { chatGateway } from './modules/chat/chat.gateway.js'
 import { notificationGateway } from './modules/notification/notification.gateway.js'
@@ -74,6 +75,7 @@ app.register(privacyRoutes, { prefix: '/privacy' })
 app.register(engagementRoutes, { prefix: '/engagement' })
 app.register(chatRoutes, { prefix: '/chat' })
 app.register(mediaRoutes, { prefix: '/media' })
+app.register(settingsRoutes, { prefix: '/settings' })
 
 
 app.setErrorHandler((error, request, reply) => {

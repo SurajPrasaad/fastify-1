@@ -19,33 +19,10 @@ import {
     Send
 } from "lucide-react";
 import { useState } from "react";
+import { useSettings } from "@/hooks/use-settings";
+import { format } from "date-fns";
 
-const SUPPORT_TICKETS = [
-    {
-        id: "#4432",
-        subject: "Cannot change profile picture",
-        category: "Technical Support",
-        status: "Open",
-        statusColor: "text-primary bg-primary/10",
-        lastUpdate: "Oct 24, 2023"
-    },
-    {
-        id: "#4391",
-        subject: "Privacy settings inquiry",
-        category: "Account & Privacy",
-        status: "Resolved",
-        statusColor: "text-emerald-500 bg-emerald-500/10",
-        lastUpdate: "Oct 12, 2023"
-    },
-    {
-        id: "#4105",
-        subject: "Reporting suspicious login",
-        category: "Security",
-        status: "Resolved",
-        statusColor: "text-emerald-500 bg-emerald-500/10",
-        lastUpdate: "Sep 28, 2023"
-    }
-];
+// Removed mock tickets
 
 const POPULAR_TOPICS = [
     {
@@ -69,17 +46,48 @@ const POPULAR_TOPICS = [
 ];
 
 export default function SettingsHelpPage() {
-    const { user, isLoading } = useAuth();
+    const { user, isLoading: isAuthLoading } = useAuth();
+    const { tickets, createTicket } = useSettings();
     const [searchQuery, setSearchQuery] = useState("");
     const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
 
-    if (isLoading || !user) {
+    // Form state
+    const [formData, setFormData] = useState({
+        subject: "",
+        category: "TECHNICAL" as any,
+        description: ""
+    });
+
+    const isPageLoading = isAuthLoading || tickets.isLoading;
+
+    if (isPageLoading || !user) {
         return (
             <div className="flex items-center justify-center p-20">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
+
+    const handleSubmitTicket = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await createTicket.mutateAsync(formData);
+            setIsTicketModalOpen(false);
+            setFormData({ subject: "", category: "TECHNICAL", description: "" });
+        } catch (error) {
+            // Error is handled by toast in the hook
+        }
+    };
+
+    const getStatusStyles = (status: string) => {
+        switch (status.toUpperCase()) {
+            case 'OPEN': return "text-primary bg-primary/10";
+            case 'IN_PROGRESS': return "text-amber-500 bg-amber-500/10";
+            case 'RESOLVED': return "text-emerald-500 bg-emerald-500/10";
+            case 'CLOSED': return "text-slate-500 bg-slate-500/10";
+            default: return "text-slate-500 bg-slate-500/10";
+        }
+    };
 
     return (
         <div className="relative">
@@ -170,21 +178,23 @@ export default function SettingsHelpPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                                    {SUPPORT_TICKETS.map((ticket) => (
+                                    {(tickets.data || []).map((ticket) => (
                                         <tr key={ticket.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
-                                            <td className="px-8 py-6 font-bold text-slate-400 dark:text-slate-500 text-sm">{ticket.id}</td>
+                                            <td className="px-8 py-6 font-bold text-slate-400 dark:text-slate-500 text-sm">#{ticket.id.slice(0, 4)}</td>
                                             <td className="px-8 py-6">
                                                 <p className="font-bold text-slate-900 dark:text-white text-[15px] group-hover:text-primary transition-colors">{ticket.subject}</p>
                                                 <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mt-1">{ticket.category}</p>
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className="flex justify-center">
-                                                    <span className={cn("px-4 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-full", ticket.statusColor)}>
+                                                    <span className={cn("px-4 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-full text-center min-w-[100px]", getStatusStyles(ticket.status))}>
                                                         {ticket.status}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">{ticket.lastUpdate}</td>
+                                            <td className="px-8 py-6 text-sm font-bold text-slate-500 dark:text-slate-400">
+                                                {format(new Date(ticket.createdAt), "MMM d, yyyy")}
+                                            </td>
                                             <td className="px-8 py-6 text-right">
                                                 <button className="text-slate-300 hover:text-primary transition-colors">
                                                     <MoreHorizontal className="size-5" />
@@ -192,6 +202,13 @@ export default function SettingsHelpPage() {
                                             </td>
                                         </tr>
                                     ))}
+                                    {tickets.data?.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-8 py-12 text-center text-slate-500 dark:text-slate-400 font-medium">
+                                                No support tickets found.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -239,7 +256,7 @@ export default function SettingsHelpPage() {
 
                         {/* Modal Content (Form) */}
                         <div className="px-10 py-8 flex-1 overflow-y-auto max-h-[60vh] custom-scrollbar">
-                            <form className="space-y-8">
+                            <form id="support-ticket-form" onSubmit={handleSubmitTicket} className="space-y-8">
                                 {/* Subject Field */}
                                 <div className="space-y-3">
                                     <label className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">Subject</label>
@@ -247,6 +264,9 @@ export default function SettingsHelpPage() {
                                         className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-slate-900 dark:text-white"
                                         placeholder="Briefly describe your issue"
                                         type="text"
+                                        value={formData.subject}
+                                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                        required
                                     />
                                 </div>
 
@@ -254,13 +274,16 @@ export default function SettingsHelpPage() {
                                 <div className="space-y-3">
                                     <label className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">Category</label>
                                     <div className="relative group">
-                                        <select className="w-full appearance-none bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-slate-700 dark:text-slate-300 font-bold cursor-pointer">
-                                            <option disabled selected value="">Select a category</option>
-                                            <option>Account Access</option>
-                                            <option>Privacy & Safety</option>
-                                            <option>Billing & Payment</option>
-                                            <option>Technical Issue</option>
-                                            <option>Other</option>
+                                        <select
+                                            value={formData.category}
+                                            onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                                            className="w-full appearance-none bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
+                                        >
+                                            <option value="TECHNICAL">Technical Issue</option>
+                                            <option value="ACCOUNT">Account Access</option>
+                                            <option value="PRIVACY">Privacy & Safety</option>
+                                            <option value="BILLING">Billing & Payment</option>
+                                            <option value="OTHER">Other</option>
                                         </select>
                                         <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors" />
                                     </div>
@@ -273,10 +296,13 @@ export default function SettingsHelpPage() {
                                         className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 resize-none font-medium text-slate-900 dark:text-white"
                                         placeholder="Provide more details about your request..."
                                         rows={4}
+                                        value={formData.description}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                        required
                                     ></textarea>
                                 </div>
 
-                                {/* Attachments / Upload */}
+                                {/* Attachments / Upload (Mock for now) */}
                                 <div className="space-y-3">
                                     <label className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">Attachments</label>
                                     <div className="border-3 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl p-12 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-800/30 transition-all cursor-pointer group hover:border-primary/50">
@@ -298,8 +324,13 @@ export default function SettingsHelpPage() {
                             >
                                 Cancel
                             </button>
-                            <button className="px-10 py-4 rounded-2xl font-black bg-primary text-white hover:bg-primary/90 shadow-2xl shadow-primary/30 transition-all active:scale-95 flex items-center gap-2 hover:-translate-y-0.5">
-                                Submit Ticket
+                            <button
+                                type="submit"
+                                form="support-ticket-form"
+                                disabled={createTicket.isPending}
+                                className="px-10 py-4 rounded-2xl font-black bg-primary text-white hover:bg-primary/90 shadow-2xl shadow-primary/30 transition-all active:scale-95 flex items-center gap-2 hover:-translate-y-0.5 disabled:opacity-50"
+                            >
+                                {createTicket.isPending ? <Loader2 className="size-4 animate-spin" /> : "Submit Ticket"}
                                 <Send className="size-4" />
                             </button>
                         </div>

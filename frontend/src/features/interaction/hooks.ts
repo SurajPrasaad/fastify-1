@@ -109,3 +109,33 @@ export function useCreateComment() {
 
     return { createComment, isSubmitting };
 }
+
+/**
+ * Hook for resharing posts.
+ */
+export function useRepost() {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const repost = useCallback(async (
+        postId: string,
+        content?: string,
+        onSuccess?: (response: any) => void
+    ) => {
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
+        try {
+            const result = await interactionApi.repost({ postId, content });
+            toast.success(content ? "Quote post created" : "Post reshared");
+            onSuccess?.(result);
+            return result;
+        } catch (error) {
+            toast.error("Failed to reshare post");
+            throw error;
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [isSubmitting]);
+
+    return { repost, isSubmitting };
+}
