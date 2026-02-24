@@ -17,41 +17,12 @@ import {
     Network,
     Shield
 } from "lucide-react";
-import { useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
+import { useSecurity } from "@/hooks/use-user";
 import { formatDistanceToNow, format } from "date-fns";
 
-// Mock data for connected apps - in a real app, this would come from an API
-const CONNECTED_APPS = [
-    {
-        id: "1",
-        name: "Slack",
-        desc: "Chat and notifications",
-        initial: "S",
-        color: "bg-[#4A154B]",
-        time: "Connected 2 days ago"
-    },
-    {
-        id: "2",
-        name: "GitHub",
-        desc: "Repository access",
-        initial: "G",
-        color: "bg-[#24292F]",
-        time: "Connected 1 week ago"
-    },
-    {
-        id: "3",
-        name: "Google Drive",
-        desc: "Cloud storage",
-        initial: "D",
-        color: "bg-[#4285F4]",
-        time: "Connected 1 month ago"
-    }
-];
-
-
 export default function SettingsDataPage() {
-    const { user, isLoading: isAuthLoading } = useAuth();
+    const { user, isLoading: isAuthLoading, deleteAccount, isDeleting, logout } = useAuth();
     const {
         sessions,
         auditLogs,
@@ -60,6 +31,7 @@ export default function SettingsDataPage() {
         revokeSession,
         revokeAllSessions
     } = useSettings();
+    const { security, revokeApp } = useSecurity();
 
     const isPageLoading = isAuthLoading || sessions.isLoading || auditLogs.isLoading || dataRequests.isLoading;
 
@@ -176,7 +148,7 @@ export default function SettingsDataPage() {
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">You are currently logged in on these devices.</p>
                         </div>
                         <button
-                            onClick={() => revokeAllSessions.mutate()}
+                            onClick={() => revokeAllSessions.mutate(undefined, { onSuccess: () => logout() })}
                             disabled={revokeAllSessions.isPending}
                             className="rounded-xl border-2 border-rose-500/20 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-500 transition-all hover:bg-rose-500 hover:text-white shadow-sm disabled:opacity-50"
                         >
@@ -225,22 +197,30 @@ export default function SettingsDataPage() {
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white px-2">Third-party Apps</h3>
                     <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {CONNECTED_APPS.map((app) => (
-                                <div key={app.id} className="flex items-center justify-between p-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
-                                    <div className="flex items-center gap-5">
-                                        <div className={cn("size-12 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-black/10", app.color)}>
-                                            {app.initial}
+                            {(security?.connectedApps || []).length > 0 ? (
+                                (security?.connectedApps || []).map((app: any) => (
+                                    <div key={app.id} className="flex items-center justify-between p-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
+                                        <div className="flex items-center gap-5">
+                                            <div className={cn("size-12 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-black/10 bg-primary")}>
+                                                {app.provider?.slice(0, 2).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-900 dark:text-white capitalize text-[15px]">{app.provider.toLowerCase()} API Integration</p>
+                                                <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Full access to profile information</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-slate-900 dark:text-white text-[15px]">{app.name}</p>
-                                            <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">{app.desc} • {app.time}</p>
-                                        </div>
+                                        <button
+                                            onClick={() => revokeApp(app.id)}
+                                            className="rounded-xl bg-slate-100 dark:bg-slate-800 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-500 hover:dark:bg-rose-500/10 hover:dark:text-rose-400">
+                                            Revoke Access
+                                        </button>
                                     </div>
-                                    <button className="rounded-xl bg-slate-100 dark:bg-slate-800 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 transition-all hover:bg-slate-200 dark:hover:bg-slate-700">
-                                        Manage Access
-                                    </button>
+                                ))
+                            ) : (
+                                <div className="p-12 text-center">
+                                    <p className="text-slate-500 font-medium text-sm">No connected apps found.</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                         <div className="bg-slate-50/50 dark:bg-slate-800/20 p-5 text-center border-t border-slate-100 dark:border-slate-800">
                             <button className="text-[13px] font-bold text-primary hover:underline inline-flex items-center gap-2 group">
@@ -263,7 +243,16 @@ export default function SettingsDataPage() {
                                 Permanently remove your account and all associated data. This action is irreversible and will purge your history immediately.
                             </p>
                         </div>
-                        <button className="rounded-2xl bg-rose-500 px-8 py-4 text-sm font-black text-white transition-all hover:bg-rose-600 active:scale-95 shadow-xl shadow-rose-500/20">
+                        <button
+                            onClick={() => {
+                                if (confirm("Are you sure you want to permanently delete your account? This cannot be undone!")) {
+                                    deleteAccount();
+                                }
+                            }}
+                            disabled={isDeleting}
+                            className="flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-8 py-4 text-sm font-black text-white transition-all hover:bg-rose-600 active:scale-95 shadow-xl shadow-rose-500/20 disabled:opacity-70 disabled:pointer-events-none"
+                        >
+                            {isDeleting && <Loader2 className="size-4 animate-spin" />}
                             Delete Account
                         </button>
                     </div>

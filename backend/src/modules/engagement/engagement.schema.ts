@@ -30,6 +30,14 @@ export const engagementCountsSchema = z.object({
     reactions: z.record(reactionTypeSchema, z.number()),
 });
 
+export const getTrendingQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().default(10),
+});
+
+export const getEngagementStatsParamsSchema = z.object({
+    targetId: z.string().uuid(),
+});
+
 export type ToggleLikeInput = z.infer<typeof toggleLikeSchema>;
 export type ReactInput = z.infer<typeof reactSchema>;
 export type RepostInput = z.infer<typeof repostSchema>;

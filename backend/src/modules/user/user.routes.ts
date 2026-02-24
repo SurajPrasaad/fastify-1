@@ -109,6 +109,12 @@ export async function userRoutes(fastify: FastifyInstance) {
             userController.getSuggestionsHandler
         );
 
+        protectedApp.withTypeProvider<ZodTypeProvider>().get(
+            "/me/active-friends",
+            {},
+            userController.getActiveFriendsHandler
+        );
+
         protectedApp.withTypeProvider<ZodTypeProvider>().patch(
             "/me",
             {

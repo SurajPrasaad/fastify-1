@@ -1,7 +1,8 @@
 
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { EngagementService } from "./engagement.service.js";
-import type { ToggleLikeInput, ReactInput, RepostInput } from "./engagement.schema.js";
+import type { ToggleLikeInput, ReactInput, RepostInput, getTrendingQuerySchema, getEngagementStatsParamsSchema } from "./engagement.schema.js";
+import type { z } from "zod";
 
 export class EngagementController {
     constructor(private service: EngagementService) { }
@@ -37,11 +38,20 @@ export class EngagementController {
     };
 
     getStatsHandler = async (
-        request: FastifyRequest<{ Params: { targetId: string } }>,
+        request: FastifyRequest<{ Params: z.infer<typeof getEngagementStatsParamsSchema> }>,
         reply: FastifyReply
     ) => {
         const { targetId } = request.params;
         const stats = await this.service.getEngagementStats(targetId);
         return reply.send(stats);
+    };
+
+    getTrendingHandler = async (
+        request: FastifyRequest<{ Querystring: z.infer<typeof getTrendingQuerySchema> }>,
+        reply: FastifyReply
+    ) => {
+        const limit = request.query.limit || 10;
+        const trends = await this.service.getTrendingHashtags(limit);
+        return reply.send(trends);
     };
 }

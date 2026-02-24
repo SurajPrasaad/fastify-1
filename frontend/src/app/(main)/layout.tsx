@@ -5,6 +5,7 @@ import { RightSidebar } from "@/components/layout/right-sidebar"
 import { AuthGuard } from "@/features/auth/components/AuthGuard"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 export default function MainLayout({
     children,
@@ -66,5 +67,3 @@ function MobileNavLink({ icon, href, active, badge }: { icon: string, href: stri
         </Link>
     )
 }
-
-import { cn } from "@/lib/utils"

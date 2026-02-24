@@ -48,18 +48,12 @@ export const createCommentRouteSchema: FastifySchema = {
     }),
     params: z.object({
         postId: z.string().uuid(),
-    }),
-    response: {
-        201: commentResponseSchema
-    }
+    })
 };
 
 export const getCommentsRouteSchema: FastifySchema = {
     params: z.object({
         postId: z.string().uuid(),
     }),
-    querystring: getCommentsQuerySchema,
-    response: {
-        200: commentListResponseSchema
-    }
+    querystring: getCommentsQuerySchema
 };

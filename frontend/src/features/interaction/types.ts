@@ -49,3 +49,10 @@ export interface RepostResponse {
     success: boolean;
     repostId: string;
 }
+
+export interface HashtagTrend {
+    id: string;
+    name: string;
+    postsCount: number;
+    lastUsedAt: string;
+}

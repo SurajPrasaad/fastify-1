@@ -10,6 +10,10 @@ export class EngagementService {
         return `engagement:stats:${targetId}`;
     }
 
+    async getTrendingHashtags(limit: number = 10) {
+        return await this.repository.getTrendingHashtags(limit);
+    }
+
     async toggleLike(userId: string, targetId: string, targetType: "POST" | "COMMENT") {
         const result = await this.repository.toggleLike(userId, targetId, targetType);
 

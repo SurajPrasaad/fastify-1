@@ -149,4 +149,12 @@ export class ChatService {
     async searchMessages(userId: string, query: string, limit: number, offset: number) {
         return await this.repository.searchMessages(userId, query, limit, offset);
     }
+
+    async clearHistory(userId: string) {
+        return await this.repository.clearHistory(userId);
+    }
+
+    async deleteAllRooms(userId: string) {
+        return await this.repository.deleteAllRooms(userId);
+    }
 }

@@ -27,8 +27,8 @@ export default function SettingsBlockingPage() {
     }
 
     const filteredUsers = (blockedUsers.data || []).filter(u =>
-        u.blockedUser.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.blockedUser.username.toLowerCase().includes(searchQuery.toLowerCase())
+        u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.username?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -64,30 +64,30 @@ export default function SettingsBlockingPage() {
                         {filteredUsers.length > 0 ? (
                             filteredUsers.map((item) => (
                                 <div
-                                    key={item.blockedUser.id}
+                                    key={item.userId}
                                     className="group flex items-center justify-between p-4 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300"
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className="relative h-14 w-14 group-hover:scale-105 transition-transform duration-300">
                                             <Image
-                                                src={item.blockedUser.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.blockedUser.username}`}
-                                                alt={item.blockedUser.name}
+                                                src={item.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.username}`}
+                                                alt={item.name}
                                                 fill
                                                 className="rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-800 group-hover:ring-primary/20 transition-all"
                                             />
                                         </div>
                                         <div className="flex flex-col gap-0.5">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors text-[15px]">{item.blockedUser.name}</span>
-                                                <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium tracking-tight">@{item.blockedUser.username}</span>
+                                                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors text-[15px]">{item.name}</span>
+                                                <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium tracking-tight">@{item.username}</span>
                                             </div>
                                             <span className="text-[11px] font-black uppercase tracking-[0.05em] text-slate-400 dark:text-slate-500">
-                                                Blocked {format(new Date(item.createdAt), "MMM d, yyyy")}
+                                                Blocked {format(new Date(item.blockedAt), "MMM d, yyyy")}
                                             </span>
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => setSelectedUser(item.blockedUser)}
+                                        onClick={() => setSelectedUser(item)}
                                         className="px-6 py-2.5 text-xs font-black uppercase tracking-widest border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:bg-primary hover:border-primary hover:text-white transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-sm"
                                     >
                                         Unblock
@@ -140,7 +140,7 @@ export default function SettingsBlockingPage() {
                             </button>
                             <button
                                 onClick={async () => {
-                                    await unblockUser.mutateAsync(selectedUser.id);
+                                    await unblockUser.mutateAsync(selectedUser.userId);
                                     setSelectedUser(null);
                                 }}
                                 disabled={unblockUser.isPending}

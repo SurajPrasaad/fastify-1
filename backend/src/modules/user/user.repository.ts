@@ -193,7 +193,7 @@ export class UserRepository {
     }
 
     // Suggest users based on shared tech stack
-    async suggestUsers(userId: string, techStack: string[]) {
+    async suggestUsers(userId: string, techStack: string[], limit: number = 10) {
         if (!techStack.length) return [];
 
         // Check if techStack contains any of the user's tech using ?| operator
@@ -203,7 +203,7 @@ export class UserRepository {
             .select()
             .from(users)
             .where(query)
-            .limit(10);
+            .limit(limit);
     }
 
     async isFollowing(followerId: string, followingId: string) {
@@ -304,6 +304,15 @@ export class UserRepository {
             postsCount: counters?.postsCount ?? 0,
         }));
     }
+
+    async getFollowedUserIds(userId: string): Promise<string[]> {
+        const result = await db
+            .select({ followingId: follows.followingId })
+            .from(follows)
+            .where(and(eq(follows.followerId, userId), eq(follows.status, "ACCEPTED")));
+        return result.map(r => r.followingId);
+    }
+
     async findFollowedIds(followerId: string, targetIds: string[]) {
         if (!targetIds.length) return new Set<string>();
 

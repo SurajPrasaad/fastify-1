@@ -6,10 +6,17 @@ import {
     CreateCommentPayload,
     Comment,
     RepostPayload,
-    RepostResponse
+    RepostResponse,
+    HashtagTrend
 } from "./types";
 
 export const interactionApi = {
+    /**
+     * Fetch trending hashtags
+     */
+    async getTrendingHashtags(limit: number = 10): Promise<HashtagTrend[]> {
+        return api.get(`/engagement/trending?limit=${limit}`);
+    },
     /**
      * Toggle like on a post or comment
      */

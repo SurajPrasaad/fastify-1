@@ -20,7 +20,8 @@
     --popover: 0 0% 7%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 158 100% 33%; /* Peerlist Green #00AA6C */
+    --primary: 158 100% 33%;
+    /* Peerlist Green #00AA6C */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 12%;
@@ -38,7 +39,8 @@
     --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 158 100% 33%;
-    --radius: 1rem; /* 16px rounding */
+    --radius: 1rem;
+    /* 16px rounding */
 
     --chart-1: 158 100% 33%;
     --chart-2: 173 58% 39%;
@@ -99,6 +101,25 @@
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.8);
   }
+
+  /* Compact Mode Overrides */
+  .compact-mode {
+    --radius: 0.5rem;
+    /* tighter borders */
+    line-height: max(1.2, inherit);
+  }
+
+  .compact-mode * {
+    /* Subtle overrides to represent a compact view conceptually */
+    letter-spacing: -0.01em;
+  }
+
+  /* Using zoom for widespread compact effect without redefining all tailwind spacing values */
+  @supports (zoom: 1) {
+    .compact-mode body {
+      zoom: 0.95;
+    }
+  }
 }
 
 /* 
@@ -127,6 +148,7 @@
 .hidden-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hidden-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -135,13 +157,16 @@
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(157, 166, 185, 0.2);
   border-radius: 10px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(157, 166, 185, 0.3);
 }

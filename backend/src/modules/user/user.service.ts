@@ -89,15 +89,34 @@ export class UserService {
     await this.userRepository.unfollowUser(actorId, targetId);
   }
 
-  async getSuggestions(userId: string) {
+  async getSuggestions(userId: string, limit: number = 10) {
     const user = await this.userRepository.findById(userId);
     if (!user || !user.techStack) return [];
 
-    return this.userRepository.suggestUsers(userId, user.techStack);
+    return this.userRepository.suggestUsers(userId, user.techStack, limit);
   }
 
   async findByTechStack(tech: string) {
     return this.userRepository.findByTechStack(tech);
+  }
+
+  async getActiveFriends(userId: string) {
+    const followedIds = await this.userRepository.getFollowedUserIds(userId);
+    if (!followedIds.length) return [];
+
+    // Batch check presence in Redis
+    const pipeline = redis.pipeline();
+    followedIds.forEach(id => pipeline.get(`presence:${id}`));
+    const statuses = await pipeline.exec();
+
+    const onlineIds = followedIds.filter((id, index) => {
+      const status = statuses?.[index]?.[1];
+      return status === "ONLINE";
+    });
+
+    if (!onlineIds.length) return [];
+
+    return this.userRepository.findByIds(onlineIds);
   }
 
   async getAll(limit: number, offset: number) {

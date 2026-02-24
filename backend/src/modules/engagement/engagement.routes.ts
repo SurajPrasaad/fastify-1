@@ -8,7 +8,9 @@ import { EngagementRepository } from "./engagement.repository.js";
 import {
     toggleLikeSchema,
     reactSchema,
-    repostSchema
+    repostSchema,
+    getTrendingQuerySchema,
+    getEngagementStatsParamsSchema
 } from "./engagement.schema.js";
 
 export async function engagementRoutes(app: FastifyInstance) {
@@ -25,9 +27,22 @@ export async function engagementRoutes(app: FastifyInstance) {
             schema: {
                 tags: ["Engagement"],
                 description: "Get real-time engagement counters for a post or comment",
+                params: getEngagementStatsParamsSchema
             }
         },
         controller.getStatsHandler
+    );
+
+    provider.get(
+        "/trending",
+        {
+            schema: {
+                tags: ["Engagement"],
+                description: "Get trending hashtags based on post count",
+                querystring: getTrendingQuerySchema
+            }
+        },
+        controller.getTrendingHandler
     );
 
     // Protected Routes

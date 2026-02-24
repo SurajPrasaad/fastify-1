@@ -49,11 +49,14 @@ export class UserController {
   };
 
   getSuggestionsHandler = async (
-    request: FastifyRequest<{ Querystring: { userId: string } }>,
+    request: FastifyRequest<{ Querystring: { userId?: string, limit?: number } }>,
     reply: FastifyReply
   ) => {
-    const { userId } = request.query;
-    const suggestions = await this.userService.getSuggestions(userId);
+    // @ts-ignore
+    const currentUserId = request.user.sub;
+    const userId = request.query.userId || currentUserId;
+    const limit = request.query.limit || 10;
+    const suggestions = await this.userService.getSuggestions(userId, limit);
     return reply.status(200).send(suggestions);
   };
 
@@ -64,6 +67,16 @@ export class UserController {
     const { tech } = request.query;
     const users = await this.userService.findByTechStack(tech);
     return reply.status(200).send(users);
+  };
+
+  getActiveFriendsHandler = async (
+    request: FastifyRequest,
+    reply: FastifyReply
+  ) => {
+    // @ts-ignore
+    const userId = request.user.sub;
+    const friends = await this.userService.getActiveFriends(userId);
+    return reply.status(200).send(friends);
   };
 
   getAllUsersHandler = async (

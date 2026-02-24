@@ -5,13 +5,14 @@ import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { useToggleLike, useCreateComment } from "@/features/interaction/hooks"
+import { useToggleLike, useCreateComment, useRepost } from "@/features/interaction/hooks"
 import { Textarea } from "@/components/ui/textarea"
 import { MapPin, CheckCircle2, MoreHorizontal } from "lucide-react"
 import { PostPoll } from "@/features/feed/components/PostPoll"
 import { PostMedia } from "@/features/feed/components/PostMedia"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { CommentList } from "@/components/comments/comment-list"
 
 
 export interface Post {
@@ -70,13 +71,32 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
     const router = useRouter()
     const { isLiked, count: currentLikesCount, toggleLike } = useToggleLike(post.isLiked, post.likesCount || 0, onLikeToggle);
     const { createComment, isSubmitting: isPostingComment } = useCreateComment();
+    const { repost, isSubmitting: isReposting } = useRepost();
 
     const [isCommentOpen, setIsCommentOpen] = React.useState(false);
     const [commentContent, setCommentContent] = React.useState("");
+    const [repostCount, setRepostCount] = React.useState(post.sharesCount || 0);
+    const [hasReposted, setHasReposted] = React.useState(false);
 
     const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation()
         toggleLike(post.id, "POST")
+    }
+
+    const handleRepost = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (hasReposted || isReposting) return;
+        try {
+            await repost(post.id, undefined, () => {
+                setRepostCount(prev => prev + 1);
+                setHasReposted(true);
+                if (onUpdate) {
+                    onUpdate(post.id, { sharesCount: (post.sharesCount || 0) + 1 });
+                }
+            });
+        } catch (error) {
+            // Handled by hook
+        }
     }
 
     const timeAgo = (() => {
@@ -199,7 +219,9 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
                         />
                         <EngagementAction
                             icon="repeat"
-                            count={0}
+                            count={repostCount}
+                            active={hasReposted}
+                            onClick={handleRepost}
                             hoverClass="hover:text-green-500 hover:bg-green-500/10"
                         />
                         <EngagementAction
@@ -235,7 +257,6 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
                                         try {
                                             await createComment(post.id, commentContent, undefined, () => {
                                                 setCommentContent("");
-                                                setIsCommentOpen(false);
                                                 if (onUpdate) {
                                                     onUpdate(post.id, { commentsCount: (post.commentsCount || 0) + 1 });
                                                 }
@@ -247,6 +268,11 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
                                 >
                                     {isPostingComment ? "Posting..." : "Reply"}
                                 </Button>
+                            </div>
+
+                            {/* Comments List */}
+                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800/50">
+                                <CommentList postId={post.id} />
                             </div>
                         </div>
                     )}
@@ -267,7 +293,9 @@ function EngagementAction({ icon, count, hoverClass, active, onClick }: {
         <div
             className={cn(
                 "flex items-center gap-2 group transition-colors",
-                active && icon === "favorite" ? "text-red-500" : "hover:text-inherit",
+                active && icon === "favorite" ? "text-red-500" : "",
+                active && icon === "repeat" ? "text-green-500" : "",
+                !active ? "hover:text-inherit" : "",
                 hoverClass.split(' ')[0]
             )}
             onClick={onClick}

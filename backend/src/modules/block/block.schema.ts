@@ -40,6 +40,14 @@ export const blockedUserListSchema = z.array(z.object({
     blockedAt: z.date(),
 }));
 
+export const getBlockedUsersRouteSchema: FastifySchema = {
+    description: "Get blocked users",
+    tags: ["Social"],
+    response: {
+        200: blockedUserListSchema,
+    },
+};
+
 export const getBlockStatusRouteSchema: FastifySchema = {
     description: "Get block status between users",
     tags: ["Social"],

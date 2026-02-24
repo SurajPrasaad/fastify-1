@@ -79,7 +79,8 @@ export const unfollowUserSchema = {
 
 export const getSuggestionsSchema = {
   querystring: z.object({
-    userId: z.string().uuid(),
+    userId: z.string().uuid().optional(),
+    limit: z.coerce.number().positive().default(10),
   }),
 };
 

@@ -7,7 +7,9 @@ import {
     getHistoryHandler,
     getPresenceHandler,
     searchMessagesHandler,
-    sendMessageHandler
+    sendMessageHandler,
+    clearChatHistoryHandler,
+    deleteAllChatsHandler
 } from "./chat.controller.js";
 export async function chatRoutes(app: FastifyInstance) {
     // REST APIs
@@ -20,5 +22,9 @@ export async function chatRoutes(app: FastifyInstance) {
         protectedApp.get("/rooms/:roomId/messages", getHistoryHandler);
         protectedApp.get("/messages/search", searchMessagesHandler);
         protectedApp.get("/presence/:userId", getPresenceHandler);
+
+        // Chat Settings Actions
+        protectedApp.delete("/history/clear", clearChatHistoryHandler);
+        protectedApp.delete("/rooms/all", deleteAllChatsHandler);
     });
 }

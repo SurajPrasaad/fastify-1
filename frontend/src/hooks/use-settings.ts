@@ -63,6 +63,22 @@ export function useSettings() {
         },
     });
 
+    const clearChatHistory = useMutation({
+        mutationFn: () => api.delete("/chat/history/clear"),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["chat"] });
+            toast.success("Chat history cleared successfully");
+        }
+    });
+
+    const deleteAllChats = useMutation({
+        mutationFn: () => api.delete("/chat/rooms/all"),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["chat"] });
+            toast.success("All conversations deleted");
+        }
+    });
+
     // Support Tickets
     const tickets = useQuery({
         queryKey: ["settings", "tickets"],
@@ -146,5 +162,7 @@ export function useSettings() {
         revokeAllSessions,
         blockedUsers,
         unblockUser,
+        clearChatHistory,
+        deleteAllChats,
     };
 }

@@ -83,3 +83,21 @@ export async function searchMessagesHandler(
     const messages = await chatService.searchMessages(userId, q, limit, offset);
     return reply.send(messages);
 }
+
+export async function clearChatHistoryHandler(
+    request: FastifyRequest,
+    reply: FastifyReply
+) {
+    const userId = request.user!.sub;
+    await chatService.clearHistory(userId);
+    return reply.status(204).send();
+}
+
+export async function deleteAllChatsHandler(
+    request: FastifyRequest,
+    reply: FastifyReply
+) {
+    const userId = request.user!.sub;
+    await chatService.deleteAllRooms(userId);
+    return reply.status(204).send();
+}

@@ -5,21 +5,29 @@ import { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { useAppearanceStore } from "@/store/appearance.store";
 
 const ACCENT_COLORS = [
-    { name: "Blue", color: "bg-primary" },
+    { name: "Blue", color: "bg-[#3b82f6]" },
     { name: "Purple", color: "bg-[#8b5cf6]" },
     { name: "Pink", color: "bg-[#ec4899]" },
     { name: "Orange", color: "bg-[#f97316]" },
     { name: "Green", color: "bg-[#22c55e]" },
-];
+] as const;
 
 export default function SettingsAppearancePage() {
-    const { theme, setTheme, resolvedTheme } = useTheme();
+    const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
-    const [accentColor, setAccentColor] = useState("Blue");
-    const [fontSize, setFontSize] = useState(50); // 0, 25, 50, 75, 100
-    const [isCompact, setIsCompact] = useState(false);
+
+    const {
+        accentColor,
+        setAccentColor,
+        fontSize,
+        setFontSize,
+        isCompact,
+        setIsCompact,
+        resetAppearance
+    } = useAppearanceStore();
 
     // Prevent hydration mismatch
     useEffect(() => {
@@ -201,7 +209,12 @@ export default function SettingsAppearancePage() {
 
                 {/* Footer Action */}
                 <footer className="pt-8 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-4 overflow-hidden">
-                    <button className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all font-display">
+                    <button
+                        onClick={() => {
+                            resetAppearance();
+                            setTheme('system');
+                        }}
+                        className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all font-display">
                         Reset Defaults
                     </button>
                     <button className="px-10 py-3 bg-primary text-white rounded-xl font-black text-sm hover:brightness-110 shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 active:translate-y-0 font-display">

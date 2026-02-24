@@ -1,6 +1,22 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { getFollowers, getFollowing } from "./api";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getFollowers, getFollowing, followUser, unfollowUser } from "./api";
+import { toast } from "sonner";
+export const useToggleFollow = () => {
+    const queryClient = useQueryClient();
 
+    return useMutation({
+        mutationFn: ({ userId, isFollowing }: { userId: string; isFollowing: boolean }) =>
+            isFollowing ? unfollowUser(userId) : followUser(userId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["user-suggestions"] });
+            queryClient.invalidateQueries({ queryKey: ["following"] });
+            queryClient.invalidateQueries({ queryKey: ["followers"] });
+        },
+        onError: (error: any) => {
+            toast.error(error.message || "Failed to update follow status");
+        }
+    });
+};
 export const useFollowers = (username: string) => {
     return useInfiniteQuery({
         queryKey: ["followers", username],

@@ -109,4 +109,30 @@ export class ChatRepository {
             .limit(limit)
             .populate('roomId', 'name type participants'); // Populate minimal room info
     }
+
+    async clearHistory(userId: string) {
+        // Find all rooms where user is a participant
+        const rooms = await ChatRoom.find({ participants: userId }).select('_id');
+        const roomIds = rooms.map(room => room._id);
+
+        return await Message.updateMany(
+            { roomId: { $in: roomIds } },
+            { $set: { isDeleted: true } }
+        );
+    }
+
+    async deleteAllRooms(userId: string) {
+        // Hard delete user's rooms or clear their participant status
+        // For simplicity, let's remove the user from participants or delete if they are the only ones left
+        const rooms = await ChatRoom.find({ participants: userId });
+        for (const room of rooms) {
+            room.participants = room.participants.filter(p => p !== userId);
+            if (room.participants.length === 0) {
+                await Message.deleteMany({ roomId: room._id });
+                await ChatRoom.deleteOne({ _id: room._id });
+            } else {
+                await room.save();
+            }
+        }
+    }
 }

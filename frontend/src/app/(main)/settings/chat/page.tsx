@@ -9,7 +9,7 @@ import { useSettings, ChatSettings } from "@/hooks/use-settings";
 
 export default function SettingsChatPage() {
     const { user, isLoading: isAuthLoading } = useAuth();
-    const { chatSettings, updateChatSettings } = useSettings();
+    const { chatSettings, updateChatSettings, clearChatHistory, deleteAllChats } = useSettings();
     const [localSettings, setLocalSettings] = useState<ChatSettings | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -123,7 +123,11 @@ export default function SettingsChatPage() {
                             </h2>
                         </div>
                         <div className="p-6 space-y-4">
-                            <button className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm">
+                            <button
+                                onClick={() => clearChatHistory.mutate()}
+                                disabled={clearChatHistory.isPending}
+                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                {clearChatHistory.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                                 Clear all chat history
                             </button>
                             <button
@@ -171,9 +175,15 @@ export default function SettingsChatPage() {
                         </div>
                         <div className="px-10 pb-10 space-y-3">
                             <button
-                                onClick={() => setIsDeleteDialogOpen(false)} // Simulation
-                                className="w-full py-4 px-6 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-2xl transition-all shadow-xl shadow-rose-500/25 hover:scale-[1.02] active:scale-[0.98]"
+                                disabled={deleteAllChats.isPending}
+                                onClick={() => {
+                                    deleteAllChats.mutate(undefined, {
+                                        onSuccess: () => setIsDeleteDialogOpen(false)
+                                    });
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-2xl transition-all shadow-xl shadow-rose-500/25 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none"
                             >
+                                {deleteAllChats.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                                 Delete All
                             </button>
                             <button

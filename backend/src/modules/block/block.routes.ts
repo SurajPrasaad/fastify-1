@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { BlockRepository } from "./block.repository.js";
 import { BlockService } from "./block.service.js";
 import { BlockController } from "./block.controller.js";
-import { blockUserRouteSchema, unblockUserRouteSchema, getBlockStatusRouteSchema } from "./block.schema.js";
+import { blockUserRouteSchema, unblockUserRouteSchema, getBlockStatusRouteSchema, getBlockedUsersRouteSchema } from "./block.schema.js";
 import { requireAuth } from "../../middleware/auth.js";
 
 export async function blockRoutes(fastify: FastifyInstance) {
@@ -24,6 +24,7 @@ export async function blockRoutes(fastify: FastifyInstance) {
     });
 
     fastify.withTypeProvider<ZodTypeProvider>().get("/", {
+        schema: getBlockedUsersRouteSchema,
         preHandler: requireAuth,
         handler: blockController.getBlockedUsersHandler
     });

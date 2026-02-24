@@ -1,9 +1,21 @@
 
 import { db } from "../../config/drizzle.js";
-import { likes, reactions, reposts, engagementCounters } from "../../db/schema.js";
-import { and, eq, sql } from "drizzle-orm";
+import { likes, reactions, reposts, engagementCounters, hashtags } from "../../db/schema.js";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 export class EngagementRepository {
+    async getTrendingHashtags(limit: number = 10) {
+        return await db
+            .select({
+                id: hashtags.id,
+                name: hashtags.name,
+                postsCount: hashtags.postsCount,
+                lastUsedAt: hashtags.lastUsedAt,
+            })
+            .from(hashtags)
+            .orderBy(desc(hashtags.postsCount), desc(hashtags.lastUsedAt))
+            .limit(limit);
+    }
     async toggleLike(userId: string, targetId: string, targetType: "POST" | "COMMENT") {
         return await db.transaction(async (tx) => {
             const existing = await tx
