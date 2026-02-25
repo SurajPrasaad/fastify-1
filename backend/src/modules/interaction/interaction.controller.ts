@@ -11,7 +11,11 @@ import type {
     RepostInput
 } from "./interaction.dto.js";
 
+import { UserRepository } from "../user/user.repository.js";
+import { AppError } from "../../utils/AppError.js";
+
 const service = new InteractionService();
+const userRepository = new UserRepository();
 
 export async function toggleLikeHandler(
     request: FastifyRequest<{ Body: ToggleLikeInput }>,
@@ -93,7 +97,7 @@ export async function getUserRepliesHandler(
 
     const replies = await service.getUserReplies(
         userId,
-        limit,
+        limit || 20,
         cursor,
         userId
     );
@@ -104,7 +108,38 @@ export async function getUserRepliesHandler(
         data: replies,
         meta: {
             nextCursor,
-            hasNext: replies.length === limit
+            hasNext: replies.length === (limit || 20)
+        }
+    });
+}
+
+export async function getProfileRepliesHandler(
+    request: FastifyRequest<{ Params: { username: string }, Querystring: GetUserRepliesQuery }>,
+    reply: FastifyReply
+) {
+    const { username } = request.params;
+    const { limit, cursor } = request.query;
+    const currentUserId = request.user?.sub;
+
+    const user = await userRepository.findByUsername(username);
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+
+    const replies = await service.getUserReplies(
+        user.id,
+        limit || 20,
+        cursor,
+        currentUserId
+    );
+
+    const nextCursor = replies.length > 0 ? (replies[replies.length - 1] as any).createdAt.toISOString() : null;
+
+    return reply.send({
+        data: replies,
+        meta: {
+            nextCursor,
+            hasNext: replies.length === (limit || 20)
         }
     });
 }
@@ -116,7 +151,7 @@ export async function getUserLikedPostsHandler(
     const userId = (request.user as any).sub;
     const { limit, cursor } = request.query;
 
-    const posts = await service.getUserLikedPosts(userId, limit, cursor);
+    const posts = await service.getUserLikedPosts(userId, limit || 20, cursor);
 
     const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).likedAt.toISOString() : null;
 
@@ -124,7 +159,32 @@ export async function getUserLikedPostsHandler(
         data: posts,
         meta: {
             nextCursor,
-            hasNext: posts.length === limit
+            hasNext: posts.length === (limit || 20)
+        }
+    });
+}
+
+export async function getProfileLikedPostsHandler(
+    request: FastifyRequest<{ Params: { username: string }, Querystring: GetUserRepliesQuery }>,
+    reply: FastifyReply
+) {
+    const { username } = request.params;
+    const { limit, cursor } = request.query;
+
+    const user = await userRepository.findByUsername(username);
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+
+    const posts = await service.getUserLikedPosts(user.id, limit || 20, cursor);
+
+    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).likedAt.toISOString() : null;
+
+    return reply.send({
+        data: posts,
+        meta: {
+            nextCursor,
+            hasNext: posts.length === (limit || 20)
         }
     });
 }

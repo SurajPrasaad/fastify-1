@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { posts, users, postVersions, hashtags, postHashtags, media, polls, pollOptions, pollVotes } from "../../db/schema.js";
+import { posts, users, postVersions, hashtags, postHashtags, postMentions, media, polls, pollOptions, pollVotes } from "../../db/schema.js";
 import { and, desc, eq, lt, sql, count } from "drizzle-orm";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 
@@ -428,6 +428,17 @@ export class PostRepository {
                 }
             }
         });
+    }
+
+    async linkMentions(postId: string, userIds: string[]) {
+        if (userIds.length === 0) return;
+
+        const values = userIds.map(userId => ({
+            postId,
+            userId
+        }));
+
+        await db.insert(postMentions).values(values).onConflictDoNothing();
     }
 
     async vote(userId: string, pollId: string, optionId: string) {

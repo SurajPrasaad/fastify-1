@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { UserService } from "@/services/user.service"
+import { UserResponse } from "@/types/auth"
 
 interface UpdatePostModalProps {
     postId: string;
@@ -32,6 +34,12 @@ export function UpdatePostModal({ postId, isOpen, onClose, onUpdateSuccess }: Up
     const [newTag, setNewTag] = React.useState("")
     const [isLoading, setIsLoading] = React.useState(true)
 
+    // Mention state
+    const [mentionSearch, setMentionSearch] = React.useState<string | null>(null)
+    const [suggestions, setSuggestions] = React.useState<UserResponse[]>([])
+    const [selectedIndex, setSelectedIndex] = React.useState(0)
+    const [cursorPosition, setCursorPosition] = React.useState(0)
+
     const { updatePost, isUpdating } = useUpdatePost()
     const { data: currentUser } = useCurrentUser()
     const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -43,6 +51,70 @@ export function UpdatePostModal({ postId, isOpen, onClose, onUpdateSuccess }: Up
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
         }
     }, [content])
+
+    // Mention search effect
+    React.useEffect(() => {
+        if (!mentionSearch || mentionSearch.length < 1) {
+            setSuggestions([])
+            return
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                const results = await UserService.searchUsers(mentionSearch)
+                setSuggestions(results)
+                setSelectedIndex(0)
+            } catch (error) {
+                console.error("Failed to fetch mention suggestions:", error)
+            }
+        }, 300)
+
+        return () => clearTimeout(timer)
+    }, [mentionSearch])
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value
+        const pos = e.target.selectionStart
+        setContent(value)
+        setCursorPosition(pos)
+
+        // Detect mention
+        const textBeforeCursor = value.slice(0, pos)
+        const lastWordMatch = textBeforeCursor.match(/@(\w*)$/)
+
+        if (lastWordMatch) {
+            setMentionSearch(lastWordMatch[1])
+        } else {
+            setMentionSearch(null)
+        }
+    }
+
+    const insertMention = (username: string) => {
+        const textBeforeMention = content.slice(0, cursorPosition).replace(/@(\w*)$/, `@${username} `)
+        const textAfterMention = content.slice(cursorPosition)
+        setContent(textBeforeMention + textAfterMention)
+        setMentionSearch(null)
+        setSuggestions([])
+        textareaRef.current?.focus()
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (suggestions.length > 0) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault()
+                setSelectedIndex(prev => (prev + 1) % suggestions.length)
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault()
+                setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length)
+            } else if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault()
+                insertMention(suggestions[selectedIndex].username)
+            } else if (e.key === "Escape") {
+                setMentionSearch(null)
+                setSuggestions([])
+            }
+        }
+    }
 
     React.useEffect(() => {
         if (isOpen && postId) {
@@ -136,10 +208,38 @@ export function UpdatePostModal({ postId, isOpen, onClose, onUpdateSuccess }: Up
                             <textarea
                                 ref={textareaRef}
                                 value={content}
-                                onChange={(e) => setContent(e.target.value)}
+                                onChange={handleTextChange}
+                                onKeyDown={handleKeyDown}
                                 placeholder="What's happening?"
                                 className="w-full bg-transparent border-none focus:ring-0 text-xl placeholder:text-slate-500 resize-none outline-none font-display min-h-[120px]"
                             />
+
+                            {/* Mention Suggestions Overlay */}
+                            {suggestions.length > 0 && (
+                                <div className="absolute z-50 mt-16 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-64 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="py-2">
+                                        {suggestions.map((u, i) => (
+                                            <button
+                                                key={u.id}
+                                                onClick={() => insertMention(u.username)}
+                                                className={cn(
+                                                    "w-full flex items-center gap-3 px-4 py-2 text-left transition-colors",
+                                                    i === selectedIndex ? "bg-primary/20" : "hover:bg-slate-800"
+                                                )}
+                                            >
+                                                <Avatar className="size-8">
+                                                    <AvatarImage src={u.avatarUrl || undefined} />
+                                                    <AvatarFallback className="text-white bg-slate-700 text-[10px]">{u.username[0]}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-bold text-sm truncate text-white">{u.name}</span>
+                                                    <span className="text-slate-500 text-xs truncate">@{u.username}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Media Grid */}
                             {mediaUrls.length > 0 && (

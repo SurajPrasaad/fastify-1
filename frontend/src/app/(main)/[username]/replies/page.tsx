@@ -1,13 +1,15 @@
 "use client";
 
-import * as React from "react";
+import React from "react";
+import { useParams } from "next/navigation";
 import { useUserReplies } from "@/features/replies/hooks";
 import { ReplyCard } from "@/features/replies/components/ReplyCard";
 import { Loader2, MessageSquareOff } from "lucide-react";
 import { useInView } from "react-intersection-observer";
 
 export default function ProfileRepliesPage() {
-    const { replies, isLoading, hasNext, fetchMore, error } = useUserReplies();
+    const { username } = useParams<{ username: string }>();
+    const { replies, isLoading, hasNext, fetchMore, error } = useUserReplies(username);
     const { ref, inView } = useInView({
         threshold: 0,
     });

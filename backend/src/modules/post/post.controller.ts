@@ -99,7 +99,33 @@ export async function getUserPostsHandler(
         { authorId: userId }
     );
 
-    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).createdAt.toISOString() : null;
+    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).publishedAt?.toISOString() : null;
+
+    return reply.send({
+        data: posts,
+        meta: {
+            nextCursor,
+            hasNext: posts.length === (limit || 20)
+        }
+    });
+}
+
+export async function getProfilePostsHandler(
+    request: FastifyRequest<{ Params: { username: string }, Querystring: { limit?: number; cursor?: string } }>,
+    reply: FastifyReply
+) {
+    const { username } = request.params;
+    const { limit, cursor } = request.query;
+    const currentUserId = request.user?.sub;
+
+    const posts = await postService.getFeed(
+        limit || 20,
+        cursor,
+        currentUserId,
+        { authorUsername: username }
+    );
+
+    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).publishedAt?.toISOString() : null;
 
     return reply.send({
         data: posts,

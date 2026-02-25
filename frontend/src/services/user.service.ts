@@ -45,5 +45,9 @@ export const UserService = {
 
     updateNotificationSettings: async (data: any): Promise<any> => {
         return api.patch("/users/me/notifications/settings", data);
+    },
+
+    searchUsers: async (query: string): Promise<UserResponse[]> => {
+        return api.get<UserResponse[]>(`/users/search-users?q=${encodeURIComponent(query)}`);
     }
 };

@@ -19,7 +19,8 @@ export const useRealtimeFeed = () => {
         const handleNewPost = (payload: RealtimeNewPostPayload) => {
             prependPost(payload.post);
             // Also invalidate queries to keep cache in sync
-            queryClient.invalidateQueries({ queryKey: ['feed', 'home'] });
+            queryClient.invalidateQueries({ queryKey: ['feed', 'FOR_YOU'] });
+            queryClient.invalidateQueries({ queryKey: ['feed', 'FOLLOWING'] });
         };
 
         // Listen for engagement updates
@@ -34,7 +35,8 @@ export const useRealtimeFeed = () => {
         // Listen for rebalance events
         const handleRebalance = (_payload: RealtimeRebalancePayload) => {
             triggerRebalance();
-            queryClient.invalidateQueries({ queryKey: ['feed', 'home'] });
+            queryClient.invalidateQueries({ queryKey: ['feed', 'FOR_YOU'] });
+            queryClient.invalidateQueries({ queryKey: ['feed', 'FOLLOWING'] });
         };
 
         socketService.on('feed:new_post', handleNewPost);

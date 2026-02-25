@@ -100,6 +100,10 @@ export class UserService {
     return this.userRepository.findByTechStack(tech);
   }
 
+  async searchUsers(query: string, limit: number = 10) {
+    return this.userRepository.search(query, limit);
+  }
+
   async getActiveFriends(userId: string) {
     const followedIds = await this.userRepository.getFollowedUserIds(userId);
     if (!followedIds.length) return [];

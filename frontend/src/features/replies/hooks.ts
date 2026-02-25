@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Reply, PaginatedResult } from "./types";
-import { getMyReplies } from "./api";
+import { getMyReplies, getUserReplies } from "./api";
 import { toast } from "sonner";
 
-export const useUserReplies = (initialData?: PaginatedResult<Reply>) => {
+export const useUserReplies = (username?: string, initialData?: PaginatedResult<Reply>) => {
     const [replies, setReplies] = useState<Reply[]>(initialData?.data || []);
     const [nextCursor, setNextCursor] = useState<string | null>(initialData?.meta.nextCursor || null);
     const [hasNext, setHasNext] = useState<boolean>(initialData?.meta.hasNext ?? true);
@@ -25,7 +25,10 @@ export const useUserReplies = (initialData?: PaginatedResult<Reply>) => {
         setError(null);
 
         try {
-            const result = await getMyReplies(10, nextCursor || undefined);
+            const result = username
+                ? await getUserReplies(username, 10, nextCursor || undefined)
+                : await getMyReplies(10, nextCursor || undefined);
+
             setReplies(prev => {
                 // Deduplicate items based on ID
                 const existingIds = new Set(prev.map(r => r.id));
@@ -41,7 +44,7 @@ export const useUserReplies = (initialData?: PaginatedResult<Reply>) => {
             setIsLoading(false);
             isFetchingRef.current = false;
         }
-    }, [nextCursor, hasNext, isLoading, replies.length]);
+    }, [nextCursor, hasNext, isLoading, replies.length, username]);
 
     // Initial fetch on mount
     useEffect(() => {

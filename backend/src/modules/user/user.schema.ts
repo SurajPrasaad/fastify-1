@@ -84,6 +84,13 @@ export const getSuggestionsSchema = {
   }),
 };
 
+export const searchUsersSchema = {
+  querystring: z.object({
+    q: z.string().min(1),
+    limit: z.coerce.number().positive().default(10),
+  }),
+};
+
 export const getByTechStackSchema = {
   querystring: z.object({
     tech: z.string()
@@ -94,6 +101,7 @@ export const getAllUsersSchema = {
   querystring: z.object({
     limit: z.coerce.number().positive().default(20),
     offset: z.coerce.number().nonnegative().default(0),
+    search: z.string().optional(),
   }),
 };
 

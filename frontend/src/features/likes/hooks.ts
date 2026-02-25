@@ -1,12 +1,14 @@
 
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { getMyLikedPosts } from "./api";
+import { getMyLikedPosts, getUserLikedPosts } from "./api";
 import { Post, PaginatedResult } from "../posts/types";
 
-export const useMyLikedPosts = () => {
+export const useUserLikedPosts = (username?: string) => {
     return useInfiniteQuery({
-        queryKey: ["my-liked-posts"],
-        queryFn: ({ pageParam }) => getMyLikedPosts(10, pageParam),
+        queryKey: username ? ["user-liked-posts", username] : ["my-liked-posts"],
+        queryFn: ({ pageParam }) => username
+            ? getUserLikedPosts(username, 10, pageParam)
+            : getMyLikedPosts(10, pageParam),
         getNextPageParam: (lastPage) => lastPage.meta.hasNext ? (lastPage.meta.nextCursor ?? undefined) : undefined,
         initialPageParam: undefined as string | undefined,
     });

@@ -246,6 +246,15 @@ export const postHashtags = pgTable("post_hashtags", {
     hashtagIdx: index("hashtag_posts_idx").on(t.hashtagId),
 }));
 
+export const postMentions = pgTable("post_mentions", {
+    postId: uuid("post_id").references(() => posts.id, { onDelete: 'cascade' }).notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+    pk: primaryKey({ columns: [t.postId, t.userId] }),
+    userMentionIdx: index("user_mention_idx").on(t.userId, t.createdAt.desc()),
+}));
+
 export const comments = pgTable("comments", {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").references(() => users.id).notNull(),
@@ -289,6 +298,8 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
         references: [users.id],
     }),
     comments: many(comments),
+    mentions: many(postMentions),
+    hashtags: many(postHashtags),
 }));
 
 export const commentsRelations = relations(comments, ({ one, many }) => ({
@@ -417,7 +428,7 @@ export const notifications = pgTable("notifications", {
     recipientId: uuid("recipient_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
     actorId: uuid("actor_id").references(() => users.id), // Nullable for system notifications
     templateId: uuid("template_id").references(() => notificationTemplates.id),
-    type: text("type").$type<"LIKE" | "COMMENT" | "REPLY" | "MENTION" | "FOLLOW">(), // Notification category
+    type: text("type").$type<"LIKE" | "COMMENT" | "REPLY" | "MENTION" | "FOLLOW" | "REPOST" | "SYSTEM" | "VERIFIED">(), // Notification category
     entityType: text("entity_type").$type<"POST" | "COMMENT" | "FOLLOW" | "CHAT" | "SYSTEM">().notNull(),
     entityId: uuid("entity_id").notNull(),
     postId: uuid("post_id").references(() => posts.id, { onDelete: 'set null' }), // Nullable — for deep linking
@@ -597,6 +608,17 @@ export const dataRequestsRelations = relations(dataRequests, ({ one }) => ({
 export const userChatSettingsRelations = relations(userChatSettings, ({ one }) => ({
     user: one(users, {
         fields: [userChatSettings.userId],
+        references: [users.id],
+    }),
+}));
+
+export const postMentionsRelations = relations(postMentions, ({ one }) => ({
+    post: one(posts, {
+        fields: [postMentions.postId],
+        references: [posts.id],
+    }),
+    user: one(users, {
+        fields: [postMentions.userId],
         references: [users.id],
     }),
 }));

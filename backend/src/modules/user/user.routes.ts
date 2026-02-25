@@ -20,13 +20,14 @@ import {
     revokeAppRouteSchema,
     getNotificationSettingsRouteSchema,
     updateNotificationSettingsRouteSchema,
+    searchUsersSchema,
 } from "./user.schema.js";
 
 import { requireAuth } from "../../middleware/auth.js";
 import { optionalAuth } from "../../middleware/optional-auth.js";
-import { getUserRepliesHandler, getUserLikedPostsHandler } from "../interaction/interaction.controller.js";
+import { getUserRepliesHandler, getUserLikedPostsHandler, getProfileRepliesHandler, getProfileLikedPostsHandler } from "../interaction/interaction.controller.js";
 import { getUserRepliesSchema } from "../interaction/interaction.schema.js";
-import { getUserPostsHandler } from "../post/post.controller.js";
+import { getUserPostsHandler, getProfilePostsHandler } from "../post/post.controller.js";
 import { getPostsQuerySchema } from "../post/post.schema.js";
 
 export async function userRoutes(fastify: FastifyInstance) {
@@ -61,6 +62,20 @@ export async function userRoutes(fastify: FastifyInstance) {
         userController.getUserProfileHandler
     );
 
+    // User Posts Route
+    fastify.withTypeProvider<ZodTypeProvider>().get(
+        "/:username/posts",
+        {
+            schema: {
+                querystring: getPostsQuerySchema,
+                tags: ["Profile"],
+                description: "Get a user's posts",
+            },
+            preHandler: optionalAuth as any
+        },
+        getProfilePostsHandler
+    );
+
     // Followers List
     fastify.withTypeProvider<ZodTypeProvider>().get(
         "/:username/followers",
@@ -79,6 +94,34 @@ export async function userRoutes(fastify: FastifyInstance) {
             preHandler: optionalAuth as any
         },
         userController.getFollowingHandler
+    );
+
+    // User Replies Route
+    fastify.withTypeProvider<ZodTypeProvider>().get(
+        "/:username/replies",
+        {
+            schema: {
+                querystring: getUserRepliesSchema,
+                tags: ["Profile"],
+                description: "Get a user's replies",
+            },
+            preHandler: optionalAuth as any
+        },
+        getProfileRepliesHandler
+    );
+
+    // User Liked Posts Route
+    fastify.withTypeProvider<ZodTypeProvider>().get(
+        "/:username/likes",
+        {
+            schema: {
+                querystring: getUserRepliesSchema,
+                tags: ["Profile"],
+                description: "Get a user's liked posts",
+            },
+            preHandler: optionalAuth as any
+        },
+        getProfileLikedPostsHandler
     );
 
     // Protected Routes
@@ -129,6 +172,14 @@ export async function userRoutes(fastify: FastifyInstance) {
                 schema: getByTechStackSchema
             },
             userController.getUsersByTechStackHandler
+        );
+
+        protectedApp.withTypeProvider<ZodTypeProvider>().get(
+            "/search-users",
+            {
+                schema: searchUsersSchema
+            },
+            userController.searchUsersHandler
         );
 
         protectedApp.withTypeProvider<ZodTypeProvider>().get(

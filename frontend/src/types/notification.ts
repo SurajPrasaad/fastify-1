@@ -7,7 +7,8 @@ export type NotificationType =
     | "MENTION"
     | "FOLLOW"
     | "REPOST"
-    | "SYSTEM";
+    | "SYSTEM"
+    | "VERIFIED";
 
 export interface NotificationSender {
     id: string;

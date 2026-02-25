@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Post, PaginatedResult } from "./types";
-import { getMyPosts, updatePost as postApiUpdate, deletePost as postApiDelete } from "./api";
+import { getMyPosts, getUserPosts, updatePost as postApiUpdate, deletePost as postApiDelete } from "./api";
 import { toast } from "sonner";
 
-export const useUserPosts = (initialData?: PaginatedResult<Post>) => {
+export const useUserPosts = (username?: string, initialData?: PaginatedResult<Post>) => {
     const [posts, setPosts] = useState<Post[]>(initialData?.data || []);
     const [nextCursor, setNextCursor] = useState<string | null>(initialData?.meta.nextCursor || null);
     const [hasNext, setHasNext] = useState<boolean>(initialData?.meta.hasNext ?? true);
@@ -23,7 +23,10 @@ export const useUserPosts = (initialData?: PaginatedResult<Post>) => {
         setError(null);
 
         try {
-            const result = await getMyPosts(10, nextCursor || undefined);
+            const result = username
+                ? await getUserPosts(username, 10, nextCursor || undefined)
+                : await getMyPosts(10, nextCursor || undefined);
+
             setPosts(prev => {
                 const existingIds = new Set(prev.map(p => p.id));
                 const uniqueNewPosts = result.data.filter(p => !existingIds.has(p.id));
@@ -38,7 +41,7 @@ export const useUserPosts = (initialData?: PaginatedResult<Post>) => {
             setIsLoading(false);
             isFetchingRef.current = false;
         }
-    }, [nextCursor, hasNext, isLoading, posts.length]);
+    }, [nextCursor, hasNext, isLoading, posts.length, username]);
 
     // Initial fetch on mount
     useEffect(() => {

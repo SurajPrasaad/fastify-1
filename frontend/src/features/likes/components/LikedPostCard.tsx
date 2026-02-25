@@ -7,7 +7,7 @@ import { PaginatedResult } from "@/features/posts/types";
 // We use the useQueryClient directly or the hook we created.
 // To avoid circular dependency or import issues if export/import isn't clear, we can inline or import.
 // Using defined hook is better.
-import { useMyLikedPosts } from "../hooks";
+import { useUserLikedPosts } from "../hooks";
 
 interface LikedPostCardProps {
     post: Post;

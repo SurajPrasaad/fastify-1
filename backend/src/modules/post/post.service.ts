@@ -1,6 +1,8 @@
 import type { PostRepository } from "./post.repository.js";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 import { AppError } from "../../utils/AppError.js";
+import { parseMentions } from "../notification/mention.service.js";
+import { triggerMentionNotifications } from "../notification/notification.triggers.js";
 
 export class PostService {
     constructor(private postRepository: PostRepository) { }
@@ -21,17 +23,30 @@ export class PostService {
             throw new AppError("Failed to create post", 500);
         }
 
-        // If high-fidelity media metadata is provided, save it to the media table
+        // 1. If high-fidelity media metadata is provided, save it to the media table
         if (mediaData && mediaData.length > 0) {
             await this.postRepository.saveMediaMetadata(post.id, userId, mediaData);
         }
 
-        // Link hashtags asynchronously
+        // 2. Link hashtags asynchronously
         if (status === "PUBLISHED") {
             const hashtags = this.extractHashtags(data.content);
             this.postRepository.linkHashtags(post.id, hashtags).catch(err => {
                 console.error("Failed to link hashtags:", err);
             });
+
+            // 3. Process Mentions
+            const { validUsers } = await parseMentions(data.content, userId);
+            if (validUsers.length > 0) {
+                const mentionIds = validUsers.map(u => u.id);
+                // Link in DB
+                this.postRepository.linkMentions(post.id, mentionIds).catch(err => {
+                    console.error("Failed to link mentions:", err);
+                });
+
+                // Trigger Notifications
+                triggerMentionNotifications(userId, data.content, post.id);
+            }
         }
 
         return post;
@@ -48,6 +63,16 @@ export class PostService {
         this.postRepository.linkHashtags(post.id, hashtags).catch(err => {
             console.error("Failed to link hashtags on publish:", err);
         });
+
+        // 3. Process Mentions
+        const { validUsers } = await parseMentions(post.content, userId);
+        if (validUsers.length > 0) {
+            const mentionIds = validUsers.map(u => u.id);
+            this.postRepository.linkMentions(post.id, mentionIds).catch(err => {
+                console.error("Failed to link mentions on publish:", err);
+            });
+            triggerMentionNotifications(userId, post.content, post.id);
+        }
 
         return post;
     }
@@ -80,6 +105,17 @@ export class PostService {
             this.postRepository.linkHashtags(updated.id, hashtags).catch(err => {
                 console.error("Failed to update hashtags:", err);
             });
+
+            // Re-process Mentions
+            const { validUsers } = await parseMentions(updated.content, userId);
+            if (validUsers.length > 0) {
+                const mentionIds = validUsers.map(u => u.id);
+                this.postRepository.linkMentions(updated.id, mentionIds).catch(err => {
+                    console.error("Failed to update mentions:", err);
+                });
+                // Note: triggerMentionNotifications handles deduplication internally or we can add it there if needed.
+                triggerMentionNotifications(userId, updated.content, updated.id);
+            }
         }
 
         return updated;

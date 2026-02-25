@@ -155,14 +155,14 @@ export function RightSidebar({ className }: { className?: string }) {
             </div>
 
             {/* Footer */}
-            <footer className="px-4 pb-8 text-[12px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1 mt-auto">
+            {/* <footer className="px-4 pb-8 text-[12px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1 mt-auto">
                 <a className="hover:underline" href="#">Terms of Service</a>
                 <a className="hover:underline" href="#">Privacy Policy</a>
                 <a className="hover:underline" href="#">Cookie Policy</a>
                 <a className="hover:underline" href="#">Accessibility</a>
                 <a className="hover:underline" href="#">Ads info</a>
                 <span>© 2024 SocialApp Corp.</span>
-            </footer>
+            </footer> */}
         </aside>
     )
 }

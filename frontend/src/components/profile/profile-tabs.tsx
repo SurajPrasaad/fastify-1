@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/features/auth/hooks';
 
 interface ProfileTabsProps {
     username: string;
@@ -11,16 +12,23 @@ interface ProfileTabsProps {
 const TABS = [
     { label: "Posts", id: "posts" },
     { label: "Replies", id: "replies" },
-    { label: "Media", id: "media" },
+    { label: "Bookmarks", id: "bookmarks" },
     { label: "Likes", id: "likes" },
 ];
 
 export function ProfileTabs({ username }: ProfileTabsProps) {
     const pathname = usePathname();
+    const { data: currentUser } = useCurrentUser();
+    const isOwner = currentUser?.username === username;
+
+    const filteredTabs = TABS.filter(tab => {
+        if (tab.id === "bookmarks") return isOwner;
+        return true;
+    });
 
     const getActiveTab = () => {
         if (pathname.endsWith("/replies")) return "replies";
-        if (pathname.endsWith("/media")) return "media";
+        if (pathname.endsWith("/bookmarks")) return "bookmarks";
         if (pathname.endsWith("/likes")) return "likes";
         return "posts";
     };
@@ -29,10 +37,10 @@ export function ProfileTabs({ username }: ProfileTabsProps) {
 
     return (
         <div className="flex border-b border-slate-200 dark:border-slate-800">
-            {TABS.map((tab) => (
+            {filteredTabs.map((tab) => (
                 <Link
                     key={tab.id}
-                    href={`/${username}/${tab.id}`}
+                    href={`/${username}/${tab.id === 'posts' ? '' : tab.id}`}
                     className={cn(
                         "flex-1 py-4 text-sm relative text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors uppercase tracking-wider",
                         activeTab === tab.id

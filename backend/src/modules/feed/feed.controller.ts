@@ -12,22 +12,31 @@ export async function getHomeFeedHandler(
     request: FastifyRequest<{ Querystring: z.infer<typeof getFeedSchema> }>,
     reply: FastifyReply
 ) {
-    const userId = request.user!.sub; // Using JWT sub
-    const { limit, cursor } = request.query;
+    const userId = request.user!.sub;
+    const { limit, cursor, type } = request.query;
 
-    const posts = await feedService.getHomeFeed(userId, limit, cursor);
+    const posts = await feedService.getFeed(userId, type as any, limit, cursor);
 
-    // Using rankScore as cursor for ZSET pagination
+    // Determine cursor strategy based on feed type
     const lastPost = posts[posts.length - 1] as any;
-    const nextCursor = lastPost?.rankScore?.toString() ?? null;
+    let nextCursor = null;
+
+    if (lastPost) {
+        if (type === 'FOR_YOU') {
+            nextCursor = lastPost.finalScore?.toString() || lastPost.rankScore?.toString();
+        } else {
+            nextCursor = lastPost.publishedAt?.getTime()?.toString() || lastPost.publishedAt?.toISOString();
+        }
+    }
 
     return reply.send({
         data: posts,
         nextCursor,
-        hasMore: !!nextCursor,
+        hasMore: !!nextCursor && posts.length >= limit,
         meta: {
             count: posts.length,
-            provider: "HYBRID_FANOUT_V1"
+            type: type,
+            provider: "SEGMENTED_FEED_V2"
         }
     });
 }

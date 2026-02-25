@@ -69,6 +69,15 @@ export class UserController {
     return reply.status(200).send(users);
   };
 
+  searchUsersHandler = async (
+    request: FastifyRequest<{ Querystring: { q: string, limit?: number } }>,
+    reply: FastifyReply
+  ) => {
+    const { q, limit } = request.query;
+    const users = await this.userService.searchUsers(q, limit || 10);
+    return reply.status(200).send(users);
+  };
+
   getActiveFriendsHandler = async (
     request: FastifyRequest,
     reply: FastifyReply

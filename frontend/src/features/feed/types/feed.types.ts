@@ -9,6 +9,7 @@ export interface FeedPost extends IPost {
 export interface FeedParams {
     limit?: number;
     cursor?: string;
+    type?: 'FOR_YOU' | 'FOLLOWING';
 }
 
 export interface HashtagFeedParams extends FeedParams {

@@ -44,6 +44,18 @@ export const getMyPosts = async (limit = 10, cursor?: string): Promise<Paginated
         data: response.data.map(mapApiPostToPost)
     };
 };
+
+export const getUserPosts = async (username: string, limit = 10, cursor?: string): Promise<PaginatedResult<Post>> => {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (cursor) params.append("cursor", cursor);
+
+    const response = await api.get<PaginatedResult<ApiPost>>(`/users/${username}/posts?${params.toString()}`);
+
+    return {
+        ...response,
+        data: response.data.map(mapApiPostToPost)
+    };
+};
 export const updatePost = async (id: string, data: any): Promise<Post> => {
     const response = await api.put<ApiPost>(`/posts/${id}`, data);
     return mapApiPostToPost(response);

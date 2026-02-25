@@ -1,6 +1,6 @@
 import { db } from "../../config/drizzle.js";
 import { users, follows, userCounters, userPrivacy, sessions, mfaSecrets, identityProviders, notificationSettings } from "../../db/schema.js";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import { eq, sql, and, inArray, or, ilike } from "drizzle-orm";
 import { AppError } from "../../utils/AppError.js";
 
 export class UserRepository {
@@ -232,6 +232,30 @@ export class UserRepository {
             .leftJoin(userCounters, eq(users.id, userCounters.userId))
             .limit(limit)
             .offset(offset);
+
+        return result.map(({ user, counters }) => ({
+            ...user,
+            followersCount: counters?.followersCount ?? 0,
+            followingCount: counters?.followingCount ?? 0,
+            postsCount: counters?.postsCount ?? 0,
+        }));
+    }
+
+    async search(query: string, limit: number = 10) {
+        const result = await db
+            .select({
+                user: users,
+                counters: userCounters,
+            })
+            .from(users)
+            .leftJoin(userCounters, eq(users.id, userCounters.userId))
+            .where(
+                or(
+                    ilike(users.username, `%${query}%`),
+                    ilike(users.name, `%${query}%`)
+                )
+            )
+            .limit(limit);
 
         return result.map(({ user, counters }) => ({
             ...user,

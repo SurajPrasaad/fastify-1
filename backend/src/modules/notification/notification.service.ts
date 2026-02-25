@@ -299,17 +299,22 @@ export class NotificationService {
             );
             if (duplicate) continue;
 
+            const isComment = !!commentId;
+            const message = isComment
+                ? `${sender.name} mentioned you in a comment`
+                : `${sender.name} mentioned you in a post`;
+
             const notification = await this.repository.createNotification({
                 recipientId: mentionedUser.id,
                 actorId: senderId,
-                entityType: "COMMENT",
+                entityType: isComment ? "COMMENT" : "POST",
                 entityId: commentId || postId,
-                message: `${sender.name} mentioned you in a comment`,
+                message,
                 type: "MENTION",
                 postId,
                 commentId: commentId || null,
                 metaData: {
-                    actionUrl: commentId
+                    actionUrl: isComment
                         ? `/post/${postId}#comment-${commentId}`
                         : `/post/${postId}`,
                 },

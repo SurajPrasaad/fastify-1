@@ -7,9 +7,11 @@ import { Loader2, PenSquare } from "lucide-react";
 import { useInView } from "react-intersection-observer";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useParams } from "next/navigation";
 
 export default function ProfilePostsPage() {
-    const { posts, isLoading, hasNext, fetchMore, removePost, updatePost, error } = useUserPosts();
+    const { username } = useParams<{ username: string }>();
+    const { posts, isLoading, hasNext, fetchMore, removePost, updatePost, error } = useUserPosts(username);
     const { ref, inView } = useInView({
         threshold: 0,
     });
@@ -44,7 +46,7 @@ export default function ProfilePostsPage() {
                     key={post.id}
                     post={post as any} // Cast if minor type mismatch from different files
                     onRemove={removePost}
-                    onUpdate={updatePost}
+                    onUpdate={updatePost as any}
                 />
             ))}
 

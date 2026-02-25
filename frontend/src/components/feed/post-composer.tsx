@@ -12,6 +12,9 @@ import { Image, Vote, Smile, MapPin, X, Plus } from "lucide-react"
 import { PollCreator } from "./poll-creator"
 import { EmojiPicker } from "./emoji-picker"
 import { LocationPicker } from "./location-picker"
+import { UserService } from "@/services/user.service"
+import { UserResponse } from "@/types/auth"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface PostComposerProps {
     onSuccess?: (post: any) => void;
@@ -24,6 +27,12 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
     const [selectedImages, setSelectedImages] = React.useState<string[]>([])
     const [poll, setPoll] = React.useState<{ question: string; options: string[]; expiresAt: Date } | null>(null)
     const [location, setLocation] = React.useState<string | null>(null)
+
+    // Mention state
+    const [mentionSearch, setMentionSearch] = React.useState<string | null>(null)
+    const [suggestions, setSuggestions] = React.useState<UserResponse[]>([])
+    const [selectedIndex, setSelectedIndex] = React.useState(0)
+    const [cursorPosition, setCursorPosition] = React.useState(0)
 
     // UI state for pickers
     const [activePicker, setActivePicker] = React.useState<"gif" | "poll" | "emoji" | "location" | null>(null)
@@ -39,6 +48,70 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
         }
     }, [content])
+
+    // Mention search effect
+    React.useEffect(() => {
+        if (!mentionSearch || mentionSearch.length < 1) {
+            setSuggestions([])
+            return
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                const results = await UserService.searchUsers(mentionSearch)
+                setSuggestions(results)
+                setSelectedIndex(0)
+            } catch (error) {
+                console.error("Failed to fetch mention suggestions:", error)
+            }
+        }, 300)
+
+        return () => clearTimeout(timer)
+    }, [mentionSearch])
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value
+        const pos = e.target.selectionStart
+        setContent(value)
+        setCursorPosition(pos)
+
+        // Detect mention
+        const textBeforeCursor = value.slice(0, pos)
+        const lastWordMatch = textBeforeCursor.match(/@(\w*)$/)
+
+        if (lastWordMatch) {
+            setMentionSearch(lastWordMatch[1])
+        } else {
+            setMentionSearch(null)
+        }
+    }
+
+    const insertMention = (username: string) => {
+        const textBeforeMention = content.slice(0, cursorPosition).replace(/@(\w*)$/, `@${username} `)
+        const textAfterMention = content.slice(cursorPosition)
+        setContent(textBeforeMention + textAfterMention)
+        setMentionSearch(null)
+        setSuggestions([])
+        textareaRef.current?.focus()
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (suggestions.length > 0) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault()
+                setSelectedIndex(prev => (prev + 1) % suggestions.length)
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault()
+                setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length)
+            } else if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault()
+                insertMention(suggestions[selectedIndex].username)
+            } else if (e.key === "Escape") {
+                setMentionSearch(null)
+                setSuggestions([])
+            }
+        }
+    }
 
     const handlePost = async () => {
         if (!content.trim() && selectedImages.length === 0 && !poll) return
@@ -100,8 +173,36 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                     placeholder="What's happening?"
                     rows={2}
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={handleTextChange}
+                    onKeyDown={handleKeyDown}
                 />
+
+                {/* Mention Suggestions Overlay */}
+                {suggestions.length > 0 && (
+                    <div className="absolute z-50 mt-12 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-64 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                        <div className="py-2">
+                            {suggestions.map((u, i) => (
+                                <button
+                                    key={u.id}
+                                    onClick={() => insertMention(u.username)}
+                                    className={cn(
+                                        "w-full flex items-center gap-3 px-4 py-2 text-left transition-colors",
+                                        i === selectedIndex ? "bg-primary/20" : "hover:bg-slate-800"
+                                    )}
+                                >
+                                    <Avatar className="size-8">
+                                        <AvatarImage src={u.avatarUrl || undefined} />
+                                        <AvatarFallback className="text-[10px]">{u.username[0]}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-bold text-sm truncate">{u.name}</span>
+                                        <span className="text-slate-500 text-xs truncate">@{u.username}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Attachments Preview */}
                 {selectedImages.length > 0 && (

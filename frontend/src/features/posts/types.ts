@@ -1,7 +1,7 @@
 export interface PostAuthor {
     username: string;
     name: string;
-    avatarUrl?: string;
+    avatarUrl?: string | null;
     isVerified?: boolean;
 }
 

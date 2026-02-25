@@ -7,6 +7,9 @@ export const NotificationTypeEnum = z.enum([
     "REPLY",
     "MENTION",
     "FOLLOW",
+    "REPOST",
+    "SYSTEM",
+    "VERIFIED",
 ]);
 export type NotificationType = z.infer<typeof NotificationTypeEnum>;
 

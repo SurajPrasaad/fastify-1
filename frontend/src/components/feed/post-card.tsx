@@ -189,7 +189,10 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate, onPostCreated
 
     const renderContent = (content: string) => {
         return content.split(/(\s+)/).map((part, i) => {
-            if (part && part.startsWith('#')) {
+            if (!part) return part;
+
+            // Handle hashtags
+            if (part.startsWith('#')) {
                 return (
                     <span key={i} className="text-primary hover:underline cursor-pointer transition-colors" onClick={(e) => {
                         e.stopPropagation()
@@ -198,6 +201,22 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate, onPostCreated
                     </span>
                 )
             }
+
+            // Handle mentions
+            if (part.startsWith('@') && part.length > 1) {
+                const username = part.slice(1);
+                return (
+                    <Link
+                        key={i}
+                        href={`/${username}`}
+                        className="text-primary hover:underline font-medium transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {part}
+                    </Link>
+                )
+            }
+
             return part
         })
     }

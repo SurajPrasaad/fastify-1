@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useMyLikedPosts } from "@/features/likes/hooks";
+import { useParams } from "next/navigation";
+import { useUserLikedPosts } from "@/features/likes/hooks";
 import { LikedPostCard } from "@/features/likes/components/LikedPostCard";
 import { Loader2, HeartOff, AlertCircle } from "lucide-react";
 import { useInView } from "react-intersection-observer";
 import { Button } from "@/components/ui/button";
 
 export default function ProfileLikesPage() {
+    const { username } = useParams<{ username: string }>();
     const {
         data,
         fetchNextPage,
@@ -15,7 +17,7 @@ export default function ProfileLikesPage() {
         isFetchingNextPage,
         status,
         refetch
-    } = useMyLikedPosts();
+    } = useUserLikedPosts(username);
 
     const { ref, inView } = useInView();
 
@@ -70,7 +72,7 @@ export default function ProfileLikesPage() {
             {data?.pages.map((page, i) => (
                 <React.Fragment key={i}>
                     {page.data.map((post) => (
-                        <LikedPostCard key={post.id} post={post} />
+                        <LikedPostCard key={post.id} post={post as any} />
                     ))}
                 </React.Fragment>
             ))}

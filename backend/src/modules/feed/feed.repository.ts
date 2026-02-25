@@ -1,7 +1,8 @@
 
 import { db } from "../../config/drizzle.js";
 import { posts, users, follows, celebrityAccounts, rankingFeatures, polls, pollOptions } from "../../db/schema.js";
-import { and, desc, eq, inArray, lt, sql, exists } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql, exists, or } from "drizzle-orm";
+import { blocks } from "../../db/schema.js";
 
 export class FeedRepository {
     // 1. Bulk Fetch for Hydration pattern
@@ -268,5 +269,58 @@ export class FeedRepository {
         }));
 
         return withPolls;
+    }
+
+    // 9. Filtering: Get IDs of users to exclude (blocked/blocking)
+    async getBlockedUserIds(userId: string): Promise<string[]> {
+        const result = await db
+            .select({
+                blockerId: blocks.blockerId,
+                blockedId: blocks.blockedId
+            })
+            .from(blocks)
+            .where(
+                or(
+                    eq(blocks.blockerId, userId),
+                    eq(blocks.blockedId, userId)
+                )
+            );
+
+        return result.map(r => r.blockedId === userId ? r.blockerId! : r.blockedId!);
+    }
+
+    // 10. For You: Get trending posts (high engagement)
+    async getTrendingPosts(limit: number, excludeIds: string[]) {
+        const items = await db
+            .select({
+                id: posts.id,
+                userId: posts.userId,
+                content: posts.content,
+                mediaUrls: posts.mediaUrls,
+                pollId: posts.pollId,
+                createdAt: posts.createdAt,
+                updatedAt: posts.updatedAt,
+                publishedAt: posts.publishedAt,
+                user: {
+                    id: users.id,
+                    username: users.username,
+                    name: users.name,
+                    avatarUrl: users.avatarUrl,
+                },
+                likesCount: posts.likesCount,
+                commentsCount: posts.commentsCount,
+            })
+            .from(posts)
+            .innerJoin(users, eq(posts.userId, users.id))
+            .where(
+                and(
+                    eq(posts.status, 'PUBLISHED'),
+                    excludeIds.length > 0 ? sql`${posts.id} NOT IN (${sql.join(excludeIds.map(id => sql`${id}`), sql`, `)})` : undefined
+                )
+            )
+            .orderBy(desc(sql`${posts.likesCount} + ${posts.commentsCount} * 2`))
+            .limit(limit);
+
+        return items;
     }
 }

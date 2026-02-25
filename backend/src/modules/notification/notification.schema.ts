@@ -6,7 +6,7 @@ import type { FastifySchema } from "fastify";
 export const getNotificationsQuerySchema = z.object({
     limit: z.coerce.number().min(1).max(50).default(20),
     cursor: z.string().optional(),
-    type: z.enum(["LIKE", "COMMENT", "REPLY", "MENTION", "FOLLOW"]).optional(),
+    type: z.enum(["LIKE", "COMMENT", "REPLY", "MENTION", "FOLLOW", "REPOST", "SYSTEM", "VERIFIED"]).optional(),
 });
 
 export const markReadParamsSchema = z.object({
@@ -19,7 +19,7 @@ export const notificationResponseSchema = z.object({
     id: z.string().uuid(),
     recipientId: z.string().uuid(),
     actorId: z.string().uuid().nullable(),
-    type: z.enum(["LIKE", "COMMENT", "REPLY", "MENTION", "FOLLOW"]).nullable(),
+    type: z.enum(["LIKE", "COMMENT", "REPLY", "MENTION", "FOLLOW", "REPOST", "SYSTEM", "VERIFIED"]).nullable(),
     entityType: z.string(),
     entityId: z.string().uuid(),
     postId: z.string().uuid().nullable(),
