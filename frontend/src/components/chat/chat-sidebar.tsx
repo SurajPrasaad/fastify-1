@@ -8,6 +8,8 @@ import { ChatService } from "@/services/chat.service"
 import { ChatRoom } from "@/types/chat"
 import { CreateChatDialog } from "./create-chat-dialog"
 import { DialogTrigger } from "@/components/ui/dialog"
+import { useChatStore } from "@/features/chat/store/chat.store"
+import { useUser } from "@/hooks/use-auth"
 
 interface ChatSidebarProps {
     selectedId: string | null
@@ -17,6 +19,8 @@ interface ChatSidebarProps {
 export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
     const [searchQuery, setSearchQuery] = useState("")
     const [filter, setFilter] = useState<"all" | "unread" | "groups">("all")
+    const onlineUsers = useChatStore(state => state.onlineUsers);
+    const { data: currentUser } = useUser();
 
     const { data: conversations, isLoading } = useQuery({
         queryKey: ["chat-rooms"],
@@ -36,11 +40,18 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
         if (room.participants && room.participants.length > 0) {
             const names = room.participants
                 .filter(p => typeof p !== 'string')
+                .filter(p => String(p.id) !== String(currentUser?.id))
                 .map((p: any) => p.name || p.username)
                 .join(', ');
             if (names) return names;
         }
         return "Chat Room";
+    }
+
+    function isOnline(room: ChatRoom) {
+        if (room.type === 'GROUP') return false; // Simple for now
+        const otherParticipant = room.participants.find(p => typeof p !== 'string' && String(p.id) !== String(currentUser?.id));
+        return otherParticipant ? onlineUsers.has(String(otherParticipant.id)) : false;
     }
 
     function getAvatar(room: ChatRoom) {
@@ -111,6 +122,7 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
                                 chat={chat}
                                 name={getRoomName(chat)}
                                 active={selectedId === chat._id}
+                                isOnline={isOnline(chat)}
                                 onClick={() => onSelect(chat._id, chat)}
                                 avatar={getAvatar(chat)}
                             />
@@ -138,10 +150,11 @@ function FilterButton({ label, active, onClick }: { label: string, active?: bool
     )
 }
 
-function ChatListItem({ chat, name, active, onClick, avatar }: {
+function ChatListItem({ chat, name, active, onClick, avatar, isOnline }: {
     chat: ChatRoom,
     name: string,
     active: boolean,
+    isOnline: boolean,
     onClick: () => void,
     avatar: string
 }) {
@@ -159,16 +172,15 @@ function ChatListItem({ chat, name, active, onClick, avatar }: {
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800">
                     <img alt={name} className="w-full h-full object-cover" src={avatar} />
                 </div>
-                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+                {isOnline && (
+                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+                )}
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-0.5">
                     <h3 className={cn("truncate", active ? "font-bold text-slate-900 dark:text-slate-100" : "font-semibold text-slate-900 dark:text-slate-100")}>
                         {name}
                     </h3>
-                    <span className={cn("text-[10px] font-medium whitespace-nowrap", active ? "text-primary" : "text-slate-500")}>
-                        {chat.updatedAt ? formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true }) : ""}
-                    </span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
                     <p className="text-sm text-slate-500/80 dark:text-slate-400 truncate">
@@ -177,7 +189,7 @@ function ChatListItem({ chat, name, active, onClick, avatar }: {
                                 chat.lastMessage?.type === 'FILE' ? "📎 Sent a file" :
                                     chat.lastMessage?.content || "Starting a conversation..."}
                     </p>
-                    {chat.unreadCount && chat.unreadCount > 0 && (
+                    {chat.unreadCount !== undefined && chat.unreadCount > 0 && (
                         <span className="bg-primary text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center animate-in zoom-in-0">
                             {chat.unreadCount}
                         </span>

@@ -41,25 +41,30 @@ export class ChatService {
     ) { }
 
     async getUserPresence(userId: string): Promise<{ userId: string; status: string; lastSeen: Date | null }> {
-        const status = await redis.get(`presence:${userId}`);
-        const lastSeen = await redis.get(`last_seen:${userId}`);
+        const presence = await redis.hgetall(`presence:u:${userId}`);
         return {
             userId,
-            status: status || 'OFFLINE',
-            lastSeen: lastSeen ? new Date(parseInt(lastSeen)) : null
+            status: presence?.status || 'OFFLINE',
+            lastSeen: presence?.lastSeen ? new Date(parseInt(presence.lastSeen)) : null
         };
     }
 
     async setUserPresence(userId: string, status: 'ONLINE' | 'OFFLINE') {
+        const timestamp = Date.now().toString();
         if (status === 'ONLINE') {
-            await redis.set(`presence:${userId}`, 'ONLINE', 'EX', 60); // 60s TTL for heartbeat
+            await redis.hset(`presence:u:${userId}`, {
+                status: 'ONLINE',
+                lastHeartbeat: timestamp,
+                lastSeen: timestamp
+            });
+            await redis.expire(`presence:u:${userId}`, 90);
         } else {
-            await redis.del(`presence:${userId}`);
-            await redis.set(`last_seen:${userId}`, Date.now().toString());
+            await redis.hset(`presence:u:${userId}`, {
+                status: 'OFFLINE',
+                lastSeen: timestamp
+            });
+            await redis.zrem(`presence:v_heartbeat`, userId);
         }
-
-        // Simulation: Kafka event
-        console.log(`[Kafka] Emitting event: user.presence_changed`, { userId, status });
     }
 
     async getHistory(roomId: string, userId: string, limit: number, before?: string): Promise<IMessage[]> {
@@ -146,7 +151,17 @@ export class ChatService {
         return message;
     }
 
-    async markAsRead(userId: string, roomId: string, messageId: string) {
+    async markAsRead(userId: string, roomId: string, messageId?: string) {
+        if (!messageId) {
+            // Find the latest message in the room to mark as read up to
+            const [latestMsg] = await this.repository.getRoomMessages(roomId, 1);
+            if (latestMsg) {
+                messageId = latestMsg._id.toString();
+            } else {
+                // If no messages, just update lastReadAt
+                return await this.repository.updateReadState(userId, roomId);
+            }
+        }
         return await this.repository.updateReadState(userId, roomId, messageId);
     }
 

@@ -17,6 +17,7 @@ export type MessageStatus = 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'ERROR';
 
 export interface ChatMessage {
     _id: string;
+    tempId?: string;
     roomId: string;
     senderId: string;
     content: string;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChatEvent, ChatMessage, MessageType } from '@/types/chat';
 import { api } from '@/lib/api-client';
+import { db } from '@/lib/chat-db';
 import { io, Socket } from 'socket.io-client';
 
 interface UseChatSocketProps {
@@ -35,6 +36,11 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
             if (roomId) {
                 s.emit('JOIN_ROOM', { roomId });
             }
+            // Trigger background sync on reconnection
+            db.processPendingMessages((syncedMsg) => {
+                // Update React Query cache when a background message is successfully sent
+                queryClient.invalidateQueries({ queryKey: ['chat-messages', syncedMsg.roomId] });
+            });
         });
 
         s.on('disconnect', () => {
@@ -83,7 +89,10 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
                     }
                 );
 
-                // 2. Callback
+                // 2. Persist to Dexie
+                db.upsertMessage(newMessage);
+
+                // 3. Callback
                 onMessage?.(newMessage);
                 break;
             }
@@ -138,6 +147,7 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
         const tempId = `temp-${Date.now()}`;
         const optimisticMessage: ChatMessage = {
             _id: tempId,
+            tempId,
             roomId,
             senderId: 'current-user-id', // In a real app, use actual current user ID
             content,
@@ -165,6 +175,9 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
             }
         );
 
+        // Persist optimistic message to Dexie for offline visibility
+        db.messages.put(optimisticMessage);
+
         // Hybrid Strategy:
         // 1. If it's a TEXT message without media AND socket is connected, use WEBSOCKET (High speed)
         // 2. Otherwise, use HTTP (Better for large payloads/media and guaranteed delivery)
@@ -172,14 +185,35 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
             socket.current.emit('SEND_MESSAGE', {
                 roomId,
                 content,
-                msgType: type, // Backend schema uses msgType
-                mediaUrl
+                msgType: type,
+                mediaUrl,
+                tempId // Pass tempId so backend can echo it back for reconciliation
             });
         } else {
-            api.post(`/rooms/${roomId}/messages`, { content, type, mediaUrl })
-                .catch(err => {
-                    console.error('Failed to send message via HTTP', err);
-                    // Mark optimistic message as error in UI
+            api.post<ChatMessage>(`/rooms/${roomId}/messages`, { content, type, mediaUrl })
+                .then(response => {
+                    db.upsertMessage({ ...response, tempId });
+                })
+                .catch(async err => {
+                    console.error('Failed to send message, queueing for background sync', err);
+                    // Queue for background sync
+                    await db.queuePendingMessage(roomId, content, tempId, type);
+                    // Update UI to show error/retrying status
+                    queryClient.setQueryData(
+                        ['chat-messages', roomId],
+                        (old: any) => {
+                            if (!old) return old;
+                            return {
+                                ...old,
+                                pages: old.pages.map((page: any) => ({
+                                    ...page,
+                                    data: page.data.map((m: ChatMessage) =>
+                                        m.tempId === tempId ? { ...m, status: 'ERROR' } : m
+                                    )
+                                }))
+                            };
+                        }
+                    );
                 });
         }
     }, [roomId, queryClient, isConnected]);
@@ -191,10 +225,20 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
         socket.current.emit(isTyping ? 'TYPING' : 'STOP_TYPING', { roomId });
     }, [roomId]);
 
+    const retryMessage = useCallback(async (tempId: string) => {
+        const failedMsg = await db.pendingMessages.where('tempId').equals(tempId).first();
+        if (failedMsg) {
+            // Delete from pending so sendMessage doesn't create a duplicate entry in its logic
+            await db.pendingMessages.delete(failedMsg.id!);
+            sendMessage(failedMsg.content, failedMsg.type, failedMsg.mediaUrl);
+        }
+    }, [sendMessage]);
+
     return {
         isConnected,
         sendMessage,
         sendTyping,
+        retryMessage,
         typingUsers: Array.from(typingUsers),
     };
 }

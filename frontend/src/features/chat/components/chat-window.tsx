@@ -28,6 +28,7 @@ export function ChatWindow({ roomId, currentUserId, recipientName }: ChatWindowP
         isConnected,
         sendMessage,
         sendTyping,
+        retryMessage,
         typingUsers
     } = useChatSocket({ roomId });
 
@@ -76,7 +77,11 @@ export function ChatWindow({ roomId, currentUserId, recipientName }: ChatWindowP
                     </div>
                 ) : (
                     <>
-                        <MessageList messages={messages} currentUserId={currentUserId} />
+                        <MessageList
+                            messages={messages}
+                            currentUserId={currentUserId}
+                            onRetry={retryMessage}
+                        />
 
                         {/* Interactive Typing Overlay */}
                         {typingUsers.length > 0 && (

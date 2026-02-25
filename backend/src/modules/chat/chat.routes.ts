@@ -8,6 +8,7 @@ import {
     getPresenceHandler,
     searchMessagesHandler,
     sendMessageHandler,
+    markAsReadHandler,
     clearChatHistoryHandler,
     deleteAllChatsHandler
 } from "./chat.controller.js";
@@ -19,6 +20,7 @@ export async function chatRoutes(app: FastifyInstance) {
         protectedApp.post("/rooms", createRoomHandler);
         protectedApp.get("/rooms", getConversationsHandler);
         protectedApp.post("/rooms/:roomId/messages", sendMessageHandler);
+        protectedApp.post("/rooms/:roomId/read", markAsReadHandler);
         protectedApp.get("/rooms/:roomId/messages", getHistoryHandler);
         protectedApp.get("/messages/search", searchMessagesHandler);
         protectedApp.get("/presence/:userId", getPresenceHandler);

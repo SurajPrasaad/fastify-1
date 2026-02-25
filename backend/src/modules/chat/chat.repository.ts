@@ -83,13 +83,15 @@ export class ChatRepository {
             .limit(limit);
     }
 
-    async updateReadState(userId: string, roomId: string, messageId: string) {
+    async updateReadState(userId: string, roomId: string, messageId?: string) {
+        const update: any = { lastReadAt: new Date() };
+        if (messageId && mongoose.Types.ObjectId.isValid(messageId)) {
+            update.lastSeenMessageId = new mongoose.Types.ObjectId(messageId);
+        }
+
         return await ParticipantState.findOneAndUpdate(
             { userId, roomId: new mongoose.Types.ObjectId(roomId) },
-            {
-                lastReadAt: new Date(),
-                lastSeenMessageId: new mongoose.Types.ObjectId(messageId)
-            },
+            update,
             { upsert: true, new: true }
         );
     }

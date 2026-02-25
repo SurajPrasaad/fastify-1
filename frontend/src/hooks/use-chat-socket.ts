@@ -1,90 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { socketService } from "@/services/socket.service";
+import { useChatStore } from "@/features/chat/store/chat.store";
 
 export function useChatSocket(roomId?: string) {
-    const [messages, setMessages] = useState<any[]>([]);
-    const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+    const addMessage = useChatStore(state => state.addMessage);
+    const setTyping = useChatStore(state => state.setTyping);
+    const setOnlineStatus = useChatStore(state => state.setOnlineStatus);
 
     useEffect(() => {
-        setMessages([]);
-    }, [roomId]);
-
-    useEffect(() => {
-        // Connect when the hook is used
         socketService.connect();
 
-        const onNewMessage = (message: any) => {
-            if (roomId && message.roomId === roomId) {
-                setMessages((prev) => {
-                    // 1. If we already have this exact message (by real ID), do nothing
-                    if (prev.some(m => m._id === message._id)) return prev;
-
-                    // 2. Look for an optimistic message to replace (match by content + 'SENDING' status)
-                    const optimisticIdx = prev.findLastIndex(m =>
-                        m.status === 'SENDING' &&
-                        m.content?.trim() === message.content?.trim()
-                    );
-
-
-                    if (optimisticIdx !== -1) {
-                        const newMsgs = [...prev];
-                        // Replace the temp message with the confirmed one
-                        newMsgs[optimisticIdx] = { ...message, status: 'SENT' };
-                        return newMsgs;
-                    }
-
-                    // 3. Otherwise, just append it
-                    return [...prev, { ...message, status: 'SENT' }];
-                });
+        const handlers = {
+            NEW_MESSAGE: (message: any) => {
+                addMessage(message.roomId, message);
+            },
+            USER_ONLINE: (data: { userId: string }) => {
+                setOnlineStatus(data.userId, true);
+            },
+            USER_OFFLINE: (data: { userId: string }) => {
+                setOnlineStatus(data.userId, false);
+            },
+            USER_TYPING: (data: { roomId: string; userId: string }) => {
+                setTyping(data.roomId, data.userId, true);
+            },
+            USER_STOPPED_TYPING: (data: { roomId: string; userId: string }) => {
+                setTyping(data.roomId, data.userId, false);
+            },
+            ROOM_PRESENCE: (data: { roomId: string; onlineParticipants: string[] }) => {
+                data.onlineParticipants.forEach(userId => setOnlineStatus(userId, true));
+            },
+            ERROR: (err: any) => {
+                console.error("Socket Error:", err);
             }
         };
 
+        // Attach listeners
+        Object.entries(handlers).forEach(([event, handler]) => {
+            socketService.on(event, handler);
+        });
 
-        const onTyping = (data: { roomId: string; userId: string; isTyping: boolean }) => {
-            if (roomId && data.roomId === roomId) {
-                setTypingUsers((prev) => {
-                    const newSet = new Set(prev);
-                    if (data.isTyping) newSet.add(data.userId);
-                    else newSet.delete(data.userId);
-                    return newSet;
-                });
-            }
-        };
-
-        socketService.on("NEW_MESSAGE", onNewMessage);
-        socketService.on("TYPING", onTyping);
+        // Request room presence if roomId changes
+        if (roomId) {
+            socketService.send("JOIN_ROOM", { roomId });
+        }
 
         return () => {
-            socketService.off("NEW_MESSAGE", onNewMessage);
-            socketService.off("TYPING", onTyping);
+            Object.entries(handlers).forEach(([event, handler]) => {
+                socketService.off(event, handler);
+            });
         };
-    }, [roomId]);
+    }, [roomId, addMessage, setTyping, setOnlineStatus]);
 
     const sendMessage = (content: string, type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' = 'TEXT', mediaUrl?: string) => {
         if (!roomId) return;
-
-        // Optimistic update
-        const optimisticMsg = {
-            _id: `temp-${Date.now()}`,
-            roomId,
-            content,
-            type: type,
-            mediaUrl,
-            status: 'SENDING',
-            createdAt: new Date().toISOString(),
-            senderId: 'me', // Will be replaced by real user data in component
-        };
-
-        setMessages(prev => [...prev, optimisticMsg]);
-
-        socketService.send("SEND_MESSAGE", { roomId, content, type: type, mediaUrl });
+        socketService.send("SEND_MESSAGE", { roomId, content, type, mediaUrl });
     };
 
     const sendTyping = (isTyping: boolean) => {
         if (!roomId) return;
-        socketService.send("TYPING", { roomId, isTyping });
+        socketService.send(isTyping ? "TYPING" : "STOP_TYPING", { roomId });
     };
 
     const markAsRead = (messageId: string) => {
@@ -93,8 +69,6 @@ export function useChatSocket(roomId?: string) {
     };
 
     return {
-        messages,
-        typingUsers: Array.from(typingUsers),
         sendMessage,
         sendTyping,
         markAsRead

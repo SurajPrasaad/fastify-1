@@ -53,8 +53,9 @@ export const ChatService = {
     },
 
     /**
-     * Mark a message as read (if there's an API for it, otherwise it might be socket only)
-     * Backend service has `markAsRead` but no REST route exposed in `chat.routes.ts`.
-     * It's likely handled via WebSocket 'read_receipt' event, but good to have if we actuate it via REST later.
+     * Mark all messages in a room as read
      */
+    markAsRead: async (roomId: string): Promise<{ success: boolean }> => {
+        return api.post<{ success: boolean }>(`/chat/rooms/${roomId}/read`);
+    },
 };

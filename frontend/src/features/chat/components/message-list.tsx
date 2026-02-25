@@ -7,9 +7,10 @@ import { MessageBubble } from './message-bubble';
 interface MessageListProps {
     messages: ChatMessage[];
     currentUserId: string;
+    onRetry?: (tempId: string) => void;
 }
 
-export function MessageList({ messages, currentUserId }: MessageListProps) {
+export function MessageList({ messages, currentUserId, onRetry }: MessageListProps) {
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -50,6 +51,7 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
                                 isMe={isMe}
                                 showAvatar={!isMe && isFirstInSequence}
                                 sender={undefined} // In a real app, find sender object from room participants
+                                onRetry={onRetry}
                             />
                             {isLastInSequence && <div className="h-2" />}
                         </React.Fragment>

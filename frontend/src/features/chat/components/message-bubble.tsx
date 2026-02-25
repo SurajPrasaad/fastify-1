@@ -11,9 +11,10 @@ interface MessageBubbleProps {
     isMe: boolean;
     showAvatar: boolean;
     sender?: ChatParticipant;
+    onRetry?: (tempId: string) => void;
 }
 
-export function MessageBubble({ message, isMe, showAvatar, sender }: MessageBubbleProps) {
+export function MessageBubble({ message, isMe, showAvatar, sender, onRetry }: MessageBubbleProps) {
     const statusIcons = {
         SENDING: <Clock className="h-3 w-3 animate-pulse" />,
         SENT: <Check className="h-3 w-3" />,
@@ -60,6 +61,14 @@ export function MessageBubble({ message, isMe, showAvatar, sender }: MessageBubb
                     <p className="whitespace-pre-wrap">{message.content}</p>
 
                     <div className="flex items-center justify-end gap-1.5 mt-1 select-none">
+                        {message.status === 'ERROR' && onRetry && (
+                            <button
+                                onClick={() => message.tempId && onRetry(message.tempId)}
+                                className="text-[10px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-tighter bg-rose-500/10 px-1.5 py-0.5 rounded transition-colors mr-1"
+                            >
+                                Retry
+                            </button>
+                        )}
                         <span className="text-[10px] text-[#8696a0] font-medium tabular-nums uppercase">
                             {format(new Date(message.createdAt), 'HH:mm')}
                         </span>

@@ -8,7 +8,8 @@ import {
     getMessagesSchema,
     getRoomsSchema,
     searchMessagesSchema,
-    sendMessageSchema
+    sendMessageSchema,
+    markAsReadSchema
 } from "./chat.schema.js";
 
 const chatRepository = new ChatRepository();
@@ -82,6 +83,18 @@ export async function searchMessagesHandler(
     const { q, limit, offset } = searchMessagesSchema.parse(request.query);
     const messages = await chatService.searchMessages(userId, q, limit, offset);
     return reply.send(messages);
+}
+
+export async function markAsReadHandler(
+    request: FastifyRequest<{ Params: { roomId: string } }>,
+    reply: FastifyReply
+) {
+    const userId = request.user!.sub;
+    const { roomId } = markAsReadSchema.parse(request.params);
+
+    // We pass null for messageId to signify marking the entire room as read up to 'now'
+    await chatService.markAsRead(userId, roomId, null as any);
+    return reply.status(200).send({ success: true });
 }
 
 export async function clearChatHistoryHandler(

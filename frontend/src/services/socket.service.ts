@@ -7,11 +7,23 @@ class SocketService {
     private socket: Socket | null = null;
     private listeners: Map<string, Set<SocketListener>> = new Map();
     private baseUrl: string;
+    private heartbeatInterval: NodeJS.Timeout | null = null;
+    private deviceId: string;
 
     constructor() {
         this.baseUrl = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+        this.deviceId = this.getOrCreateDeviceId();
     }
 
+    private getOrCreateDeviceId(): string {
+        if (typeof window === 'undefined') return 'server';
+        let id = localStorage.getItem('chat_device_id');
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem('chat_device_id', id);
+        }
+        return id;
+    }
 
     public connect() {
         if (this.socket?.connected) return;
@@ -26,17 +38,22 @@ class SocketService {
             this.socket = io(this.baseUrl, {
                 path: '/chat/socket.io',
                 query: { token },
+                extraHeaders: {
+                    'x-device-id': this.deviceId
+                },
                 transports: ['websocket'],
                 reconnectionAttempts: 5,
             });
 
             this.socket.on("connect", () => {
                 console.log("SocketService: Connected (Socket.IO)");
+                this.startHeartbeat();
                 this.emit('open', {});
             });
 
             this.socket.on("disconnect", () => {
                 console.log("SocketService: Disconnected");
+                this.stopHeartbeat();
                 this.emit('close', {});
             });
 
@@ -53,7 +70,7 @@ class SocketService {
                 this.emit('message', data);
             });
 
-            // Special case for Socket.IO direct events if they match our internal event names
+            // Special case for Socket.IO direct events
             this.socket.onAny((eventName, ...args) => {
                 if (eventName !== 'event') {
                     this.emit(eventName, args[0]);
@@ -65,8 +82,23 @@ class SocketService {
         }
     }
 
+    private startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatInterval = setInterval(() => {
+            this.send("HEARTBEAT", { timestamp: Date.now() });
+        }, 30000); // 30s heartbeat
+    }
+
+    private stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+    }
+
     public disconnect() {
         if (this.socket) {
+            this.stopHeartbeat();
             this.socket.disconnect();
             this.socket = null;
         }

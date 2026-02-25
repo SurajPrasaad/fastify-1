@@ -60,3 +60,7 @@ export const wsPayloadReadSchema = z.object({
     roomId: z.string(),
     messageId: z.string(),
 });
+
+export const markAsReadSchema = z.object({
+    roomId: z.string(),
+});
