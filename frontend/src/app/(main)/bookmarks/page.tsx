@@ -85,7 +85,7 @@ export default function BookmarksPage() {
             {/* Header */}
             <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50">
                 <div className="px-4 py-4 flex items-center gap-3">
-                    <span className="material-symbols-rounded text-primary text-2xl">bookmark</span>
+                    <span className="material-symbols-outlined text-primary text-2xl fill-icon">bookmark</span>
                     <div>
                         <h1 className="text-xl font-bold font-display">Bookmarks</h1>
                         <p className="text-xs text-muted-foreground">
