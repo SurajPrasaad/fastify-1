@@ -98,7 +98,13 @@ export async function chatGateway(fastify: FastifyInstance) {
         socket.on('SEND_MESSAGE', async (payload) => {
             try {
                 const { roomId, content, type, mediaUrl } = wsPayloadMessageSchema.parse(payload);
-                await chatService.sendMessage(userId, roomId, content, type, mediaUrl);
+                const message = await chatService.sendMessage(userId, roomId, content, type, mediaUrl);
+
+                // Broadcast to all participants in the room
+                io.to(`room:${roomId}`).emit('event', {
+                    type: 'NEW_MESSAGE',
+                    payload: message
+                });
             } catch (err: any) {
                 socket.emit('ERROR', { message: err.message });
             }

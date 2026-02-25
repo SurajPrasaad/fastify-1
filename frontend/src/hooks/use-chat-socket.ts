@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { socketService } from "@/services/socket.service";
 import { useChatStore } from "@/features/chat/store/chat.store";
+import { useUser } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 export function useChatSocket(roomId?: string) {
     const addMessage = useChatStore(state => state.addMessage);
@@ -53,8 +55,38 @@ export function useChatSocket(roomId?: string) {
         };
     }, [roomId, addMessage, setTyping, setOnlineStatus]);
 
+    const { data: currentUser } = useUser();
+
     const sendMessage = (content: string, type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' = 'TEXT', mediaUrl?: string) => {
         if (!roomId) return;
+
+        if (!socketService.isConnected()) {
+            socketService.connect();
+            toast.error("Connecting to chat server...");
+            return;
+        }
+
+        // Optimistic Update
+        const tempId = `temp-${Date.now()}`;
+        addMessage(roomId, {
+            id: tempId,
+            tempId,
+            roomId,
+            conversationId: roomId,
+            senderId: currentUser?.id || 'me',
+            sender: {
+                id: currentUser?.id || 'me',
+                name: currentUser?.name || 'Me',
+                username: currentUser?.username || 'me',
+                avatarUrl: currentUser?.avatarUrl || undefined
+            },
+            content,
+            type,
+            mediaUrl,
+            status: 'SENDING',
+            createdAt: new Date().toISOString(),
+        } as any);
+
         socketService.send("SEND_MESSAGE", { roomId, content, type, mediaUrl });
     };
 

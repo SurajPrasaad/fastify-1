@@ -104,6 +104,10 @@ class SocketService {
         }
     }
 
+    public isConnected(): boolean {
+        return !!this.socket?.connected;
+    }
+
     public send(type: string, payload: any) {
         if (this.socket?.connected) {
             this.socket.emit(type, payload);
