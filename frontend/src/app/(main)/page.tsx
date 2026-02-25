@@ -23,14 +23,21 @@ export default function FeedPage() {
         mediaUrls: p.mediaUrls || [],
         likesCount: p.likesCount || 0,
         commentsCount: p.commentsCount || 0,
-        sharesCount: 0,
+        repostsCount: p.repostsCount || 0,
         pollId: p.pollId,
         poll: p.poll,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
         isLiked: !!p.isLiked,
         isBookmarked: !!p.isBookmarked,
-        status: p.status || "PUBLISHED"
+        isReposted: !!p.isReposted,
+        status: p.status || "PUBLISHED",
+        originalPost: p.originalPost ? {
+            id: p.originalPost.id,
+            content: p.originalPost.content,
+            createdAt: p.originalPost.createdAt,
+            author: p.originalPost.author
+        } : null
     });
 
     React.useEffect(() => {
@@ -76,7 +83,7 @@ export default function FeedPage() {
 
             {/* Composer */}
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800/50">
-            <PostComposer onSuccess={handlePostSuccess} />
+                <PostComposer onSuccess={handlePostSuccess} />
             </div>
 
             {/* The Feed */}

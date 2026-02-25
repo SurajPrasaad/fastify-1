@@ -68,6 +68,7 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
         coverUrl: profile.coverUrl || "",
         isFollowing: profile.isFollowing,
         isSelf: currentUser?.id === profile.id,
+        techStack: profile.profile.techStack || [],
     };
 
     return (

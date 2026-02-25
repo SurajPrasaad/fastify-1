@@ -241,6 +241,46 @@ export class InteractionRepository {
     }
 
     /**
+     * Fetches posts bookmarked by a user with cursor pagination.
+     */
+    async getUserBookmarks(userId: string, limit: number, cursor?: string) {
+        const postAuthor = alias(users, "postAuthor");
+
+        const query = db
+            .select({
+                post: posts,
+                author: {
+                    username: postAuthor.username,
+                    name: postAuthor.name,
+                    avatarUrl: postAuthor.avatarUrl,
+                },
+                bookmarkedAt: bookmarks.createdAt,
+                isLiked: sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE target_id = ${posts.id} AND user_id = ${userId} AND target_type = 'POST')`,
+            })
+            .from(bookmarks)
+            .innerJoin(posts, eq(bookmarks.postId, posts.id))
+            .innerJoin(postAuthor, eq(posts.userId, postAuthor.id))
+            .where(
+                and(
+                    eq(bookmarks.userId, userId),
+                    cursor ? lt(bookmarks.createdAt, new Date(cursor)) : undefined
+                )
+            )
+            .orderBy(desc(bookmarks.createdAt))
+            .limit(limit);
+
+        const results = await query;
+
+        return results.map(r => ({
+            ...r.post,
+            author: r.author,
+            isLiked: r.isLiked,
+            isBookmarked: true,
+            bookmarkedAt: r.bookmarkedAt,
+        }));
+    }
+
+    /**
      * Fetches all comments (replies) made by a user.
      */
     async getUserReplies(userId: string, limit: number, cursor?: string, currentUserId?: string) {
@@ -366,28 +406,92 @@ export class InteractionRepository {
      */
     async createRepost(userId: string, originalPostId: string, content?: string) {
         return await db.transaction(async (tx) => {
-            // 1. Create entry in reposts table for tracking
+            // 1. Fetch original post for content
+            const [originalPost] = await tx
+                .select()
+                .from(posts)
+                .where(eq(posts.id, originalPostId))
+                .limit(1);
+
+            if (!originalPost) {
+                throw new Error("Original post not found");
+            }
+
+            // 2. Create entry in reposts table for tracking
             await tx.insert(reposts).values({
                 userId,
                 postId: originalPostId,
                 quoteText: content || null,
             });
 
-            // 2. Create a new post entry with originalPostId set
-            // This allows it to show up in the feed easily
+            // 3. Create a new post entry with originalPostId set
+            // Use original content if it's a simple repost
             const [newPost] = await tx.insert(posts).values({
                 userId,
-                content: content || "", // Empty content for simple repost
+                content: content || originalPost.content,
                 originalPostId,
                 status: "PUBLISHED",
                 publishedAt: new Date(),
             }).returning();
 
-            // 3. Increment counters (if we decide where to store them, for now following post table pattern)
-            // Note: In a real system we might update both posts table and engagement_counters
-            // but here we follow InteractionRepository's current pattern.
+            if (!newPost) {
+                throw new Error("Failed to create repost");
+            }
 
-            return newPost;
+            // 4. Increment repostsCount on the original post
+            await tx
+                .update(posts)
+                .set({
+                    repostsCount: sql`${posts.repostsCount} + 1`,
+                    updatedAt: new Date()
+                })
+                .where(eq(posts.id, originalPostId));
+
+            // 5. Fetch hydrated post to return to frontend
+            const [hydrated] = await tx
+                .select({
+                    id: posts.id,
+                    userId: posts.userId,
+                    content: posts.content,
+                    originalPostId: posts.originalPostId,
+                    commentsCount: posts.commentsCount,
+                    likesCount: posts.likesCount,
+                    repostsCount: posts.repostsCount,
+                    createdAt: posts.createdAt,
+                    mediaUrls: posts.mediaUrls,
+                    author: {
+                        username: users.username,
+                        name: users.name,
+                        avatarUrl: users.avatarUrl,
+                    }
+                })
+                .from(posts)
+                .innerJoin(users, eq(posts.userId, users.id))
+                .where(eq(posts.id, newPost.id))
+                .limit(1);
+
+            // 6. Fetch original post data for the nested reference
+            const [origDetails] = await tx
+                .select({
+                    id: posts.id,
+                    content: posts.content,
+                    createdAt: posts.createdAt,
+                    mediaUrls: posts.mediaUrls,
+                    author: {
+                        username: users.username,
+                        name: users.name,
+                        avatarUrl: users.avatarUrl,
+                    }
+                })
+                .from(posts)
+                .innerJoin(users, eq(posts.userId, users.id))
+                .where(eq(posts.id, originalPostId))
+                .limit(1);
+
+            return {
+                ...hydrated,
+                originalPost: origDetails || null
+            };
         });
     }
 }

@@ -20,24 +20,20 @@ export default function MainLayout({
         <AuthGuard>
             <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen font-display">
                 <div className="max-w-[1440px] mx-auto flex justify-center min-h-screen relative">
-                    {/* Left Sidebar: Fixed */}
-                    <div className="hidden md:block w-72 shrink-0">
-                        <Sidebar className="fixed left-[calc(50%-720px)] top-0 h-screen" />
-                    </div>
+                    {/* Left Sidebar */}
+                    <Sidebar className="sticky top-0 h-screen shrink-0 hidden md:flex" />
 
                     {/* Center Feed / Content */}
                     <main className={cn(
-                        "w-full border-x border-slate-200 dark:border-slate-800/50 min-h-screen transition-all",
-                        (isMessages || isSettings) ? "max-w-[1168px]" : "max-w-[640px]"
+                        "flex-1 border-x border-slate-200 dark:border-slate-800/50 min-h-screen transition-all",
+                        (isMessages || isSettings) ? "max-w-[1168px]" : "max-w-[800px]"
                     )}>
                         {children}
                     </main>
 
-                    {/* Right Sidebar: Fixed - Hidden on Messages/Settings */}
+                    {/* Right Sidebar - Hidden on Messages/Settings */}
                     {!isMessages && !isSettings && (
-                        <div className="hidden lg:block w-80 shrink-0">
-                            <RightSidebar className="fixed right-[calc(50%-720px)] top-0 h-screen" />
-                        </div>
+                        <RightSidebar className="sticky top-0 h-screen shrink-0 hidden lg:flex" />
                     )}
                 </div>
 

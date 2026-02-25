@@ -94,6 +94,21 @@ export class ChatRepository {
         );
     }
 
+    async getUnreadCount(userId: string, roomId: string): Promise<number> {
+        const state = await ParticipantState.findOne({ userId, roomId: new mongoose.Types.ObjectId(roomId) });
+        const query: any = {
+            roomId: new mongoose.Types.ObjectId(roomId),
+            senderId: { $ne: userId },
+            isDeleted: false
+        };
+
+        if (state) {
+            query.createdAt = { $gt: state.lastReadAt };
+        }
+
+        return await Message.countDocuments(query);
+    }
+
     async searchMessages(userId: string, query: string, limit: number, offset: number) {
         // Find all rooms where user is a participant
         const rooms = await ChatRoom.find({ participants: userId }).select('_id');

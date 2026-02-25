@@ -189,6 +189,7 @@ export const posts = pgTable("posts", {
     pollId: uuid("poll_id").references(() => polls.id),
     commentsCount: integer("comments_count").default(0).notNull(),
     likesCount: integer("likes_count").default(0).notNull(),
+    repostsCount: integer("reposts_count").default(0).notNull(),
     publishedAt: timestamp("published_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

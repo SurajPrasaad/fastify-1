@@ -141,8 +141,8 @@ export function ReplyItem({
                 {(hasConnector || (showReplies && childReplies.length > 0)) && (
                     <div
                         className={cn(
-                            "absolute left-[39px] w-[2px] bg-neutral-200 dark:bg-neutral-800 z-0",
-                            level > 0 ? "top-0 bottom-0 left-[35px] sm:left-[43px]" : "top-14 bottom-0"
+                            "absolute left-[33px] sm:left-[35px] w-[1.5px] bg-slate-200 dark:bg-white/10 z-0",
+                            level > 0 ? "top-0 bottom-0" : "top-14 bottom-0"
                         )}
                         aria-hidden="true"
                     />
@@ -156,27 +156,22 @@ export function ReplyItem({
                         "ring-2 ring-background shadow-sm"
                     )}>
                         <AvatarImage src={reply.author.avatarUrl} alt={reply.author.username} />
-                        <AvatarFallback className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold">
+                        <AvatarFallback className="bg-slate-100 dark:bg-white/5 text-slate-400 font-bold">
                             {reply.author.username[0].toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
-                    {reply.isPinned && (
-                        <div className="absolute -top-1 -right-1 bg-blue-500 rounded-full p-0.5 shadow-sm">
-                            <Pin className="w-2.5 h-2.5 text-white fill-current" />
-                        </div>
-                    )}
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-1.5 pt-0.5">
                     {/* Header */}
                     <div className="flex items-center justify-between">
-                        <div className="flex flex-wrap items-center gap-1.5 text-[14px]">
-                            <span className="font-bold text-foreground hover:underline cursor-pointer tracking-tight">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[15px]">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 hover:underline cursor-pointer tracking-tight">
                                 {reply.author.displayName}
                             </span>
-                            <span className="text-muted-foreground font-medium">@{reply.author.username}</span>
-                            <span className="text-muted-foreground/50">·</span>
-                            <span className="text-muted-foreground text-xs hover:underline whitespace-nowrap">
+                            <span className="text-slate-500 font-medium">@{reply.author.username}</span>
+                            <span className="text-slate-400">·</span>
+                            <span className="text-slate-400 text-sm hover:underline whitespace-nowrap">
                                 {formatDistanceToNow(new Date(reply.createdAt)).replace('about ', '').replace(' minutes', 'm').replace(' hours', 'h').replace(' days', 'd')}
                             </span>
                         </div>
@@ -212,56 +207,47 @@ export function ReplyItem({
                     )}
 
                     {/* Content */}
-                    <div className="text-[15px] leading-[1.45] text-foreground font-normal break-words whitespace-pre-wrap select-text">
+                    <div className="text-[16px] leading-[1.5] text-slate-800 dark:text-slate-200 font-normal break-words whitespace-pre-wrap select-text">
                         {renderContent(reply.content)}
                     </div>
 
                     {/* Engagement Row */}
-                    <div className="flex items-center gap-7 pt-1 -ml-2">
+                    <div className="flex items-center gap-10 pt-2 -ml-2">
                         <button
                             onClick={() => setIsReplyOpen(!isReplyOpen)}
                             className={cn(
-                                "flex items-center gap-1.5 transition-all group/btn",
-                                isReplyOpen ? "text-blue-500" : "text-muted-foreground hover:text-blue-500"
+                                "flex items-center gap-2.5 transition-all group/btn",
+                                isReplyOpen ? "text-primary" : "text-slate-500 hover:text-primary"
                             )}
                         >
-                            <div className="p-2 rounded-full group-hover/btn:bg-blue-500/10 transition-colors">
-                                <MessageCircle className="w-[18px] h-[18px]" />
+                            <div className="p-2 -m-2 rounded-full group-hover/btn:bg-primary/10 transition-colors">
+                                <MessageCircle className="size-[19px]" />
                             </div>
-                            {reply.stats.comments > 0 && <span className="text-xs font-medium">{reply.stats.comments}</span>}
+                            {reply.stats.comments > 0 && <span className="text-[13px] font-bold opacity-80">{reply.stats.comments}</span>}
                         </button>
 
-                        <button className="flex items-center gap-1.5 text-muted-foreground hover:text-green-500 transition-all group/btn">
-                            <div className="p-2 rounded-full group-hover/btn:bg-green-500/10 transition-colors">
-                                <Repeat2 className="w-[18px] h-[18px]" />
+                        <button className="flex items-center gap-2 transition-all group/btn text-slate-500 hover:text-green-500">
+                            <div className="p-2 -m-2 rounded-full group-hover/btn:bg-green-500/10 transition-colors">
+                                <Repeat2 className="size-[19px]" />
                             </div>
                         </button>
 
                         <button
                             onClick={handleLike}
                             className={cn(
-                                "flex items-center gap-1.5 transition-all group/btn",
-                                isLiked ? "text-pink-500" : "text-muted-foreground hover:text-pink-500"
+                                "flex items-center gap-2 transition-all group/btn",
+                                isLiked ? "text-red-500" : "text-slate-500 hover:text-red-500"
                             )}
                         >
-                            <div className="p-2 rounded-full group-hover/btn:bg-pink-500/10 transition-colors">
-                                <AnimatePresence mode="wait">
-                                    <motion.div
-                                        key={isLiked ? "liked" : "unliked"}
-                                        initial={{ scale: 0.7 }}
-                                        animate={{ scale: 1 }}
-                                        transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                                    >
-                                        <Heart className={cn("w-[18px] h-[18px]", isLiked && "fill-current")} />
-                                    </motion.div>
-                                </AnimatePresence>
+                            <div className="p-2 -m-2 rounded-full group-hover/btn:bg-red-500/10 transition-colors">
+                                <Heart className={cn("size-[19px]", isLiked && "fill-current")} />
                             </div>
-                            {likesCount > 0 && <span className="text-xs font-medium">{likesCount}</span>}
+                            {likesCount > 0 && <span className="text-[13px] font-bold opacity-80">{likesCount}</span>}
                         </button>
 
-                        <button className="flex items-center gap-1.5 text-muted-foreground hover:text-blue-500 transition-all group/btn">
-                            <div className="p-2 rounded-full group-hover/btn:bg-blue-500/10 transition-colors">
-                                <Share2 className="w-[18px] h-[18px]" />
+                        <button className="flex items-center gap-2 text-slate-500 hover:text-primary transition-all group/btn">
+                            <div className="p-2 -m-2 rounded-full group-hover/btn:bg-primary/10 transition-colors">
+                                <Share2 className="size-[19px]" />
                             </div>
                         </button>
                     </div>
@@ -301,52 +287,51 @@ export function ReplyItem({
                     {reply.stats.comments > 0 && !showReplies && (
                         <button
                             onClick={handleFetchReplies}
-                            className="flex items-center gap-3 py-2 group/replies"
+                            className="flex items-center gap-2 py-3 group/replies text-[14px] font-bold text-primary hover:underline transition-all"
                         >
-                            <div className="w-8 h-px bg-blue-500 transition-all group-hover/replies:w-12" />
-                            <span className="text-[14px] font-bold text-blue-500 hover:underline">
-                                {isLoadingReplies ? "Loading replies..." : `Show ${reply.stats.comments} ${reply.stats.comments === 1 ? 'reply' : 'replies'}`}
-                            </span>
+                            Show {reply.stats.comments} {reply.stats.comments === 1 ? 'reply' : 'replies'}
                         </button>
                     )}
                 </div>
-            </motion.div>
+            </motion.div >
 
             {/* Child Replies */}
-            {showReplies && (
-                <div className="flex flex-col">
-                    {isLoadingReplies && childReplies.length === 0 ? (
-                        <div className="py-4 flex justify-center">
-                            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                        </div>
-                    ) : (
-                        childReplies.map((child, idx) => (
-                            <ReplyItem
-                                key={child.id}
-                                reply={{
-                                    ...child,
-                                    author: {
-                                        username: child.author.username,
-                                        displayName: child.author.name || child.author.username,
-                                        avatarUrl: child.author.avatarUrl || undefined
-                                    },
-                                    stats: {
-                                        likes: child.stats?.likes || 0,
-                                        comments: child.stats?.replies || 0
-                                    },
-                                    createdAt: new Date(child.createdAt)
-                                }}
-                                postId={postId}
-                                level={level + 1}
-                                isNested={true}
-                                parentAuthorUsername={reply.author.username}
-                                isLast={idx === childReplies.length - 1}
-                                hasConnector={idx !== childReplies.length - 1}
-                            />
-                        ))
-                    )}
-                </div>
-            )}
-        </div>
+            {
+                showReplies && (
+                    <div className="flex flex-col">
+                        {isLoadingReplies && childReplies.length === 0 ? (
+                            <div className="py-4 flex justify-center">
+                                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                            </div>
+                        ) : (
+                            childReplies.map((child, idx) => (
+                                <ReplyItem
+                                    key={child.id}
+                                    reply={{
+                                        ...child,
+                                        author: {
+                                            username: child.author.username,
+                                            displayName: child.author.name || child.author.username,
+                                            avatarUrl: child.author.avatarUrl || undefined
+                                        },
+                                        stats: {
+                                            likes: child.stats?.likes || 0,
+                                            comments: child.stats?.replies || 0
+                                        },
+                                        createdAt: new Date(child.createdAt)
+                                    }}
+                                    postId={postId}
+                                    level={level + 1}
+                                    isNested={true}
+                                    parentAuthorUsername={reply.author.username}
+                                    isLast={idx === childReplies.length - 1}
+                                    hasConnector={idx !== childReplies.length - 1}
+                                />
+                            ))
+                        )}
+                    </div>
+                )
+            }
+        </div >
     );
 }

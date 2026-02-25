@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { likes, reactions, reposts, engagementCounters, hashtags } from "../../db/schema.js";
+import { likes, reactions, reposts, engagementCounters, hashtags, posts } from "../../db/schema.js";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 export class EngagementRepository {
@@ -86,12 +86,44 @@ export class EngagementRepository {
 
     async createRepost(userId: string, postId: string, quoteText?: string) {
         return await db.transaction(async (tx) => {
+            // 1. Fetch original post for content
+            const [originalPost] = await tx
+                .select()
+                .from(posts)
+                .where(eq(posts.id, postId))
+                .limit(1);
+
+            if (!originalPost) {
+                throw new Error("Original post not found");
+            }
+
+            // 2. Create repost record
             const [repost] = await tx
                 .insert(reposts)
                 .values({ userId, postId, quoteText })
                 .returning();
 
+            // 3. Create actual post entry so it shows in feed
+            await tx.insert(posts).values({
+                userId,
+                content: quoteText || originalPost.content,
+                originalPostId: postId,
+                status: "PUBLISHED",
+                publishedAt: new Date(),
+            });
+
+            // 4. Update counts in engagement counters
             await this.updateDBCounter(tx, postId, "POST", { repostsCount: 1 });
+
+            // 5. Update counts in posts table
+            await tx
+                .update(posts)
+                .set({
+                    repostsCount: sql`${posts.repostsCount} + 1`,
+                    updatedAt: new Date(),
+                })
+                .where(eq(posts.id, postId));
+
             return repost;
         });
     }

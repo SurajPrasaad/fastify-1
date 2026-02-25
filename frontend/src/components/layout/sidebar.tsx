@@ -16,7 +16,7 @@ export function Sidebar({ className }: SidebarProps) {
     const { theme, setTheme } = useTheme()
 
     return (
-        <aside className={cn("hidden md:flex flex-col w-72 h-screen p-6 border-r border-slate-200 dark:border-slate-800/50", className)}>
+        <aside className={cn("hidden md:flex flex-col w-72 h-screen p-6", className)}>
             <div className="flex flex-col h-full justify-between">
                 <div className="flex flex-col gap-8">
                     {/* Logo */}
@@ -24,7 +24,7 @@ export function Sidebar({ className }: SidebarProps) {
                         <div className="size-10 bg-primary rounded-xl flex items-center justify-center text-white transition-transform group-hover:scale-110">
                             <span className="material-symbols-outlined text-2xl">rocket_launch</span>
                         </div>
-                        <h1 className="text-xl font-bold tracking-tight">SocialApp</h1>
+                        <h1 className="text-xl font-bold tracking-tight">DevAtlas</h1>
                     </Link>
 
                     {/* Nav Links */}

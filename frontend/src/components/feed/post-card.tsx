@@ -5,14 +5,37 @@ import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { useToggleLike, useCreateComment, useRepost } from "@/features/interaction/hooks"
+import { useToggleLike, useCreateComment, useRepost, useToggleBookmark } from "@/features/interaction/hooks"
 import { Textarea } from "@/components/ui/textarea"
 import { MapPin, CheckCircle2, MoreHorizontal } from "lucide-react"
 import { PostPoll } from "@/features/feed/components/PostPoll"
 import { PostMedia } from "@/features/feed/components/PostMedia"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Image as ImageIcon, Smile, Image, Bookmark } from "lucide-react"
 import Link from "next/link"
 import { CommentList } from "@/components/comments/comment-list"
+import { useCurrentUser } from "@/features/auth/hooks"
+import { useUpdatePost, useDeletePost } from "@/features/posts/hooks"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Edit2, Trash2, Share, Link as LinkIcon, Flag, Repeat } from "lucide-react"
+import { UpdatePostModal } from "./update-post-modal"
 
 
 export interface Post {
@@ -41,12 +64,13 @@ export interface Post {
     } | null
     likesCount: number
     commentsCount: number
-    sharesCount?: number
+    repostsCount: number
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "DELETED"
     createdAt: string | Date
     updatedAt: string | Date
     isLiked?: boolean
     isBookmarked?: boolean
+    isReposted?: boolean
     originalPostId?: string | null
     originalPost?: {
         id: string
@@ -65,34 +89,87 @@ interface PostCardProps {
     onLikeToggle?: (isLiked: boolean) => void;
     onRemove?: (id: string) => void;
     onUpdate?: (id: string, updatedData: Partial<Post>) => void;
+    onPostCreated?: (post: Post) => void;
 }
 
-export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardProps) {
+export function PostCard({ post, onLikeToggle, onRemove, onUpdate, onPostCreated }: PostCardProps) {
     const router = useRouter()
     const { isLiked, count: currentLikesCount, toggleLike } = useToggleLike(post.isLiked, post.likesCount || 0, onLikeToggle);
     const { createComment, isSubmitting: isPostingComment } = useCreateComment();
     const { repost, isSubmitting: isReposting } = useRepost();
+    const { isBookmarked, toggleBookmark } = useToggleBookmark(post.isBookmarked);
 
     const [isCommentOpen, setIsCommentOpen] = React.useState(false);
     const [commentContent, setCommentContent] = React.useState("");
-    const [repostCount, setRepostCount] = React.useState(post.sharesCount || 0);
-    const [hasReposted, setHasReposted] = React.useState(false);
+    const [repostCount, setRepostCount] = React.useState(post.repostsCount || 0);
+    const [hasReposted, setHasReposted] = React.useState(!!post.isReposted);
+
+    // Post Action Hooks
+    const { data: currentUser } = useCurrentUser();
+    const { updatePost, isUpdating } = useUpdatePost();
+    const { deletePost, isDeleting } = useDeletePost();
+
+    // Dialog States
+    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+
+    const isAuthor = currentUser?.id === post.userId;
+
+    const handleDeletePost = async () => {
+        try {
+            await deletePost(post.id, () => {
+                if (onRemove) onRemove(post.id);
+                setIsDeleteDialogOpen(false);
+            });
+        } catch (error) {
+            // Error handled by hook
+        }
+    };
+
+    const handleUpdateSuccess = (updatedPost: any) => {
+        if (onUpdate) onUpdate(post.id, updatedPost);
+    };
+
+    const handleShare = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const postUrl = `${window.location.origin}/post/${post.id}`;
+        navigator.clipboard.writeText(postUrl);
+        toast.success("Post link copied to clipboard");
+    };
 
     const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation()
         toggleLike(post.id, "POST")
     }
 
-    const handleRepost = async (e: React.MouseEvent) => {
-        e.stopPropagation()
+    const mapToPost = (apiPost: any): Post => {
+        return {
+            ...apiPost,
+            author: {
+                ...apiPost.author,
+                isVerified: false
+            },
+            status: "PUBLISHED",
+            createdAt: apiPost.createdAt,
+            updatedAt: apiPost.createdAt,
+            mediaUrls: apiPost.mediaUrls || [],
+            likesCount: apiPost.likesCount || 0,
+            commentsCount: apiPost.commentsCount || 0,
+            repostsCount: apiPost.repostsCount || 0,
+        };
+    };
+
+    const handleSimpleRepost = async (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation()
         if (hasReposted || isReposting) return;
         try {
-            await repost(post.id, undefined, () => {
+            await repost(post.id, undefined, (result) => {
                 setRepostCount(prev => prev + 1);
                 setHasReposted(true);
                 if (onUpdate) {
-                    onUpdate(post.id, { sharesCount: (post.sharesCount || 0) + 1 });
+                    onUpdate(post.id, { repostsCount: (post.repostsCount || 0) + 1 });
                 }
+                if (onPostCreated) onPostCreated(mapToPost(result));
             });
         } catch (error) {
             // Handled by hook
@@ -154,9 +231,53 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
                             <span className="text-slate-500 truncate lowercase">@{post.author.username}</span>
                             <span className="text-slate-500 shrink-0">· {timeAgo}</span>
                         </div>
-                        <span className="material-symbols-outlined text-slate-500 hover:text-primary transition-colors cursor-pointer p-1 hover:bg-primary/10 rounded-full">
-                            more_horiz
-                        </span>
+
+                        {/* More Menu */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <span className="material-symbols-outlined text-slate-500 hover:text-primary transition-colors cursor-pointer p-1 hover:bg-primary/10 rounded-full">
+                                        more_horiz
+                                    </span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                    <DropdownMenuItem onClick={handleShare}>
+                                        <Share className="mr-2 h-4 w-4" />
+                                        <span>Share</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => {
+                                        const postUrl = `${window.location.origin}/post/${post.id}`;
+                                        navigator.clipboard.writeText(postUrl);
+                                        toast.success("Link copied!");
+                                    }}>
+                                        <LinkIcon className="mr-2 h-4 w-4" />
+                                        <span>Copy Link</span>
+                                    </DropdownMenuItem>
+
+                                    {isAuthor ? (
+                                        <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
+                                                <Edit2 className="mr-2 h-4 w-4" />
+                                                <span>Edit Post</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => setIsDeleteDialogOpen(true)}
+                                                className="text-red-500 focus:text-red-500"
+                                            >
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                <span>Delete</span>
+                                            </DropdownMenuItem>
+                                        </>
+                                    ) : (
+                                        <DropdownMenuItem className="text-red-500 focus:text-red-500">
+                                            <Flag className="mr-2 h-4 w-4" />
+                                            <span>Report</span>
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
 
                     {/* Location */}
@@ -221,7 +342,7 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
                             icon="repeat"
                             count={repostCount}
                             active={hasReposted}
-                            onClick={handleRepost}
+                            onClick={handleSimpleRepost}
                             hoverClass="hover:text-green-500 hover:bg-green-500/10"
                         />
                         <EngagementAction
@@ -234,60 +355,117 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate }: PostCardPro
                         <EngagementAction
                             icon="bookmark"
                             count={0}
+                            LucideIcon={Bookmark}
+                            active={isBookmarked}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleBookmark(post.id);
+                            }}
                             hoverClass="hover:text-primary hover:bg-primary/10"
                         />
                     </div>
 
                     {/* Inline Comment Input */}
                     {isCommentOpen && (
-                        <div className="mt-4 space-y-3 pl-0 animate-in fade-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
-                            <Textarea
-                                placeholder="Post your reply"
-                                value={commentContent}
-                                onChange={(e) => setCommentContent(e.target.value)}
-                                className="min-h-[100px] w-full bg-transparent border-none focus-visible:ring-0 text-[17px] p-0 resize-none placeholder:text-slate-500"
-                                autoFocus
-                            />
-                            <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800/50">
-                                <Button
-                                    size="sm"
-                                    className="rounded-full px-5 font-bold"
-                                    disabled={!commentContent.trim() || isPostingComment}
-                                    onClick={async () => {
-                                        try {
-                                            await createComment(post.id, commentContent, undefined, () => {
-                                                setCommentContent("");
-                                                if (onUpdate) {
-                                                    onUpdate(post.id, { commentsCount: (post.commentsCount || 0) + 1 });
-                                                }
-                                            });
-                                        } catch (err) {
-                                            // Error handled by hook
-                                        }
-                                    }}
-                                >
-                                    {isPostingComment ? "Posting..." : "Reply"}
-                                </Button>
+                        <div className="mt-6 mb-2 animate-in fade-in slide-in-from-top-4 duration-300 ease-out" onClick={(e) => e.stopPropagation()}>
+                            <div className="bg-slate-900/40 dark:bg-white/[0.03] border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-4 shadow-sm backdrop-blur-sm transition-all hover:border-primary/30">
+                                <div className="flex gap-4">
+                                    <Avatar className="size-10 ring-2 ring-background border-2 border-slate-100 dark:border-slate-800">
+                                        <AvatarImage src={currentUser?.avatarUrl || undefined} />
+                                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                                            {currentUser?.username?.[0]?.toUpperCase() || "U"}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 space-y-3">
+                                        <Textarea
+                                            placeholder="Write a comment..."
+                                            value={commentContent}
+                                            onChange={(e) => setCommentContent(e.target.value)}
+                                            className="min-h-[80px] w-full bg-transparent border-none focus-visible:ring-0 text-[16px] p-0 resize-none placeholder:text-slate-500 font-display font-medium tracking-tight"
+                                            autoFocus
+                                        />
+                                        <div className="flex items-center justify-between pt-0">
+                                            <div className="flex items-center gap-1.5 -ml-2">
+                                                <Button variant="ghost" size="icon" className="size-9 rounded-full text-primary hover:bg-primary/10">
+                                                    <ImageIcon className="size-5" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="size-9 rounded-full text-primary hover:bg-primary/10">
+                                                    <Smile className="size-5" />
+                                                </Button>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                className="rounded-full px-6 font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                disabled={!commentContent.trim() || isPostingComment}
+                                                onClick={async () => {
+                                                    try {
+                                                        await createComment(post.id, commentContent, undefined, () => {
+                                                            setCommentContent("");
+                                                            if (onUpdate) {
+                                                                onUpdate(post.id, { commentsCount: (post.commentsCount || 0) + 1 });
+                                                            }
+                                                        });
+                                                    } catch (err) {
+                                                        // Error handled by hook
+                                                    }
+                                                }}
+                                            >
+                                                {isPostingComment ? "Posting..." : "Reply"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Comments List */}
-                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800/50">
+                            <div className="mt-8">
                                 <CommentList postId={post.id} />
                             </div>
                         </div>
                     )}
                 </div>
             </div>
-        </article>
+
+            {/* Edit Dialog */}
+            <UpdatePostModal
+                postId={post.id}
+                isOpen={isEditDialogOpen}
+                onClose={() => setIsEditDialogOpen(false)}
+                onUpdateSuccess={handleUpdateSuccess}
+            />
+
+            {/* Delete Confirmation */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This post will be removed from your profile, the timeline of any accounts that follow you, and from search results.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeletePost}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? "Deleting..." : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </article >
     )
 }
 
-function EngagementAction({ icon, count, hoverClass, active, onClick }: {
+function EngagementAction({ icon, count, hoverClass, active, onClick, LucideIcon }: {
     icon: string,
     count: number,
     hoverClass: string,
     active?: boolean,
-    onClick?: (e: React.MouseEvent) => void
+    onClick?: (e: React.MouseEvent) => void,
+    LucideIcon?: any
 }) {
     return (
         <div
@@ -295,18 +473,23 @@ function EngagementAction({ icon, count, hoverClass, active, onClick }: {
                 "flex items-center gap-2 group transition-colors",
                 active && icon === "favorite" ? "text-red-500" : "",
                 active && icon === "repeat" ? "text-green-500" : "",
+                active && icon === "bookmark" ? "text-primary" : "",
                 !active ? "hover:text-inherit" : "",
                 hoverClass.split(' ')[0]
             )}
             onClick={onClick}
         >
             <div className={cn("p-2 rounded-full transition-all", hoverClass.split(' ').slice(1).join(' '))}>
-                <span
-                    className="material-symbols-outlined text-[20px] select-none"
-                    style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
-                >
-                    {icon}
-                </span>
+                {LucideIcon ? (
+                    <LucideIcon className={cn("size-5", active && icon === "bookmark" && "fill-current")} />
+                ) : (
+                    <span
+                        className="material-symbols-outlined text-[20px] select-none"
+                        style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
+                    >
+                        {icon}
+                    </span>
+                )}
             </div>
             <span className="text-xs font-medium">{count > 0 ? (count > 999 ? (count / 1000).toFixed(1) + 'k' : count) : ""}</span>
         </div>

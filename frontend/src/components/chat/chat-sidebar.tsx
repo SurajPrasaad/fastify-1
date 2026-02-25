@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { useQuery } from "@tanstack/react-query"
+import { formatDistanceToNow } from "date-fns"
 import { ChatService } from "@/services/chat.service"
 import { ChatRoom } from "@/types/chat"
 import { CreateChatDialog } from "./create-chat-dialog"
@@ -15,15 +16,20 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
     const [searchQuery, setSearchQuery] = useState("")
+    const [filter, setFilter] = useState<"all" | "unread" | "groups">("all")
 
     const { data: conversations, isLoading } = useQuery({
         queryKey: ["chat-rooms"],
         queryFn: () => ChatService.getConversations(),
     })
 
-    const filteredConversations = conversations?.filter(c =>
-        getRoomName(c)?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    const filteredConversations = conversations?.filter(c => {
+        const matchesSearch = getRoomName(c)?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesFilter = filter === "all" ||
+            (filter === "unread" && (c.unreadCount ?? 0) > 0) ||
+            (filter === "groups" && c.type === "GROUP");
+        return matchesSearch && matchesFilter;
+    })
 
     function getRoomName(room: ChatRoom) {
         if (room.name) return room.name;
@@ -74,9 +80,21 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
 
             {/* Filters */}
             <div className="px-6 flex gap-2 mb-4">
-                <FilterButton label="All" active />
-                <FilterButton label="Unread" />
-                <FilterButton label="Groups" />
+                <FilterButton
+                    label="All"
+                    active={filter === "all"}
+                    onClick={() => setFilter("all")}
+                />
+                <FilterButton
+                    label="Unread"
+                    active={filter === "unread"}
+                    onClick={() => setFilter("unread")}
+                />
+                <FilterButton
+                    label="Groups"
+                    active={filter === "groups"}
+                    onClick={() => setFilter("groups")}
+                />
             </div>
 
             {/* Chats List */}
@@ -104,14 +122,17 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
     )
 }
 
-function FilterButton({ label, active }: { label: string, active?: boolean }) {
+function FilterButton({ label, active, onClick }: { label: string, active?: boolean, onClick: () => void }) {
     return (
-        <button className={cn(
-            "px-4 py-1.5 rounded-full text-xs font-semibold transition-all",
-            active
-                ? "bg-primary text-white"
-                : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
-        )}>
+        <button
+            onClick={onClick}
+            className={cn(
+                "px-4 py-1.5 rounded-full text-xs font-semibold transition-all",
+                active
+                    ? "bg-primary text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            )}
+        >
             {label}
         </button>
     )
@@ -145,15 +166,22 @@ function ChatListItem({ chat, name, active, onClick, avatar }: {
                     <h3 className={cn("truncate", active ? "font-bold text-slate-900 dark:text-slate-100" : "font-semibold text-slate-900 dark:text-slate-100")}>
                         {name}
                     </h3>
-                    <span className={cn("text-[10px] font-medium uppercase", active ? "text-primary" : "text-slate-500")}>
-                        {chat.updatedAt ? "Just Now" : ""}
+                    <span className={cn("text-[10px] font-medium whitespace-nowrap", active ? "text-primary" : "text-slate-500")}>
+                        {chat.updatedAt ? formatDistanceToNow(new Date(chat.updatedAt), { addSuffix: true }) : ""}
                     </span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
                     <p className="text-sm text-slate-500/80 dark:text-slate-400 truncate">
-                        {chat.lastMessage?.content || "Starting a conversation..."}
+                        {chat.lastMessage?.type === 'IMAGE' ? "📷 Sent an image" :
+                            chat.lastMessage?.type === 'VIDEO' ? "🎥 Sent a video" :
+                                chat.lastMessage?.type === 'FILE' ? "📎 Sent a file" :
+                                    chat.lastMessage?.content || "Starting a conversation..."}
                     </p>
-                    {active && <span className="bg-primary text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center animate-in zoom-in-0">2</span>}
+                    {chat.unreadCount && chat.unreadCount > 0 && (
+                        <span className="bg-primary text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center animate-in zoom-in-0">
+                            {chat.unreadCount}
+                        </span>
+                    )}
                 </div>
             </div>
         </div>

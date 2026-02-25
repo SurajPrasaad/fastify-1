@@ -6,6 +6,7 @@ import { Comment } from "@/features/interaction/types"
 import { Loader2, MessageCircle, AlertCircle, RefreshCcw } from "lucide-react"
 import { ReplyItem, Reply } from "@/components/thread/reply-item"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface CommentListProps {
     postId: string;
@@ -38,6 +39,9 @@ export function CommentList({ postId }: CommentListProps) {
         replyTo: undefined,
     });
 
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const initialDisplayCount = 3;
+
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center py-12 space-y-4 px-6 text-center">
@@ -62,64 +66,78 @@ export function CommentList({ postId }: CommentListProps) {
     if (isLoading && comments.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                <p className="text-sm text-muted-foreground animate-pulse">Fetching comments...</p>
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground animate-pulse font-medium">Fetching conversation...</p>
             </div>
         );
     }
 
     if (!isLoading && comments.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-                <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-900 rounded-full flex items-center justify-center mb-4">
-                    <MessageCircle className="h-8 w-8 text-muted-foreground/30" />
+            <div className="flex flex-col items-center justify-center py-12 text-center px-6 bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <MessageCircle className="h-8 w-8 text-primary opacity-20" />
                 </div>
-                <h3 className="text-lg font-bold">No comments yet</h3>
+                <h3 className="text-lg font-bold tracking-tight">No responses yet</h3>
                 <p className="text-muted-foreground text-sm max-w-[250px]">
-                    Be the first to share your thoughts on this post!
+                    Join the conversation and be the first to share your perspective!
                 </p>
             </div>
         );
     }
 
+    const displayedComments = isExpanded ? comments : comments.slice(0, initialDisplayCount);
+    const hiddenCount = comments.length - initialDisplayCount;
+
     return (
         <div className="flex flex-col">
-            <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800 transition-all">
-                {comments.map((comment, index) => (
+            <div className={cn(
+                "flex flex-col transition-all duration-300",
+                isExpanded ? "max-h-[600px] overflow-y-auto pr-1 -mr-1 custom-scrollbar" : ""
+            )}>
+                {displayedComments.map((comment, index) => (
                     <ReplyItem
                         key={comment.id}
                         reply={mapCommentToReply(comment)}
                         postId={postId}
-                        isLast={index === comments.length - 1 && !hasMore}
-                        hasConnector={index !== comments.length - 1 || hasMore}
+                        isLast={(isExpanded ? index === comments.length - 1 : index === displayedComments.length - 1) && !hasMore}
+                        hasConnector={!(isExpanded ? index === comments.length - 1 : index === displayedComments.length - 1) || hasMore}
                     />
                 ))}
+
+                {isExpanded && hasMore && (
+                    <div className="py-6 flex justify-center">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isLoading}
+                            onClick={() => fetchMore(false)}
+                            className="text-primary font-bold hover:bg-primary/10 rounded-full h-10 px-6"
+                        >
+                            {isLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                "Show more replies"
+                            )}
+                        </Button>
+                    </div>
+                )}
             </div>
 
-            {hasMore && (
-                <div className="p-4 flex justify-center border-t border-gray-100 dark:divide-gray-800">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isLoading}
-                        onClick={() => fetchMore(false)}
-                        className="text-blue-500 font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full h-10 px-6"
+            {!isExpanded && comments.length > initialDisplayCount && (
+                <div className="flex justify-center py-6 border-t border-slate-100 dark:border-white/[0.05]">
+                    <button
+                        onClick={() => setIsExpanded(true)}
+                        className="text-[15px] font-bold text-primary hover:underline transition-all"
                     >
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                Loading...
-                            </>
-                        ) : (
-                            "Show more comments"
-                        )}
-                    </Button>
+                        View more comments
+                    </button>
                 </div>
             )}
 
-            {isLoading && comments.length > 0 && (
+            {isLoading && comments.length > 0 && !isExpanded && (
                 <div className="p-8 flex justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
             )}
         </div>

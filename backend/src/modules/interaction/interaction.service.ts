@@ -146,6 +146,13 @@ export class InteractionService {
     }
 
     /**
+     * Fetches all posts bookmarked by a user.
+     */
+    async getUserBookmarks(userId: string, limit: number, cursor?: string) {
+        return await this.repo.getUserBookmarks(userId, limit, cursor);
+    }
+
+    /**
      * Reposts a post by creating a new post entry referencing the original.
      */
     async createRepost(userId: string, originalPostId: string, content?: string) {
@@ -162,6 +169,6 @@ export class InteractionService {
         // 🔔 Optional: Trigger Repost Notification
         // In a real app, you'd notify the owner of originalPostId
 
-        return { success: true, repostId: repost.id };
+        return repost;
     }
 }

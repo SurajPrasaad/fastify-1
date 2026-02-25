@@ -1,6 +1,6 @@
 export interface PostAuthor {
     username: string;
-    displayName: string;
+    name: string;
     avatarUrl?: string;
     isVerified?: boolean;
 }
@@ -14,7 +14,7 @@ export interface PostMedia {
 export interface PostStats {
     likes: number;
     comments: number;
-    shares: number;
+    reposts: number;
 }
 
 export interface Post {
@@ -36,6 +36,7 @@ export interface ApiPost {
     mediaUrls: string[];
     commentsCount: number;
     likesCount: number;
+    repostsCount: number;
     createdAt: string; // ISO string from API
     author?: {
         username: string;

@@ -138,3 +138,23 @@ export async function createRepostHandler(
     const result = await service.createRepost(userId, postId, content);
     return reply.status(201).send(result);
 }
+
+export async function getUserBookmarksHandler(
+    request: FastifyRequest<{ Querystring: GetUserRepliesQuery }>,
+    reply: FastifyReply
+) {
+    const userId = (request.user as any).sub;
+    const { limit, cursor } = request.query;
+
+    const posts = await service.getUserBookmarks(userId, limit, cursor);
+
+    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).bookmarkedAt.toISOString() : null;
+
+    return reply.send({
+        data: posts,
+        meta: {
+            nextCursor,
+            hasNext: posts.length === limit
+        }
+    });
+}

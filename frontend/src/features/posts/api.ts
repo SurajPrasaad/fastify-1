@@ -17,7 +17,7 @@ export const mapApiPostToPost = (apiPost: ApiPost): Post => {
         userId: apiPost.userId,
         author: {
             username: apiPost.author?.username || "Unknown",
-            displayName: apiPost.author?.name || "Unknown",
+            name: apiPost.author?.name || "Unknown",
             avatarUrl: apiPost.author?.avatarUrl,
         },
         content: apiPost.content,
@@ -25,7 +25,7 @@ export const mapApiPostToPost = (apiPost: ApiPost): Post => {
         stats: {
             likes: apiPost.likesCount || 0,
             comments: apiPost.commentsCount || 0,
-            shares: 0 // Backend doesn't support shares yet
+            reposts: apiPost.repostsCount || 0
         },
         createdAt: new Date(apiPost.createdAt),
         isLiked: apiPost.isLiked,
@@ -43,4 +43,12 @@ export const getMyPosts = async (limit = 10, cursor?: string): Promise<Paginated
         ...response,
         data: response.data.map(mapApiPostToPost)
     };
+};
+export const updatePost = async (id: string, data: any): Promise<Post> => {
+    const response = await api.put<ApiPost>(`/posts/${id}`, data);
+    return mapApiPostToPost(response);
+};
+
+export const deletePost = async (id: string): Promise<void> => {
+    await api.delete(`/posts/${id}`);
 };

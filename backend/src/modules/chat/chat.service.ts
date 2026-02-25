@@ -27,6 +27,7 @@ export interface PopulatedConversation {
         createdAt: Date;
     };
     metadata?: Record<string, any>;
+    unreadCount?: number;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -85,11 +86,14 @@ export class ChatService {
         const users = await this.userRepository.findByIds(Array.from(participantIds));
         const userMap = new Map(users.map(u => [u.id, u]));
 
-        // Populate participants in each room
-        return rooms.map(room => {
+        // Populate participants and unread count in each room
+        return await Promise.all(rooms.map(async room => {
             const roomObj = room.toObject ? room.toObject() : room;
+            const unreadCount = await this.repository.getUnreadCount(userId, roomObj._id.toString());
+
             return {
                 ...roomObj,
+                unreadCount,
                 participants: roomObj.participants.map((pid: string) => {
                     const user = userMap.get(pid);
                     if (user) {
@@ -104,7 +108,7 @@ export class ChatService {
                     return { _id: pid, id: pid, username: 'Unknown User' };
                 })
             } as unknown as PopulatedConversation;
-        });
+        }));
     }
 
     async createRoom(creatorId: string, participants: string[], type: 'DIRECT' | 'GROUP', name?: string) {

@@ -73,6 +73,7 @@ export class PostRepository {
                 status: posts.status,
                 commentsCount: posts.commentsCount,
                 likesCount: posts.likesCount,
+                repostsCount: posts.repostsCount,
                 publishedAt: posts.publishedAt,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
@@ -86,6 +87,9 @@ export class PostRepository {
                     : sql<boolean>`false`,
                 isBookmarked: currentUserId
                     ? sql<boolean>`EXISTS (SELECT 1 FROM bookmarks WHERE post_id = ${posts.id} AND user_id = ${currentUserId})`
+                    : sql<boolean>`false`,
+                isReposted: currentUserId
+                    ? sql<boolean>`EXISTS (SELECT 1 FROM reposts WHERE post_id = ${posts.id} AND user_id = ${currentUserId})`
                     : sql<boolean>`false`,
             })
             .from(posts)
@@ -191,6 +195,7 @@ export class PostRepository {
                 status: posts.status,
                 commentsCount: posts.commentsCount,
                 likesCount: posts.likesCount,
+                repostsCount: posts.repostsCount,
                 publishedAt: posts.publishedAt,
                 createdAt: posts.createdAt,
                 updatedAt: posts.updatedAt,
@@ -204,6 +209,9 @@ export class PostRepository {
                     : sql<boolean>`false`,
                 isBookmarked: currentUserId
                     ? sql<boolean>`EXISTS (SELECT 1 FROM bookmarks WHERE post_id = ${posts.id} AND user_id = ${currentUserId})`
+                    : sql<boolean>`false`,
+                isReposted: currentUserId
+                    ? sql<boolean>`EXISTS (SELECT 1 FROM reposts WHERE post_id = ${posts.id} AND user_id = ${currentUserId})`
                     : sql<boolean>`false`,
             })
             .from(posts)

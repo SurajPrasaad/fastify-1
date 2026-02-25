@@ -48,7 +48,7 @@ export const wsPayloadJoinRoomSchema = z.object({
 export const wsPayloadMessageSchema = z.object({
     roomId: z.string(),
     content: z.string(),
-    msgType: z.nativeEnum(MessageType).default(MessageType.TEXT),
+    type: z.nativeEnum(MessageType).default(MessageType.TEXT),
     mediaUrl: z.string().optional(),
 });
 

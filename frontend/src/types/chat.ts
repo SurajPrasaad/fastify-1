@@ -40,6 +40,7 @@ export interface ChatRoom {
         type: MessageType;
         createdAt: string;
     };
+    unreadCount?: number;
     createdAt: string;
     updatedAt: string;
 }

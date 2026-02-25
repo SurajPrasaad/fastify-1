@@ -22,7 +22,7 @@ export const MediaService = {
         formData.append("folder", signatureData.folder);
 
         const response = await fetch(
-            `https://api.cloudinary.com/v1_1/${signatureData.cloudName}/image/upload`,
+            `https://api.cloudinary.com/v1_1/${signatureData.cloudName}/auto/upload`,
             {
                 method: "POST",
                 body: formData,

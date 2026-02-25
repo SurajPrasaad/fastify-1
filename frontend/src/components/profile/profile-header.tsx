@@ -22,6 +22,7 @@ interface Profile {
     coverUrl: string;
     isFollowing: boolean;
     isSelf: boolean;
+    techStack?: string[];
 }
 
 interface ProfileHeaderProps {
@@ -89,6 +90,20 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
                 <p className="mt-4 text-[15px] leading-relaxed max-w-2xl">
                     {profile.bio}
                 </p>
+
+                {/* Tech Stack / Tags */}
+                {profile.techStack && profile.techStack.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                        {profile.techStack.map((tech) => (
+                            <span
+                                key={tech}
+                                className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 hover:border-primary/30 transition-colors"
+                            >
+                                #{tech}
+                            </span>
+                        ))}
+                    </div>
+                )}
 
                 <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-slate-500 text-sm">
                     {profile.location && (

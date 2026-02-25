@@ -197,7 +197,8 @@ export class UserRepository {
         if (!techStack.length) return [];
 
         // Check if techStack contains any of the user's tech using ?| operator
-        const query = sql`${users.techStack} ?| ${techStack} AND ${users.id} != ${userId}`;
+        // We use sql.join and array[] to prevent Drizzle from expanding techStack into ($1, $2, ...)
+        const query = sql`${users.techStack} ?| array[${sql.join(techStack.map(t => sql`${t}`), sql`, `)}] AND ${users.id} != ${userId}`;
 
         return await db
             .select()

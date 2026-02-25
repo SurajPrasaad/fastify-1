@@ -32,6 +32,11 @@ export class AuthController {
         bio: user.bio,
         website: user.website,
         location: user.location,
+        profile: {
+          techStack: user.techStack || [],
+          followersCount: user.followersCount || 0,
+          followingCount: user.followingCount || 0,
+        }
       },
     });
   };
@@ -82,6 +87,11 @@ export class AuthController {
         bio: result.user.bio,
         website: result.user.website,
         location: result.user.location,
+        profile: {
+          techStack: result.user.techStack || [],
+          followersCount: result.user.followersCount || 0,
+          followingCount: result.user.followingCount || 0,
+        }
       },
     });
   };
@@ -112,6 +122,11 @@ export class AuthController {
         bio: user.bio,
         website: user.website,
         location: user.location,
+        profile: {
+          techStack: user.techStack || [],
+          followersCount: user.followersCount || 0,
+          followingCount: user.followingCount || 0,
+        }
       }
     });
   };
@@ -168,6 +183,11 @@ export class AuthController {
         bio: user!.bio,
         website: user!.website,
         location: user!.location,
+        profile: {
+          techStack: user!.techStack || [],
+          followersCount: user!.followersCount || 0,
+          followingCount: user!.followingCount || 0,
+        }
       },
     });
   };

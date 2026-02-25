@@ -62,7 +62,7 @@ export function useChatSocket(roomId?: string) {
         };
     }, [roomId]);
 
-    const sendMessage = (content: string, type: 'TEXT' | 'IMAGE' = 'TEXT', mediaUrl?: string) => {
+    const sendMessage = (content: string, type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' = 'TEXT', mediaUrl?: string) => {
         if (!roomId) return;
 
         // Optimistic update
@@ -70,7 +70,7 @@ export function useChatSocket(roomId?: string) {
             _id: `temp-${Date.now()}`,
             roomId,
             content,
-            msgType: type,
+            type: type,
             mediaUrl,
             status: 'SENDING',
             createdAt: new Date().toISOString(),
@@ -79,7 +79,7 @@ export function useChatSocket(roomId?: string) {
 
         setMessages(prev => [...prev, optimisticMsg]);
 
-        socketService.send("SEND_MESSAGE", { roomId, content, msgType: type, mediaUrl });
+        socketService.send("SEND_MESSAGE", { roomId, content, type: type, mediaUrl });
     };
 
     const sendTyping = (isTyping: boolean) => {
@@ -87,11 +87,17 @@ export function useChatSocket(roomId?: string) {
         socketService.send("TYPING", { roomId, isTyping });
     };
 
+    const markAsRead = (messageId: string) => {
+        if (!roomId) return;
+        socketService.send("READ_RECEIPT", { roomId, messageId });
+    };
+
     return {
         messages,
         typingUsers: Array.from(typingUsers),
         sendMessage,
-        sendTyping
+        sendTyping,
+        markAsRead
     };
 }
 

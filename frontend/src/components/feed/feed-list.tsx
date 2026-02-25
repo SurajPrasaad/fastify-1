@@ -68,14 +68,21 @@ export function FeedList({ initialPosts, filters }: FeedListProps) {
                 mediaUrls: p.mediaUrls || [],
                 likesCount: p.likesCount || 0,
                 commentsCount: p.commentsCount || 0,
-                sharesCount: 0,
+                repostsCount: p.repostsCount || 0,
                 pollId: p.pollId,
                 poll: p.poll,
                 createdAt: p.createdAt,
                 updatedAt: p.updatedAt,
                 isLiked: !!p.isLiked,
                 isBookmarked: !!p.isBookmarked,
-                status: p.status || "PUBLISHED"
+                isReposted: !!p.isReposted,
+                status: p.status || "PUBLISHED",
+                originalPost: p.originalPost ? {
+                    id: p.originalPost.id,
+                    content: p.originalPost.content,
+                    createdAt: p.originalPost.createdAt,
+                    author: p.originalPost.author
+                } : null
             }));
 
             setPosts((prev) => [...prev, ...mappedPosts])
@@ -98,6 +105,10 @@ export function FeedList({ initialPosts, filters }: FeedListProps) {
         );
     };
 
+    const handlePostCreated = (newPost: Post) => {
+        setPosts((prev) => [newPost, ...prev]);
+    };
+
     console.log(`FeedList rendering ${posts.length} posts`);
     return (
         <div className="flex flex-col gap-3 pb-8 w-full">
@@ -112,6 +123,7 @@ export function FeedList({ initialPosts, filters }: FeedListProps) {
                     post={post}
                     onRemove={handleRemove}
                     onUpdate={handleUpdate}
+                    onPostCreated={handlePostCreated}
                 />
             ))}
 

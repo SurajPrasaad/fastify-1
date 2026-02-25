@@ -8,8 +8,7 @@ import { cn } from "@/lib/utils"
 import { postService } from "@/services/post.service"
 import { useAuth } from "@/features/auth/components/AuthProvider"
 
-import { Image, GripVertical, Vote, Smile, MapPin, X, Plus } from "lucide-react"
-import { GifSelector } from "./gif-selector"
+import { Image, Vote, Smile, MapPin, X, Plus } from "lucide-react"
 import { PollCreator } from "./poll-creator"
 import { EmojiPicker } from "./emoji-picker"
 import { LocationPicker } from "./location-picker"
@@ -21,7 +20,7 @@ interface PostComposerProps {
 export function PostComposer({ onSuccess }: PostComposerProps) {
     const [content, setContent] = React.useState("")
     const [isPosting, setIsPosting] = React.useState(false)
-    const [selectedGifs, setSelectedGifs] = React.useState<string[]>([])
+
     const [selectedImages, setSelectedImages] = React.useState<string[]>([])
     const [poll, setPoll] = React.useState<{ question: string; options: string[]; expiresAt: Date } | null>(null)
     const [location, setLocation] = React.useState<string | null>(null)
@@ -42,13 +41,13 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
     }, [content])
 
     const handlePost = async () => {
-        if (!content.trim() && selectedGifs.length === 0 && selectedImages.length === 0 && !poll) return
+        if (!content.trim() && selectedImages.length === 0 && !poll) return
 
         setIsPosting(true)
         try {
             const response = await postService.createPost({
                 content: content.trim(),
-                mediaUrls: [...selectedImages, ...selectedGifs],
+                mediaUrls: [...selectedImages],
                 poll: poll,
                 location: location,
                 status: "PUBLISHED"
@@ -63,7 +62,7 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
             }
 
             setContent("")
-            setSelectedGifs([])
+
             setSelectedImages([])
             setPoll(null)
             setLocation(null)
@@ -79,15 +78,11 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
         }
     }
 
-    const removeAttachment = (url: string, type: "gif" | "image") => {
-        if (type === "gif") {
-            setSelectedGifs(selectedGifs.filter(g => g !== url))
-        } else {
-            setSelectedImages(selectedImages.filter(i => i !== url))
-        }
+    const removeAttachment = (url: string) => {
+        setSelectedImages(selectedImages.filter(i => i !== url))
     }
 
-    const canPost = (content.trim().length > 0 || selectedGifs.length > 0 || selectedImages.length > 0 || poll) && !isPosting
+    const canPost = (content.trim().length > 0 || selectedImages.length > 0 || poll) && !isPosting
 
     return (
         <div className="flex gap-4 px-4 py-3 border-b border-slate-800">
@@ -109,13 +104,13 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                 />
 
                 {/* Attachments Preview */}
-                {(selectedImages.length > 0 || selectedGifs.length > 0) && (
+                {selectedImages.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
-                        {[...selectedImages, ...selectedGifs].map((url, i) => (
+                        {selectedImages.map((url, i) => (
                             <div key={i} className="relative aspect-square w-24 rounded-xl overflow-hidden group">
                                 <img src={url} className="w-full h-full object-cover" />
                                 <button
-                                    onClick={() => removeAttachment(url, selectedGifs.includes(url) ? "gif" : "image")}
+                                    onClick={() => removeAttachment(url)}
                                     className="absolute top-1 right-1 bg-black/50 p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                     <X size={14} />
@@ -161,11 +156,7 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                             icon={<Image size={20} />}
                             onClick={() => document.getElementById('image-upload')?.click()}
                         />
-                        <IconButton
-                            icon={<GripVertical size={20} />}
-                            active={activePicker === "gif"}
-                            onClick={() => setActivePicker(activePicker === "gif" ? null : "gif")}
-                        />
+
                         <IconButton
                             icon={<Vote size={20} />}
                             active={activePicker === "poll"}
@@ -184,15 +175,7 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                         />
 
                         {/* Pickers */}
-                        {activePicker === "gif" && (
-                            <GifSelector
-                                onSelect={(url) => {
-                                    setSelectedGifs([...selectedGifs, url])
-                                    setActivePicker(null)
-                                }}
-                                onClose={() => setActivePicker(null)}
-                            />
-                        )}
+
                         {activePicker === "emoji" && (
                             <EmojiPicker
                                 onSelect={(emoji) => {

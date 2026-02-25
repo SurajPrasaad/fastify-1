@@ -94,8 +94,8 @@ export async function chatGateway(fastify: FastifyInstance) {
 
         socket.on('SEND_MESSAGE', async (payload) => {
             try {
-                const { roomId, content, msgType, mediaUrl } = wsPayloadMessageSchema.parse(payload);
-                const message = await chatService.sendMessage(userId, roomId, content, msgType, mediaUrl);
+                const { roomId, content, type, mediaUrl } = wsPayloadMessageSchema.parse(payload);
+                const message = await chatService.sendMessage(userId, roomId, content, type, mediaUrl);
                 // Broadcast is handled inside chatService.sendMessage via Redis, 
                 // but we can also do it here if we want to bypass the extra Redis hop for local node.
                 // However, stick to service logic for consistency.

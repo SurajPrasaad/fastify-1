@@ -45,11 +45,20 @@ export function LocationPicker({ onSelect, onClose }: LocationPickerProps) {
         "London, UK",
         "Tokyo, JP",
         "Paris, FR",
-        "Berlin, DE"
+        "Berlin, DE",
+        "Mumbai, IN",
+        "Bangalore, IN",
+        "Dubai, AE",
+        "Singapore, SG",
+        "Toronto, CA",
+        "Sydney, AU",
+        "Seoul, KR",
+        "Amsterdam, NL",
+        "Stockholm, SE",
     ]
 
     return (
-        <div className="absolute bottom-full left-0 mb-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col z-50 animate-in fade-in slide-in-from-bottom-2">
+        <div className="absolute top-full left-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-xl flex flex-col z-50 animate-in fade-in slide-in-from-top-2">
             <div className="p-3 border-b border-slate-800 flex items-center gap-2">
                 <Search className="text-slate-500" size={18} />
                 <input
@@ -75,8 +84,8 @@ export function LocationPicker({ onSelect, onClose }: LocationPickerProps) {
                 </button>
             </div>
 
-            <ScrollArea className="flex-1 p-2 max-h-48 border-t border-slate-800">
-                <div className="flex flex-col gap-1">
+            <div className="max-h-[132px] overflow-y-auto border-t border-slate-800 custom-scrollbar">
+                <div className="flex flex-col gap-0.5 p-2">
                     {popularLocations.filter(loc => loc.toLowerCase().includes(search.toLowerCase())).map((loc) => (
                         <button
                             key={loc}
@@ -90,7 +99,7 @@ export function LocationPicker({ onSelect, onClose }: LocationPickerProps) {
                         </button>
                     ))}
                 </div>
-            </ScrollArea>
+            </div>
         </div>
     )
 }

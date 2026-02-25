@@ -17,6 +17,7 @@ const profileSchema = z.object({
     location: z.string().optional(),
     website: z.string().url("Invalid URL").or(z.literal("")).optional(),
     avatarUrl: z.string().url("Invalid URL").or(z.literal("")).optional().nullable(),
+    techStack: z.array(z.string()),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -42,6 +43,7 @@ export default function SettingsProfilePage() {
             location: "",
             website: "",
             avatarUrl: "",
+            techStack: [],
         },
     });
 
@@ -56,6 +58,7 @@ export default function SettingsProfilePage() {
                 location: user.location || "",
                 website: user.website || "",
                 avatarUrl: user.avatarUrl || "",
+                techStack: user.profile?.techStack || [],
             });
         }
     }, [user, reset]);
@@ -213,6 +216,15 @@ export default function SettingsProfilePage() {
                                     <p className="text-xs text-slate-500">{bioValue.length} / 500 characters</p>
                                 </div>
                             </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Tags / Tech Stack</label>
+                                <TagInput
+                                    value={watch("techStack")}
+                                    onChange={(tags) => reset({ ...watch(), techStack: tags }, { keepDirty: true })}
+                                    disabled={isUpdatingProfile}
+                                />
+                                <p className="text-xs text-slate-500 px-1">Add tags that describe your interests or expertise (e.g., React, TypeScript, UI Design)</p>
+                            </div>
                             <SettingsInput
                                 label="Website"
                                 icon="link"
@@ -271,6 +283,63 @@ export default function SettingsProfilePage() {
                     </p>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function TagInput({ value = [], onChange, disabled }: { value: string[], onChange: (tags: string[]) => void, disabled?: boolean }) {
+    const [inputValue, setInputValue] = useState("");
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            addTag();
+        } else if (e.key === "Backspace" && !inputValue && value.length > 0) {
+            removeTag(value.length - 1);
+        }
+    };
+
+    const addTag = () => {
+        const tag = inputValue.trim().replace(/^#/, "");
+        if (tag && !value.includes(tag)) {
+            onChange([...value, tag]);
+            setInputValue("");
+        }
+    };
+
+    const removeTag = (index: number) => {
+        onChange(value.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className={cn(
+            "flex flex-wrap gap-2 p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all min-h-[52px]",
+            disabled && "opacity-50 cursor-not-allowed"
+        )}>
+            {value.map((tag, index) => (
+                <span key={index} className="flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-lg">
+                    #{tag}
+                    {!disabled && (
+                        <button
+                            type="button"
+                            onClick={() => removeTag(index)}
+                            className="hover:text-primary/70 transition-colors"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                    )}
+                </span>
+            ))}
+            <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={addTag}
+                placeholder={value.length === 0 ? "Add tags..." : ""}
+                className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-white text-[15px] min-w-[120px] px-2"
+                disabled={disabled}
+            />
         </div>
     );
 }

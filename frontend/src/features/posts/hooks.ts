@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Post, PaginatedResult } from "./types";
-import { getMyPosts } from "./api";
+import { getMyPosts, updatePost as postApiUpdate, deletePost as postApiDelete } from "./api";
 import { toast } from "sonner";
 
 export const useUserPosts = (initialData?: PaginatedResult<Post>) => {
@@ -72,4 +72,45 @@ export const useUserPosts = (initialData?: PaginatedResult<Post>) => {
         removePost,
         updatePost
     };
+};
+
+export const useUpdatePost = () => {
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const handleUpdate = useCallback(async (id: string, data: any, onSuccess?: (post: Post) => void) => {
+        setIsUpdating(true);
+        try {
+            const updatedPost = await postApiUpdate(id, data);
+            toast.success("Post updated successfully");
+            onSuccess?.(updatedPost);
+            return updatedPost;
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update post");
+            throw error;
+        } finally {
+            setIsUpdating(false);
+        }
+    }, []);
+
+    return { updatePost: handleUpdate, isUpdating };
+};
+
+export const useDeletePost = () => {
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = useCallback(async (id: string, onSuccess?: () => void) => {
+        setIsDeleting(true);
+        try {
+            await postApiDelete(id);
+            toast.success("Post deleted successfully");
+            onSuccess?.();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to delete post");
+            throw error;
+        } finally {
+            setIsDeleting(false);
+        }
+    }, []);
+
+    return { deletePost: handleDelete, isDeleting };
 };

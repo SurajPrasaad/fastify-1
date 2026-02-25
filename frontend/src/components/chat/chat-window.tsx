@@ -1,6 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import EmojiPicker, { Theme } from "emoji-picker-react"
+import { useTheme } from "next-themes"
+import { useDropzone } from "react-dropzone"
+import { useUpload } from "@/hooks/use-upload"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { useQuery } from "@tanstack/react-query"
 import { ChatService } from "@/services/chat.service"
@@ -8,6 +13,7 @@ import { useChatSocket } from "@/hooks/use-chat-socket"
 import { ChatRoom } from "@/types/chat"
 import { useUser } from "@/hooks/use-auth"
 import { BlockGuard } from "@/features/block/components/BlockGuard"
+import { useQueryClient } from "@tanstack/react-query"
 
 interface ChatWindowProps {
     roomId: string
@@ -17,7 +23,8 @@ interface ChatWindowProps {
 
 export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
     const { data: currentUser } = useUser();
-    const { messages: socketMessages, sendMessage, sendTyping, typingUsers } = useChatSocket(roomId)
+    const { messages: socketMessages, sendMessage, sendTyping, typingUsers, markAsRead } = useChatSocket(roomId)
+    const queryClient = useQueryClient();
 
     const otherUserId = room?.participants.find(p => String(p) !== String(currentUser?.id));
 
@@ -28,7 +35,11 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
     })
 
     const [input, setInput] = useState("")
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const emojiPickerRef = useRef<HTMLDivElement>(null)
+    const { theme } = useTheme()
+    const { upload, isUploading: isFileUploading } = useUpload()
 
     const history = initialMessages ? [...initialMessages].reverse() : [];
     const combined = [...history, ...socketMessages];
@@ -58,10 +69,70 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
     );
 
     useEffect(() => {
+        if (allMessages.length > 0) {
+            const lastMessage = allMessages[allMessages.length - 1];
+            if (lastMessage._id && !lastMessage._id.startsWith('temp-') && lastMessage.senderId !== currentUser?.id) {
+                markAsRead(lastMessage._id);
+                // Also invalidate the sidebar to clear unread counts immediately
+                queryClient.invalidateQueries({ queryKey: ["chat-rooms"] });
+            }
+        }
+    }, [allMessages, roomId, currentUser?.id]);
+
+    useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [allMessages, typingUsers]);
+
+    // Close emoji picker when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        };
+
+        if (showEmojiPicker) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [showEmojiPicker]);
+
+    const handleEmojiClick = (emojiData: any) => {
+        setInput(prev => prev + emojiData.emoji);
+    };
+
+    const onDrop = useCallback(async (acceptedFiles: File[]) => {
+        if (acceptedFiles.length === 0) return;
+
+        const file = acceptedFiles[0];
+        // 50MB limit for chat
+        if (file.size > 50 * 1024 * 1024) {
+            toast.error("File size exceeds 50MB limit");
+            return;
+        }
+
+        let type: 'IMAGE' | 'VIDEO' | 'FILE' = 'FILE';
+        if (file.type.startsWith('image/')) type = 'IMAGE';
+        else if (file.type.startsWith('video/')) type = 'VIDEO';
+
+        const url = await upload(file, "chat_media");
+        if (url) {
+            // Send the URL as a message with correct type
+            sendMessage(url, type, url);
+            toast.success("File uploaded and sent");
+        }
+    }, [upload, sendMessage]);
+
+    const { getRootProps, getInputProps, open } = useDropzone({
+        onDrop,
+        noClick: true,
+        noKeyboard: true,
+        multiple: false
+    });
 
     const handleSend = () => {
         if (!input.trim()) return;
@@ -106,9 +177,6 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <HeaderButton icon="call" />
-                    <HeaderButton icon="videocam" />
-                    <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-800 mx-2 hidden sm:block"></div>
                     <HeaderButton icon="info" />
                 </div>
             </header>
@@ -132,12 +200,37 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
                             )}
                             <div className={cn("flex flex-col gap-1", isSelf ? "items-end" : "items-start")}>
                                 <div className={cn(
-                                    "px-5 py-3 rounded-2xl shadow-sm leading-relaxed text-sm",
+                                    "px-5 py-3 rounded-2xl shadow-sm leading-relaxed text-sm overflow-hidden",
                                     isSelf
                                         ? "bg-primary text-white rounded-br-none shadow-primary/20"
-                                        : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none"
+                                        : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-none",
+                                    (msg.type === 'IMAGE' || msg.type === 'VIDEO') && "p-1"
                                 )}>
-                                    {msg.content}
+                                    {msg.type === 'IMAGE' ? (
+                                        <img
+                                            src={msg.mediaUrl || msg.content}
+                                            alt="Shared image"
+                                            className="max-h-[300px] w-full object-cover rounded-xl"
+                                        />
+                                    ) : msg.type === 'VIDEO' ? (
+                                        <video
+                                            src={msg.mediaUrl || msg.content}
+                                            controls
+                                            className="max-h-[300px] w-full rounded-xl"
+                                        />
+                                    ) : msg.type === 'FILE' ? (
+                                        <a
+                                            href={msg.mediaUrl || msg.content}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 underline underline-offset-4"
+                                        >
+                                            <span className="material-symbols-outlined">attachment</span>
+                                            File Attachment
+                                        </a>
+                                    ) : (
+                                        msg.content
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-1 mx-2">
                                     <span className="text-[10px] text-slate-400 font-medium">
@@ -159,9 +252,29 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
             {/* Bottom Input Tray */}
             <footer className="p-6 bg-white dark:bg-background-dark/95 border-t border-slate-200 dark:border-slate-800 transition-all">
                 <div className="max-w-4xl mx-auto flex items-end gap-3 px-4">
-                    <div className="flex items-center gap-1 mb-1">
-                        <IconButton icon="add_circle" />
-                        <IconButton icon="mood" />
+                    <div className="flex items-center gap-1 mb-1 relative" ref={emojiPickerRef} {...getRootProps()}>
+                        <input {...getInputProps()} />
+                        <IconButton
+                            icon={isFileUploading ? "sync" : "add_circle"}
+                            onClick={open}
+                            disabled={isFileUploading}
+                            className={cn(isFileUploading && "animate-spin")}
+                        />
+                        <IconButton
+                            icon="mood"
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            active={showEmojiPicker}
+                        />
+
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-14 left-0 z-50">
+                                <EmojiPicker
+                                    onEmojiClick={handleEmojiClick}
+                                    theme={theme === "dark" ? Theme.DARK : Theme.LIGHT}
+                                    lazyLoadEmojis={true}
+                                />
+                            </div>
+                        )}
                     </div>
                     <div className="flex-1 relative">
                         <textarea
@@ -198,9 +311,19 @@ function HeaderButton({ icon }: { icon: string }) {
     )
 }
 
-function IconButton({ icon }: { icon: string }) {
+function IconButton({ icon, onClick, active, disabled, className }: { icon: string, onClick?: () => void, active?: boolean, disabled?: boolean, className?: string }) {
     return (
-        <button className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-colors group disabled:opacity-50",
+                active
+                    ? "text-primary bg-primary/10"
+                    : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800",
+                className
+            )}
+        >
             <span className="material-symbols-outlined transition-transform group-active:scale-90">{icon}</span>
         </button>
     )

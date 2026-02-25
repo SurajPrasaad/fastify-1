@@ -10,6 +10,7 @@ import {
     getCommentsHandler,
     getRepliesHandler,
     createRepostHandler,
+    getUserBookmarksHandler,
 } from "./interaction.controller.js";
 import { z } from "zod";
 import {
@@ -94,6 +95,22 @@ export async function interactionRoutes(app: FastifyInstance) {
                 },
             },
             toggleBookmarkHandler
+        );
+
+        // Get user's bookmarks
+        protectedApp.get(
+            "/bookmarks",
+            {
+                schema: {
+                    querystring: z.object({
+                        limit: z.coerce.number().int().min(1).max(100).default(20),
+                        cursor: z.string().optional(),
+                    }),
+                    tags: ["Interactions"],
+                    description: "Get bookmarked posts for the authenticated user",
+                },
+            },
+            getUserBookmarksHandler
         );
 
         // Comments
