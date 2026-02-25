@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { likes, comments, posts, users, bookmarks, reposts } from "../../db/schema.js";
+import { likes, comments, posts, users, bookmarks, reposts, userCounters } from "../../db/schema.js";
 import { and, desc, eq, sql, lt, count, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { ResourceType } from "./interaction.dto.js";
@@ -447,7 +447,13 @@ export class InteractionRepository {
                 })
                 .where(eq(posts.id, originalPostId));
 
-            // 5. Fetch hydrated post to return to frontend
+            // 5. Increment user post count
+            await tx
+                .update(userCounters)
+                .set({ postsCount: sql`${userCounters.postsCount} + 1`, updatedAt: new Date() })
+                .where(eq(userCounters.userId, userId));
+
+            // 6. Fetch hydrated post to return to frontend
             const [hydrated] = await tx
                 .select({
                     id: posts.id,

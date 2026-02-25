@@ -127,11 +127,15 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
                 </div>
 
                 <div className="flex gap-6 mt-4 pb-6">
-                    <Link href={`/${profile.username}/following`} className="hover:underline cursor-pointer group">
+                    <div className="cursor-default group flex items-center">
+                        <span className="font-bold text-slate-900 dark:text-slate-100">{profile.posts.toLocaleString()}</span>
+                        <span className="text-slate-500 ml-1">Posts</span>
+                    </div>
+                    <Link href={`/${profile.username}/following`} className="hover:underline cursor-pointer group flex items-center">
                         <span className="font-bold text-slate-900 dark:text-slate-100">{profile.following.toLocaleString()}</span>
                         <span className="text-slate-500 ml-1">Following</span>
                     </Link>
-                    <Link href={`/${profile.username}/followers`} className="hover:underline cursor-pointer group">
+                    <Link href={`/${profile.username}/followers`} className="hover:underline cursor-pointer group flex items-center">
                         <span className="font-bold text-slate-900 dark:text-slate-100">{profile.followers.toLocaleString()}</span>
                         <span className="text-slate-500 ml-1">Followers</span>
                     </Link>

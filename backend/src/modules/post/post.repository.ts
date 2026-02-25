@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { posts, users, postVersions, hashtags, postHashtags, postMentions, media, polls, pollOptions, pollVotes } from "../../db/schema.js";
+import { posts, users, postVersions, hashtags, postHashtags, postMentions, media, polls, pollOptions, pollVotes, userCounters } from "../../db/schema.js";
 import { and, desc, eq, lt, sql, count } from "drizzle-orm";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 
@@ -51,6 +51,14 @@ export class PostRepository {
 
             if (!post) {
                 throw new Error("Failed to create post");
+            }
+
+            // 3. Update user post count if published
+            if (status === 'PUBLISHED') {
+                await tx
+                    .update(userCounters)
+                    .set({ postsCount: sql`${userCounters.postsCount} + 1`, updatedAt: new Date() })
+                    .where(eq(userCounters.userId, data.userId));
             }
 
             return await this.findByIdHydrated(post.id, undefined, tx);
@@ -320,21 +328,33 @@ export class PostRepository {
     }
 
     async publish(id: string, userId: string) {
-        const [published] = await db
-            .update(posts)
-            .set({
-                status: 'PUBLISHED',
-                publishedAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .where(
-                and(
-                    eq(posts.id, id),
-                    eq(posts.userId, userId),
-                    eq(posts.status, 'DRAFT')
+        const [published] = await db.transaction(async (tx) => {
+            const [p] = await tx
+                .update(posts)
+                .set({
+                    status: 'PUBLISHED',
+                    publishedAt: new Date(),
+                    updatedAt: new Date(),
+                })
+                .where(
+                    and(
+                        eq(posts.id, id),
+                        eq(posts.userId, userId),
+                        eq(posts.status, 'DRAFT')
+                    )
                 )
-            )
-            .returning();
+                .returning();
+
+            if (p) {
+                await tx
+                    .update(userCounters)
+                    .set({ postsCount: sql`${userCounters.postsCount} + 1`, updatedAt: new Date() })
+                    .where(eq(userCounters.userId, userId));
+            }
+
+            return [p];
+        });
+
         if (!published) {
             throw new Error("Failed to publish post");
         }
@@ -342,19 +362,48 @@ export class PostRepository {
     }
 
     async archive(id: string, userId: string) {
-        const [archived] = await db
-            .update(posts)
-            .set({
-                status: 'ARCHIVED',
-                updatedAt: new Date(),
-            })
-            .where(
-                and(
-                    eq(posts.id, id),
-                    eq(posts.userId, userId)
+        const [archived] = await db.transaction(async (tx) => {
+            const [a] = await tx
+                .update(posts)
+                .set({
+                    status: 'ARCHIVED',
+                    updatedAt: new Date(),
+                })
+                .where(
+                    and(
+                        eq(posts.id, id),
+                        eq(posts.userId, userId),
+                        eq(posts.status, 'PUBLISHED') // Only decrement if it was published
+                    )
                 )
-            )
-            .returning();
+                .returning();
+
+            if (a) {
+                await tx
+                    .update(userCounters)
+                    .set({ postsCount: sql`${userCounters.postsCount} - 1`, updatedAt: new Date() })
+                    .where(eq(userCounters.userId, userId));
+            } else {
+                // If it wasn't published (e.g. was a draft), just update status without decrementing count
+                const [a2] = await tx
+                    .update(posts)
+                    .set({
+                        status: 'ARCHIVED',
+                        updatedAt: new Date(),
+                    })
+                    .where(
+                        and(
+                            eq(posts.id, id),
+                            eq(posts.userId, userId)
+                        )
+                    )
+                    .returning();
+                return [a2];
+            }
+
+            return [a];
+        });
+
         if (!archived) {
             throw new Error("Failed to archive post");
         }
@@ -362,19 +411,48 @@ export class PostRepository {
     }
 
     async delete(id: string, userId: string) {
-        const [deleted] = await db
-            .update(posts)
-            .set({
-                status: 'DELETED',
-                updatedAt: new Date(),
-            })
-            .where(
-                and(
-                    eq(posts.id, id),
-                    eq(posts.userId, userId)
+        const [deleted] = await db.transaction(async (tx) => {
+            const [d] = await tx
+                .update(posts)
+                .set({
+                    status: 'DELETED',
+                    updatedAt: new Date(),
+                })
+                .where(
+                    and(
+                        eq(posts.id, id),
+                        eq(posts.userId, userId),
+                        eq(posts.status, 'PUBLISHED') // Only decrement if it was published
+                    )
                 )
-            )
-            .returning();
+                .returning();
+
+            if (d) {
+                await tx
+                    .update(userCounters)
+                    .set({ postsCount: sql`${userCounters.postsCount} - 1`, updatedAt: new Date() })
+                    .where(eq(userCounters.userId, userId));
+            } else {
+                // If it wasn't published, just delete without decrementing
+                const [d2] = await tx
+                    .update(posts)
+                    .set({
+                        status: 'DELETED',
+                        updatedAt: new Date(),
+                    })
+                    .where(
+                        and(
+                            eq(posts.id, id),
+                            eq(posts.userId, userId)
+                        )
+                    )
+                    .returning();
+                return [d2];
+            }
+
+            return [d];
+        });
+
         if (!deleted) {
             throw new Error("Failed to delete post");
         }
