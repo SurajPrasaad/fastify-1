@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { Feed } from '@/features/feed/Feed';
-import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sparkles, Compass } from 'lucide-react';
 

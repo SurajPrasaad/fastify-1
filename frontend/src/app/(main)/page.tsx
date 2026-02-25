@@ -66,7 +66,7 @@ export default function FeedPage() {
     return (
         <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark">
             {/* Sticky Header Tabs */}
-            <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50">
+            <header className="sticky top-0 z-40 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50">
                 <div className="flex w-full">
                     <TabItem
                         label="For You"

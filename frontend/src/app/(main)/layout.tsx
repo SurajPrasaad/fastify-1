@@ -3,6 +3,7 @@
 import { Sidebar } from "@/components/layout/sidebar"
 import { RightSidebar } from "@/components/layout/right-sidebar"
 import { AuthGuard } from "@/features/auth/components/AuthGuard"
+import { useAuth } from "@/features/auth/components/AuthProvider"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -13,6 +14,7 @@ export default function MainLayout({
     children: React.ReactNode
 }) {
     const pathname = usePathname()
+    const { user } = useAuth()
     const isMessages = pathname.startsWith("/messages")
     const isSettings = pathname.startsWith("/settings")
 
@@ -40,10 +42,10 @@ export default function MainLayout({
                 {/* Mobile Navigation Bar */}
                 <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800/50 flex items-center justify-around z-50">
                     <MobileNavLink icon="home" href="/" active={pathname === "/"} />
-                    <MobileNavLink icon="search" href="/search" active={pathname === "/search"} />
-                    <MobileNavLink icon="explore" href="/explore" active={pathname === "/explore"} />
+                    <MobileNavLink icon="search" href="/explore" active={pathname === "/explore"} />
+                    <MobileNavLink icon="notifications" href="/notifications" active={pathname === "/notifications"} />
                     <MobileNavLink icon="mail" href="/messages" badge active={isMessages} />
-                    <MobileNavLink icon="person" href="/profile" active={pathname === "/profile"} />
+                    <MobileNavLink icon="person" href={`/${user?.username || "profile"}`} active={pathname.startsWith(`/${user?.username}`)} />
                 </div>
             </div>
         </AuthGuard>

@@ -167,7 +167,7 @@ export async function userRoutes(fastify: FastifyInstance) {
         );
 
         protectedApp.withTypeProvider<ZodTypeProvider>().get(
-            "/search",
+            "/search/tech",
             {
                 schema: getByTechStackSchema
             },

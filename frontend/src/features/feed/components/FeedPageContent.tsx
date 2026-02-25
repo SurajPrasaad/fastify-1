@@ -34,39 +34,39 @@ export const FeedPageContent = ({ type, tag, title }: FeedPageProps) => {
     const posts = data?.pages.flatMap((page) => page.data) || [];
 
     return (
-        <div className="flex flex-col h-screen border-x border-gray-100 dark:border-gray-800 bg-white dark:bg-black mx-auto">
+        <div className="flex flex-col min-h-screen mx-auto">
             {/* Smooth Sticky Header */}
-            <header className="sticky top-0 z-10 backdrop-blur-md bg-white/70 dark:bg-black/70 border-b border-gray-100 dark:border-gray-800">
+            <header className="sticky top-0 z-20 backdrop-blur-xl bg-background-light/80 dark:bg-background-dark/80 border-b border-slate-200 dark:border-slate-800/50">
                 {type === 'home' ? (
                     <div className="flex w-full">
                         <button
                             onClick={() => setActiveTab('FOR_YOU')}
-                            className="flex-1 py-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors relative"
+                            className="flex-1 py-4 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors relative"
                         >
                             <span className={cn(
-                                "text-sm font-bold",
-                                activeTab === 'FOR_YOU' ? "text-primary" : "text-slate-500"
+                                "text-sm font-bold transition-colors",
+                                activeTab === 'FOR_YOU' ? "text-slate-900 dark:text-slate-100" : "text-slate-500"
                             )}>For You</span>
                             {activeTab === 'FOR_YOU' && (
-                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                <div className="absolute bottom-0 left-0 right-0 mx-auto w-16 h-1 bg-primary rounded-full" />
                             )}
                         </button>
                         <button
                             onClick={() => setActiveTab('FOLLOWING')}
-                            className="flex-1 py-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors relative"
+                            className="flex-1 py-4 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors relative"
                         >
                             <span className={cn(
-                                "text-sm font-bold",
-                                activeTab === 'FOLLOWING' ? "text-primary" : "text-slate-500"
+                                "text-sm font-bold transition-colors",
+                                activeTab === 'FOLLOWING' ? "text-slate-900 dark:text-slate-100" : "text-slate-500"
                             )}>Following</span>
                             {activeTab === 'FOLLOWING' && (
-                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                <div className="absolute bottom-0 left-0 right-0 mx-auto w-16 h-1 bg-primary rounded-full" />
                             )}
                         </button>
                     </div>
                 ) : (
                     <div className="flex items-center justify-between px-4 py-3">
-                        <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+                        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{title}</h1>
                     </div>
                 )}
             </header>
