@@ -2,16 +2,24 @@
 import React from 'react';
 import { MoreVertical, Phone, Video, Search, ChevronLeft } from 'lucide-react';
 import { useChatStore } from '../store/chat.store';
+import { useCall } from '../../call/context/CallContext';
 
 export const ChatHeader: React.FC = () => {
     const activeId = useChatStore(state => state.activeConversationId);
     const conversation = useChatStore(state => activeId ? state.conversations[activeId] : null);
     const onlineUsers = useChatStore(state => state.onlineUsers);
     const setActiveConversation = useChatStore(state => state.setActiveConversation);
+    const { initiateCall } = useCall();
 
     if (!conversation) return null;
 
     const isOnline = conversation.participants.some(p => onlineUsers.has(p.id));
+    const target = conversation.participants[0];
+
+    const handleCall = (type: 'AUDIO' | 'VIDEO') => {
+        if (!target) return;
+        initiateCall(target.id, target.name || 'User', target.avatarUrl || null, type);
+    };
 
     return (
         <div className="h-16 border-b bg-background/80 backdrop-blur-md px-4 flex items-center justify-between sticky top-0 z-20">
@@ -25,11 +33,11 @@ export const ChatHeader: React.FC = () => {
 
                 <div className="relative">
                     <div className="w-10 h-10 rounded-full bg-secondary overflow-hidden">
-                        {conversation.participants[0]?.avatarUrl ? (
-                            <img src={conversation.participants[0].avatarUrl} alt="" className="w-full h-full object-cover" />
+                        {target?.avatarUrl ? (
+                            <img src={target.avatarUrl} alt="" className="w-full h-full object-cover" />
                         ) : (
                             <span className="w-full h-full flex items-center justify-center font-medium capitalize">
-                                {(conversation.name || conversation.participants[0]?.name || '?')[0]}
+                                {(conversation.name || target?.name || '?')[0]}
                             </span>
                         )}
                     </div>
@@ -40,7 +48,7 @@ export const ChatHeader: React.FC = () => {
 
                 <div>
                     <h3 className="font-semibold text-sm md:text-base leading-tight">
-                        {conversation.name || conversation.participants[0]?.name}
+                        {conversation.name || target?.name}
                     </h3>
                     <p className="text-[11px] text-muted-foreground">
                         {isOnline ? 'Active now' : 'Seen recently'}
@@ -49,10 +57,16 @@ export const ChatHeader: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1 md:gap-3">
-                <button className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-full transition-all hidden sm:block">
+                <button
+                    onClick={() => handleCall('AUDIO')}
+                    className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-full transition-all hidden sm:block"
+                >
                     <Phone className="w-5 h-5" />
                 </button>
-                <button className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-full transition-all hidden sm:block">
+                <button
+                    onClick={() => handleCall('VIDEO')}
+                    className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-full transition-all hidden sm:block"
+                >
                     <Video className="w-5 h-5" />
                 </button>
                 <button className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-full transition-all">

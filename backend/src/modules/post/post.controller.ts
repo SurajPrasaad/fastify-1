@@ -43,13 +43,32 @@ export async function getPostsHandler(
     request: FastifyRequest<{ Querystring: z.infer<typeof getPostsQuerySchema> }>,
     reply: FastifyReply
 ) {
-    const { limit, cursor, authorUsername, authorId } = request.query;
+    const { limit, cursor, authorUsername, authorId, tag } = request.query;
     const userId = request.user?.sub;
 
     const posts = await postService.getFeed(limit, cursor, userId, {
         authorUsername,
         authorId,
+        tag,
     });
+
+    return reply.send(posts);
+}
+
+export async function getPostsByTagHandler(
+    request: FastifyRequest<{ Params: { tag: string }, Querystring: { limit?: number; cursor?: string } }>,
+    reply: FastifyReply
+) {
+    const { tag } = request.params;
+    const { limit, cursor } = request.query;
+    const currentUserId = request.user?.sub;
+
+    const posts = await postService.getFeed(
+        limit || 20,
+        cursor,
+        currentUserId,
+        { tag }
+    );
 
     return reply.send(posts);
 }

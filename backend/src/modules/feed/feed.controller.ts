@@ -77,7 +77,7 @@ export async function getHashtagFeedHandler(
     const posts = await feedService.getHashtagFeed(tag, limit, cursor);
 
     const lastPost = posts[posts.length - 1] as any;
-    const nextCursor = lastPost?.publishedAt?.toISOString() ?? null;
+    const nextCursor = lastPost ? (lastPost.publishedAt || lastPost.createdAt)?.toISOString() : null;
 
     return reply.send({
         data: posts,

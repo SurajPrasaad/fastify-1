@@ -74,7 +74,7 @@ export interface IPost {
     location?: string | null;
     likesCount: number;
     commentsCount: number;
-    repostCount?: number;
+    repostsCount: number;
 }
 
 export interface IComment {

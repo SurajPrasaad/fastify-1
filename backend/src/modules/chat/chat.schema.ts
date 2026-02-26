@@ -50,6 +50,7 @@ export const wsPayloadMessageSchema = z.object({
     content: z.string(),
     type: z.nativeEnum(MessageType).default(MessageType.TEXT),
     mediaUrl: z.string().optional(),
+    tempId: z.string().optional(),
 });
 
 export const wsPayloadTypingSchema = z.object({

@@ -77,7 +77,7 @@ export class PostService {
         return post;
     }
 
-    async getFeed(limit: number, cursor?: string, userId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined }) {
+    async getFeed(limit: number, cursor?: string, userId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined, tag?: string | undefined }) {
         return this.postRepository.findMany(limit, cursor, userId, filters);
     }
 

@@ -23,6 +23,7 @@ interface ChatActions {
     // High-level Actions
     sendMessage: (conversationId: string, content: string, replyToId?: string) => Promise<void>;
     markAsRead: (conversationId: string) => void;
+    incrementUnreadCount: (conversationId: string) => void;
 }
 
 export const useChatStore = create<ChatState & ChatActions>()(
@@ -53,7 +54,17 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 const existingMessages = state.messages[conversationId] || [];
                 // Prevent duplicates
                 if (existingMessages.some(m => m.id === message.id || (message.tempId && m.tempId === message.tempId))) {
-                    return state;
+                    // Update the status and real ID if it was optimistic
+                    return {
+                        messages: {
+                            ...state.messages,
+                            [conversationId]: existingMessages.map(m =>
+                                (m.id === message.id || (message.tempId && m.tempId === message.tempId))
+                                    ? { ...m, ...message, status: MessageStatus.SENT }
+                                    : m
+                            )
+                        }
+                    };
                 }
 
                 const newMessages = [...existingMessages, message];
@@ -61,12 +72,20 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 // Update last message in conversation
                 const conversation = state.conversations[conversationId];
                 const updatedConversations = { ...state.conversations };
+                const updatedUnread = { ...state.unreadCounts };
+
                 if (conversation) {
                     updatedConversations[conversationId] = {
                         ...conversation,
                         lastMessage: message,
                         updatedAt: message.createdAt
                     };
+
+                    // Increment unread count if it's not the active conversation
+                    if (state.activeConversationId !== conversationId && message.senderId !== 'me') {
+                        updatedUnread[conversationId] = (updatedUnread[conversationId] || 0) + 1;
+                        updatedConversations[conversationId].unreadCount = (updatedConversations[conversationId].unreadCount || 0) + 1;
+                    }
                 }
 
                 return {
@@ -74,7 +93,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
                         ...state.messages,
                         [conversationId]: newMessages
                     },
-                    conversations: updatedConversations
+                    conversations: updatedConversations,
+                    unreadCounts: updatedUnread
                 };
             });
         },
@@ -174,10 +194,34 @@ export const useChatStore = create<ChatState & ChatActions>()(
         },
 
         markAsRead: (conversationId) => {
-            set(state => ({
-                unreadCounts: { ...state.unreadCounts, [conversationId]: 0 }
-            }));
+            set(state => {
+                const updatedConversations = { ...state.conversations };
+                if (updatedConversations[conversationId]) {
+                    updatedConversations[conversationId] = { ...updatedConversations[conversationId], unreadCount: 0 };
+                }
+                return {
+                    unreadCounts: { ...state.unreadCounts, [conversationId]: 0 },
+                    conversations: updatedConversations
+                };
+            });
             ChatService.markAsRead(conversationId);
+        },
+
+        incrementUnreadCount: (conversationId) => {
+            set(state => {
+                const updatedUnread = { ...state.unreadCounts };
+                updatedUnread[conversationId] = (updatedUnread[conversationId] || 0) + 1;
+
+                const updatedConversations = { ...state.conversations };
+                if (updatedConversations[conversationId]) {
+                    updatedConversations[conversationId] = {
+                        ...updatedConversations[conversationId],
+                        unreadCount: (updatedConversations[conversationId].unreadCount || 0) + 1
+                    };
+                }
+
+                return { unreadCounts: updatedUnread, conversations: updatedConversations };
+            });
         }
     }))
 );

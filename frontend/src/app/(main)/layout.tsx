@@ -7,6 +7,9 @@ import { useAuth } from "@/features/auth/components/AuthProvider"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { CallProvider } from "@/features/call/context/CallContext"
+import { CallModal } from "@/features/call/components/CallModal"
+import { RealtimeChatListener } from "@/features/chat/components/RealtimeChatListener"
 
 export default function MainLayout({
     children,
@@ -20,34 +23,39 @@ export default function MainLayout({
 
     return (
         <AuthGuard>
-            <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen font-display max-w-[100vw] overflow-x-clip">
-                <div className="max-w-[1440px] w-full mx-auto flex justify-center min-h-screen relative">
-                    {/* Left Sidebar */}
-                    <Sidebar className="sticky top-0 h-screen shrink-0 hidden md:flex self-start" />
+            <CallProvider>
+                <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen font-display max-w-[100vw] overflow-x-clip">
+                    <div className="max-w-[1440px] w-full mx-auto flex justify-center min-h-screen relative">
+                        {/* Left Sidebar */}
+                        <Sidebar className="sticky top-0 h-screen shrink-0 hidden md:flex self-start" />
 
-                    {/* Center Feed / Content */}
-                    <main className={cn(
-                        "flex-1 w-full min-w-0 border-x border-slate-200 dark:border-slate-800/50 min-h-screen transition-all",
-                        (isMessages || isSettings) ? "max-w-[1168px]" : "max-w-[800px]"
-                    )}>
-                        {children}
-                    </main>
+                        {/* Center Feed / Content */}
+                        <main className={cn(
+                            "flex-1 w-full min-w-0 border-x border-slate-200 dark:border-slate-800/50 min-h-screen transition-all",
+                            (isMessages || isSettings) ? "max-w-[1168px]" : "max-w-[800px]"
+                        )}>
+                            {children}
+                        </main>
 
-                    {/* Right Sidebar - Hidden on Messages/Settings */}
-                    {!isMessages && !isSettings && (
-                        <RightSidebar className="sticky top-0 h-screen shrink-0 hidden lg:flex self-start" />
-                    )}
+                        {/* Right Sidebar - Hidden on Messages/Settings */}
+                        {!isMessages && !isSettings && (
+                            <RightSidebar className="sticky top-0 h-screen shrink-0 hidden lg:flex self-start" />
+                        )}
+                    </div>
+
+                    {/* Mobile Navigation Bar */}
+                    <div id="mobile-nav" className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800/50 flex items-center justify-around z-50">
+                        <MobileNavLink icon="home" href="/" active={pathname === "/"} />
+                        <MobileNavLink icon="search" href="/explore" active={pathname === "/explore"} />
+                        <MobileNavLink icon="notifications" href="/notifications" active={pathname === "/notifications"} />
+                        <MobileNavLink icon="mail" href="/messages" badge active={isMessages} />
+                        <MobileNavLink icon="person" href={`/${user?.username || "profile"}`} active={pathname.startsWith(`/${user?.username}`)} />
+                    </div>
+
+                    <CallModal />
+                    <RealtimeChatListener />
                 </div>
-
-                {/* Mobile Navigation Bar */}
-                <div id="mobile-nav" className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800/50 flex items-center justify-around z-50">
-                    <MobileNavLink icon="home" href="/" active={pathname === "/"} />
-                    <MobileNavLink icon="search" href="/explore" active={pathname === "/explore"} />
-                    <MobileNavLink icon="notifications" href="/notifications" active={pathname === "/notifications"} />
-                    <MobileNavLink icon="mail" href="/messages" badge active={isMessages} />
-                    <MobileNavLink icon="person" href={`/${user?.username || "profile"}`} active={pathname.startsWith(`/${user?.username}`)} />
-                </div>
-            </div>
+            </CallProvider>
         </AuthGuard>
     )
 }

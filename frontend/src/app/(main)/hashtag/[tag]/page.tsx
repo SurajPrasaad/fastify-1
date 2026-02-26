@@ -2,9 +2,9 @@ import { FeedPageContent } from "@/features/feed/components/FeedPageContent";
 import { Metadata } from "next";
 
 interface HashtagPageProps {
-    params: {
+    params: Promise<{
         tag: string;
-    };
+    }>;
 }
 
 export async function generateMetadata({ params }: HashtagPageProps): Promise<Metadata> {

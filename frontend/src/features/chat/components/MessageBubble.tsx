@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { Check, CheckCheck } from 'lucide-react';
+import { Check, CheckCheck, Phone, Video } from 'lucide-react';
 import { IMessage, MessageStatus, MessageType } from '../types/chat.types';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +35,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 return null;
         }
     }, [message.status]);
+
+    if (message.type === MessageType.SYSTEM) {
+        const isVideo = message.content.toLowerCase().includes('video');
+        const isAudio = message.content.toLowerCase().includes('audio') || message.content.toLowerCase().includes('call');
+
+        return (
+            <div className="flex justify-center w-full my-4">
+                <div className="px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-[12px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2 shadow-sm">
+                    {isVideo && <Video className="w-3.5 h-3.5" />}
+                    {isAudio && !isVideo && <Phone className="w-3.5 h-3.5" />}
+                    {message.content}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <motion.div

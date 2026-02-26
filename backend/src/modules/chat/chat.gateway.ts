@@ -95,16 +95,40 @@ export async function chatGateway(fastify: FastifyInstance) {
             }
         });
 
+        socket.on('LEAVE_ROOM', (payload) => {
+            try {
+                const { roomId } = wsPayloadJoinRoomSchema.parse(payload);
+                socket.leave(`room:${roomId}`);
+            } catch (err) { }
+        });
+
         socket.on('SEND_MESSAGE', async (payload) => {
             try {
-                const { roomId, content, type, mediaUrl } = wsPayloadMessageSchema.parse(payload);
+                const { roomId, content, type, mediaUrl, tempId } = wsPayloadMessageSchema.parse(payload);
                 const message = await chatService.sendMessage(userId, roomId, content, type, mediaUrl);
+                const room = await chatRepository.findRoomById(roomId);
 
-                // Broadcast to all participants in the room
+                if (!room) return;
+
+                const eventPayload = { ...message, tempId };
+
+                // 1. Broadcast to the specific room (for active chat windows)
                 io.to(`room:${roomId}`).emit('event', {
                     type: 'NEW_MESSAGE',
-                    payload: message
+                    payload: eventPayload
                 });
+
+                // 2. Broadcast to all participants individually (for sidebar updates/notifications)
+                // This ensures users who haven't "Joined" the room yet still get the update
+                room.participants.forEach(pId => {
+                    if (pId !== userId) { // Don't send double to the sender unless specifically needed
+                        io.to(`u:${pId}`).emit('event', {
+                            type: 'NEW_MESSAGE',
+                            payload: message // Original message without tempId for others
+                        });
+                    }
+                });
+
             } catch (err: any) {
                 socket.emit('ERROR', { message: err.message });
             }

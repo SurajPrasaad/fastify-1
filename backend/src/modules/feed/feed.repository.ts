@@ -1,6 +1,6 @@
 
 import { db } from "../../config/drizzle.js";
-import { posts, users, follows, celebrityAccounts, rankingFeatures, polls, pollOptions } from "../../db/schema.js";
+import { posts, users, follows, celebrityAccounts, rankingFeatures, polls, pollOptions, hashtags, postHashtags } from "../../db/schema.js";
 import { and, desc, eq, inArray, lt, sql, exists, or } from "drizzle-orm";
 import { blocks } from "../../db/schema.js";
 
@@ -229,6 +229,10 @@ export class FeedRepository {
 
     // 8. Hashtag Feed
     async getHashtagFeed(tag: string, limit: number, cursor?: string) {
+        const tagLower = tag.toLowerCase();
+        const tagWithHash = tagLower.startsWith('#') ? tagLower : `#${tagLower}`;
+        const tagWithoutHash = tagLower.startsWith('#') ? tagLower.slice(1) : tagLower;
+
         const items = await db
             .select({
                 id: posts.id,
@@ -250,14 +254,21 @@ export class FeedRepository {
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
+            .innerJoin(postHashtags, eq(posts.id, postHashtags.postId))
+            .innerJoin(hashtags, eq(postHashtags.hashtagId, hashtags.id))
             .where(
                 and(
                     eq(posts.status, 'PUBLISHED'),
-                    sql`${posts.tags} ? ${tag}`,
-                    cursor ? lt(posts.publishedAt, new Date(cursor)) : undefined
+                    or(
+                        eq(hashtags.name, tagWithoutHash),
+                        eq(hashtags.name, tagWithHash),
+                        sql`${posts.tags} ? ${tagWithoutHash}`,
+                        sql`${posts.tags} ? ${tagWithHash}`
+                    ),
+                    cursor ? lt(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`, new Date(cursor)) : undefined
                 )
             )
-            .orderBy(desc(posts.publishedAt))
+            .orderBy(desc(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`))
             .limit(limit);
 
         const withPolls = await Promise.all(items.map(async (item) => {

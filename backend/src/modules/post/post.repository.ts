@@ -1,7 +1,7 @@
 
 import { db } from "../../config/drizzle.js";
 import { posts, users, postVersions, hashtags, postHashtags, postMentions, media, polls, pollOptions, pollVotes, userCounters } from "../../db/schema.js";
-import { and, desc, eq, lt, sql, count } from "drizzle-orm";
+import { and, desc, eq, lt, sql, count, or } from "drizzle-orm";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 
 export class PostRepository {
@@ -174,7 +174,7 @@ export class PostRepository {
         return post;
     }
 
-    async findMany(limit: number, cursor?: string, currentUserId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined }) {
+    async findMany(limit: number, cursor?: string, currentUserId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined, tag?: string | undefined }) {
         const conditions = [eq(posts.status, 'PUBLISHED')];
 
         if (filters?.authorId) {
@@ -189,7 +189,7 @@ export class PostRepository {
             conditions.push(lt(posts.publishedAt, new Date(cursor)));
         }
 
-        const items = await db
+        let queryBase = db
             .select({
                 id: posts.id,
                 userId: posts.userId,
@@ -223,9 +223,28 @@ export class PostRepository {
                     : sql<boolean>`false`,
             })
             .from(posts)
-            .innerJoin(users, eq(posts.userId, users.id))
+            .innerJoin(users, eq(posts.userId, users.id));
+
+        if (filters?.tag) {
+            const tagLower = filters.tag.toLowerCase();
+            const tagWithHash = tagLower.startsWith('#') ? tagLower : `#${tagLower}`;
+            const tagWithoutHash = tagLower.startsWith('#') ? tagLower.slice(1) : tagLower;
+
+            conditions.push(or(
+                eq(hashtags.name, tagWithoutHash),
+                eq(hashtags.name, tagWithHash),
+                sql`${posts.tags} ? ${tagWithoutHash}`,
+                sql`${posts.tags} ? ${tagWithHash}`
+            ) as any);
+
+            queryBase = queryBase
+                .innerJoin(postHashtags, eq(posts.id, postHashtags.postId))
+                .innerJoin(hashtags, eq(postHashtags.hashtagId, hashtags.id));
+        }
+
+        const items = await queryBase
             .where(and(...conditions))
-            .orderBy(desc(posts.publishedAt))
+            .orderBy(desc(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`))
             .limit(limit + 1);
 
         // Fetch additional data (polls and original posts)
@@ -483,8 +502,8 @@ export class PostRepository {
         if (hashtagNames.length === 0) return;
 
         await db.transaction(async (tx) => {
+            // 1. Update relational tables
             for (const name of hashtagNames) {
-                // Upsert hashtag
                 const [hashtag] = await tx
                     .insert(hashtags)
                     .values({ name, postsCount: 1 })
@@ -497,7 +516,6 @@ export class PostRepository {
                     })
                     .returning();
 
-                // Link to post
                 if (hashtag) {
                     await tx.insert(postHashtags).values({
                         postId,
@@ -505,6 +523,14 @@ export class PostRepository {
                     }).onConflictDoNothing();
                 }
             }
+
+            // 2. Synchronize posts.tags JSONB column for optimized feed fetching
+            await tx
+                .update(posts)
+                .set({
+                    tags: hashtagNames.map(n => n.toLowerCase())
+                })
+                .where(eq(posts.id, postId));
         });
     }
 

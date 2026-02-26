@@ -1,0 +1,208 @@
+# System Design: Globally Scalable Real-Time Audio/Video Calling System
+
+## 1. High-Level Architecture Explanation
+
+The architecture is designed to handle high-concurrency real-time communication by decoupling signaling, presence, and actual media streams.
+
+**Key Components:**
+-   **Client (Web/Mobile):** Uses WebRTC for peer-to-peer (P2P) audio/video transmission. Media streams (audio/video tracks) bypass the backend entirely to save bandwidth and reduce latency.
+-   **Load Balancer (Nginx/HAProxy):** Routes incoming HTTP/WebSocket connections. Configured for sticky sessions (ip_hash) or rely on Redis for stateless WebSocket routing.
+-   **API Gateway / Auth Service:** Handles initial REST API requests, validates JWTs, and handles business logic (checking if A can call B).
+-   **Signaling Service (Node.js + Fastify + Socket.io):** A horizontally scalable cluster of WebSocket servers. Its sole purpose is to route signaling messages (Offer, Answer, ICE candidates) between peers. It does *not* handle media.
+-   **Presence Service (Redis):** Maintains the online/offline status of users and maps `userId` to their active `socketId(s)`.
+-   **Pub/Sub (Redis Adapter for Socket.io):** Allows a Socket.io event emitted on Server A to be delivered to a user connected to Server B.
+-   **Database (PostgreSQL/MongoDB):** Stores persistent data like Call History, user profiles, and blocked relationships.
+-   **STUN/TURN Servers (Coturn):** Essential for NAT traversal. STUN helps clients discover their public IP. TURN acts as a relay for media traffic when direct P2P connection fails (e.g., due to symmetric NAT).
+
+**Call Flow (High Level):**
+1.  User A requests to call User B (via WebSocket `call:initiate`).
+2.  Signaling server checks Auth/Presence/Permissions.
+3.  If B is online and valid, Signaling server routes `call:incoming` to B.
+4.  B accepts. Signaling server routes `call:accepted` to A.
+5.  A creates a WebRTC Offer and sends it to B via Signaling.
+6.  B applies the Offer, creates an Answer, and sends it to A via Signaling.
+7.  A and B exchange ICE candidates via Signaling to find the best network path.
+8.  WebRTC P2P connection is established. Media flows directly (or via TURN fallback).
+
+## 2. Text-Based Deployment Diagram
+
+```mermaid
+graph TD
+    subgraph Clients
+        UserA[User A Device]
+        UserB[User B Device]
+    end
+
+    subgraph Load_Balancer
+        Nginx[Nginx Load Balancer]
+    end
+
+    subgraph Backend_Cluster
+        App1[Signaling Node 1]
+        App2[Signaling Node 2]
+        AppN[Signaling Node N]
+    end
+
+    subgraph Data_Layer
+        Redis[(Redis Cluster\nState & Pub/Sub)]
+        DB[(PostgreSQL\nCall History & Users)]
+    end
+
+    subgraph Edge_Services
+        Coturn[Coturn / TURN / STUN]
+    end
+
+    UserA -- WebSockets --> Nginx
+    UserB -- WebSockets --> Nginx
+    
+    Nginx --> App1
+    Nginx --> App2
+    Nginx --> AppN
+
+    App1 -- TCP --> Redis
+    App2 -- TCP --> Redis
+    AppN -- TCP --> Redis
+
+    App1 -- TCP --> DB
+    App2 -- TCP --> DB
+
+    UserA -. WebRTC P2P Direct .-> UserB
+    UserA -. WebRTC P2P Relay .-> Coturn
+    Coturn -. WebRTC P2P Relay .-> UserB
+```
+
+## 3. WebSocket Event Contract Schema
+
+Using Socket.io, events should be strongly typed and idempotent.
+
+**Client to Server Events:**
+-   `call:initiate`: `{ targetUserId: string, callType: 'AUDIO' | 'VIDEO' }`
+-   `call:accept`: `{ callId: string }`
+-   `call:reject`: `{ callId: string, reason: 'BUSY' | 'DECLINED' }`
+-   `call:end`: `{ callId: string }`
+-   `webrtc:offer`: `{ callId: string, targetUserId: string, sdp: RTCSessionDescriptionInit }`
+-   `webrtc:answer`: `{ callId: string, targetUserId: string, sdp: RTCSessionDescriptionInit }`
+-   `webrtc:ice-candidate`: `{ callId: string, targetUserId: string, candidate: RTCIceCandidateInit }`
+
+**Server to Client Events:**
+-   `call:incoming`: `{ callId: string, callerId: string, callType: 'AUDIO' | 'VIDEO', callerName: string }`
+-   `call:accepted`: `{ callId: string }`
+-   `call:rejected`: `{ callId: string, reason: string }`
+-   `call:ended`: `{ callId: string, reason: string }`
+-   `call:timeout`: `{ callId: string }`
+-   `webrtc:offer`: `{ callId: string, senderId: string, sdp: RTCSessionDescriptionInit }`
+-   `webrtc:answer`: `{ callId: string, senderId: string, sdp: RTCSessionDescriptionInit }`
+-   `webrtc:ice-candidate`: `{ callId: string, senderId: string, candidate: RTCIceCandidateInit }`
+-   [error](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/plugin/rate-limit.ts#13-23): `{ code: string, message: string }`
+
+## 4. Database Schema
+
+Using PostgreSQL + Drizzle ORM (conceptually matching the current stack).
+
+```typescript
+import { pgTable, text, timestamp, uuid, integer, index } from "drizzle-orm/pg-core";
+
+export const callHistory = pgTable("call_history", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    callerId: uuid("caller_id").notNull(), // FK to users
+    receiverId: uuid("receiver_id").notNull(), // FK to users
+    callType: text("call_type").$type<"AUDIO" | "VIDEO">().notNull(),
+    status: text("status").$type<"COMPLETED" | "MISSED" | "REJECTED" | "TIMEOUT" | "FAILED">().notNull(),
+    durationSeconds: integer("duration_seconds").default(0), // 0 if missed/rejected
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    endedAt: timestamp("ended_at"),
+}, (t) => ({
+    callerIdx: index("caller_idx").on(t.callerId),
+    receiverIdx: index("receiver_idx").on(t.receiverId),
+    statusIdx: index("status_idx").on(t.status),
+}));
+```
+
+## 5. WebRTC Configuration Example
+
+The client-side WebRTC `RTCPeerConnection` must be configured with STUN and TURN servers.
+
+```javascript
+const peerConnectionConfig = {
+    iceServers: [
+        // Public STUN server (free)
+        { urls: 'stun:stun.l.google.com:19302' },
+        
+        // Self-hosted TURN Server fallback (requires authentication)
+        {
+            urls: 'turn:turn.yoursocialapp.com:3478',
+            username: 'dynamic_generated_user', // Generate temporally via API
+            credential: 'dynamic_generated_password'
+        }
+    ],
+    iceCandidatePoolSize: 10, // Speeds up connection times
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
+};
+
+const peerConnection = new RTCPeerConnection(peerConnectionConfig);
+```
+
+## 6. Redis Scaling Explanation
+
+Redis is critical for a distributed WebSocket architecture.
+
+-   **Session Mapping (State):** When User A connects, the server writes an expiring key `socket:user:{userId} -> {socketId}, {nodeId}`. This allows any node to know if a user is online and which node they are connected to.
+-   **Redis Adapter (Socket.io):** We use `@socket.io/redis-adapter`. When Node 1 needs to send a `call:incoming` event to User B (who is connected to Node 2), Node 1 publishes the event to Redis Pub/Sub. Node 2 is subscribed, receives the event, and forwards it to User B's exact socket.
+-   **Locking & Race Conditions:** To prevent duplicate calls, use Redis distributed locks (Redlock algorithm). When attempting to initiate a call, set a lock `call:active:{userA}:{userB}` with a 30s TTL. If another request comes in, the lock prevents a duplicate duplicate session.
+-   **Failover:** Use Redis Sentinel or Redis Cluster to ensure high availability. If the primary Redis goes down, Sentinel promotes a replica to master automatically.
+
+## 7. TURN Configuration Overview (Coturn)
+
+WebRTC fails in ~15-20% of cases due to strict symmetric NATs or firewalls if only STUN is used. TURN relays the media traffic.
+
+**Coturn Setup (`turnserver.conf`):**
+```ini
+listening-port=3478
+tls-listening-port=5349
+fingerprint
+use-auth-secret
+static-auth-secret=YOUR_SECURE_SECRET_GENERATED_OFFLINE
+realm=turn.yoursocialapp.com
+total-quota=100
+bps-capacity=0
+stale-nonce
+no-multicast-peers
+```
+**Auth Strategy (REST API):**
+Provide short-lived TURN credentials generated using the `static-auth-secret` and HMAC-SHA1 algorithms. The backend provides these via a REST endpoint right before the call starts.
+
+## 8. Security Checklist
+
+- [x] **JWT Authentication:** Pass JWT in socket handshake (`auth: { token: '...' }`). Disconnect immediately if invalid.
+- [x] **E2E Encryption:** WebRTC mandates DTLS/SRTP encryption out of the box. No media is intercepted.
+- [x] **Rate Limiting:** Track WebRTC SDP and ICE candidate counts per socket. Disconnect abusive sockets emitting >50 ICE candidates/sec.
+- [x] **Permission Validation:** In `call:initiate`, query DB/Cache: Does B allow calls from A? Is A blocked by B? Are they mutual followers?
+- [x] **Spam Protection:** Limit call initiation to X per minute per user.
+- [x] **Socket Validation:** Ensure `targetUserId` manipulations aren't possible (e.g., User A cannot send an offer claiming to be from User C).
+- [x] **TURN Secret Rotation:** Rotate the Coturn `static-auth-secret` periodically.
+
+## 9. Performance Optimization Checklist
+
+- [x] **Idempotency:** Handle out-of-order ICE candidates and redundant SDP offers gracefully on the client.
+- [x] **Heartbeats:** Rely on built-in Socket.io ping/pong. Disconnect "zombie" calls if a user's heartbeat is lost for >10 seconds.
+- [x] **ICE Trickle:** Send ICE candidates individually as soon as they are gathered, rather than waiting for all of them, drastically reducing call setup time.
+- [x] **Stateless Nodes:** Store absolutely NO call state locally in Node.js memory. All state goes to Redis.
+- [x] **Hardware Acceleration:** WebRTC leverages client GPU/hardware encoding for VP8/H264 out of the box. No server CPU is used for transcoding.
+
+## 10. Advanced Design (Future Upgrade Roadmap)
+
+**Group Calls using SFU (Selective Forwarding Unit):**
+-   P2P scales poorly for >4 users (requires N*(N-1) connections).
+-   Upgrade: Introduce an SFU (e.g., mediasoup or Janus). Clients send 1 upstream to the SFU, and receive N-1 downstreams. The SFU acts as an intelligent media router.
+
+**Push Notifications (VoIP):**
+-   If User B is offline or app is killed, use Apple Push Notification service (APNs) with `VoIP Push` (CallKit on iOS) and Firebase Cloud Messaging (FCM) high-priority data messages (Android) to cleanly wake up the device and ring instantly.
+
+**Cross-Device Synchronization:**
+-   If User B is logged into Mobile and Desktop:
+-   Emit `call:incoming` to a Redis Room `user:{userB_ID}` mapping to both sockets.
+-   If Mobile answers (`call:accept`), the backend emits a `call:handled_elsewhere` event to the Desktop socket, which immediately stops ringing.
+
+**Adaptive Bitrate Control (Simulcast):**
+-   If an SFU is implemented, configure the sender to send 3 streams (High, Med, Low). The SFU dynamically forwards the appropriate stream to receivers based on their individual bandwidth estimations (REMB/TWCC).

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { EditProfileDialog } from "./edit-profile-dialog";
 import { FollowButton } from "@/features/follow/components/follow-button";
 import { cn } from "@/lib/utils";
+import { useCall } from "@/features/call/context/CallContext";
+import { Phone, Video, Settings } from "lucide-react";
 
 interface Profile {
     id: string;
@@ -30,22 +32,18 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({ profile }: ProfileHeaderProps) {
+    const { initiateCall } = useCall();
+
+    const handleCall = (type: 'AUDIO' | 'VIDEO') => {
+        initiateCall(profile.id, profile.displayName, profile.avatarUrl, type);
+    };
+
     return (
         <div className="flex flex-col">
-            {/* Cover Photo */}
+            {/* ... cover photo and avatar area ... */}
             <div className="relative w-full">
-                <div className="h-48 w-full bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
-                    {profile.coverUrl ? (
-                        <div
-                            className="w-full h-full bg-cover bg-center transition-opacity duration-500"
-                            style={{ backgroundImage: `url(${profile.coverUrl})` }}
-                        />
-                    ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-primary/20 via-primary/5 to-purple-600/20" />
-                    )}
-                </div>
-
-                {/* Avatar & Action Button Area */}
+                {/* ... h-48 cover area ... */}
+                {/* ... avatar area ... */}
                 <div className="px-6 relative -mt-16 flex justify-between items-end">
                     <div className="size-32 rounded-full border-4 border-background-light dark:border-background-dark bg-slate-200 overflow-hidden relative group">
                         <img
@@ -68,16 +66,30 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
                                     href="/settings/profile"
                                     className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center"
                                 >
-                                    <span className="material-symbols-outlined">settings</span>
+                                    <Settings className="w-5 h-5 text-slate-500" />
                                 </Link>
                             </>
                         ) : (
-                            <FollowButton
-                                userId={profile.id}
-                                username={profile.username}
-                                isFollowing={profile.isFollowing}
-                                isSelf={profile.isSelf}
-                            />
+                            <>
+                                <button
+                                    onClick={() => handleCall('AUDIO')}
+                                    className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center text-slate-500"
+                                >
+                                    <Phone className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => handleCall('VIDEO')}
+                                    className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center text-slate-500"
+                                >
+                                    <Video className="w-5 h-5" />
+                                </button>
+                                <FollowButton
+                                    userId={profile.id}
+                                    username={profile.username}
+                                    isFollowing={profile.isFollowing}
+                                    isSelf={profile.isSelf}
+                                />
+                            </>
                         )}
                     </div>
                 </div>

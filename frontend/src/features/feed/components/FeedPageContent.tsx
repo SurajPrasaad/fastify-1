@@ -4,6 +4,7 @@ import * as React from "react";
 import { useInfiniteFeed } from "../hooks/useInfiniteFeed";
 import { FeedList } from "./FeedList";
 import { useRealtimeFeed } from "../hooks/useRealtimeFeed";
+import { HomePageSkeleton } from "./FeedSkeleton";
 import { cn } from "@/lib/utils";
 
 interface FeedPageProps {
@@ -32,6 +33,11 @@ export const FeedPageContent = ({ type, tag, title }: FeedPageProps) => {
     useRealtimeFeed();
 
     const posts = data?.pages.flatMap((page) => page.data) || [];
+
+    // Show full-page skeleton while the home feed is doing its first load
+    if (type === 'home' && isLoading && posts.length === 0) {
+        return <HomePageSkeleton />;
+    }
 
     return (
         <div className="flex flex-col min-h-screen mx-auto">

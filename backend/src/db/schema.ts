@@ -623,3 +623,28 @@ export const postMentionsRelations = relations(postMentions, ({ one }) => ({
     }),
 }));
 
+export const callHistory = pgTable("call_history", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    callerId: uuid("caller_id").notNull(), // FK to users
+    receiverId: uuid("receiver_id").notNull(), // FK to users
+    callType: text("call_type").$type<"AUDIO" | "VIDEO">().notNull(),
+    status: text("status").$type<"COMPLETED" | "MISSED" | "REJECTED" | "TIMEOUT" | "FAILED">().notNull(),
+    durationSeconds: integer("duration_seconds").default(0), // 0 if missed/rejected
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    endedAt: timestamp("ended_at"),
+}, (t) => ({
+    callerIdx: index("caller_idx").on(t.callerId),
+    receiverIdx: index("receiver_idx").on(t.receiverId),
+    statusIdx: index("status_idx").on(t.status),
+}));
+
+export const callHistoryRelations = relations(callHistory, ({ one }) => ({
+    caller: one(users, {
+        fields: [callHistory.callerId],
+        references: [users.id],
+    }),
+    receiver: one(users, {
+        fields: [callHistory.receiverId],
+        references: [users.id],
+    }),
+}));

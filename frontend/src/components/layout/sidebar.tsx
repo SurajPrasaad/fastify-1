@@ -32,6 +32,7 @@ export function Sidebar({ className }: SidebarProps) {
                         <SidebarLink icon="home" label="Home" href="/" active={pathname === "/"} fillIcon />
                         <SidebarLink icon="explore" label="Explore" href="/explore" active={pathname === "/explore"} />
                         <SidebarLink icon="mail" label="Messages" href="/messages" active={pathname.startsWith("/messages")} badge="4" />
+                        <SidebarLink icon="call" label="Calls" href="/calls" active={pathname === "/calls"} />
                         <SidebarLink icon="notifications" label="Notifications" href="/notifications" active={pathname === "/notifications"} />
                         <SidebarLink icon="person" label="Profile" href={`/${user?.username || "profile"}`} active={user?.username ? pathname.startsWith(`/${user.username}`) : false} />
                         <SidebarLink icon="bookmark" label="Bookmarks" href="/bookmarks" active={pathname === "/bookmarks"} />

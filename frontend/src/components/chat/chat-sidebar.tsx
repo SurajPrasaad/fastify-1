@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useQuery } from "@tanstack/react-query"
 import { formatDistanceToNow } from "date-fns"
@@ -10,6 +10,7 @@ import { CreateChatDialog } from "./create-chat-dialog"
 import { DialogTrigger } from "@/components/ui/dialog"
 import { useChatStore } from "@/features/chat/store/chat.store"
 import { useUser } from "@/hooks/use-auth"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ChatSidebarProps {
     selectedId: string | null
@@ -22,10 +23,38 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
     const onlineUsers = useChatStore(state => state.onlineUsers);
     const { data: currentUser } = useUser();
 
-    const { data: conversations, isLoading } = useQuery({
+    const { data: initialConversations, isLoading } = useQuery({
         queryKey: ["chat-rooms"],
         queryFn: () => ChatService.getConversations(),
     })
+
+    const storeConversations = useChatStore(state => state.conversations);
+    const setConversations = useChatStore(state => state.setConversations);
+
+    // Sync query data to store once
+    useEffect(() => {
+        if (initialConversations) {
+            setConversations(initialConversations as any[]);
+        }
+    }, [initialConversations, setConversations]);
+
+    // Use store data for rendering to get real-time updates, bridging the two type systems
+    const conversations = initialConversations?.map(c => {
+        const storeConv = storeConversations[c._id || (c as any).id];
+        if (!storeConv) return c;
+
+        // Merge store data (unread counts, typing) into the query object
+        return {
+            ...c,
+            unreadCount: storeConv.unreadCount,
+            lastMessage: storeConv.lastMessage ? {
+                senderId: storeConv.lastMessage.senderId,
+                content: storeConv.lastMessage.content,
+                type: storeConv.lastMessage.type as any,
+                createdAt: storeConv.lastMessage.createdAt
+            } : c.lastMessage
+        };
+    }) || [];
 
     const filteredConversations = conversations?.filter(c => {
         const matchesSearch = getRoomName(c)?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -35,12 +64,12 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
         return matchesSearch && matchesFilter;
     })
 
-    function getRoomName(room: ChatRoom) {
+    function getRoomName(room: ChatRoom | any) {
         if (room.name) return room.name;
-        if (room.participants && room.participants.length > 0) {
-            const names = room.participants
-                .filter(p => typeof p !== 'string')
-                .filter(p => String(p.id) !== String(currentUser?.id))
+        const participants = room.participants || [];
+        if (participants.length > 0) {
+            const names = participants
+                .filter((p: any) => p && String(p.id) !== String(currentUser?.id))
                 .map((p: any) => p.name || p.username)
                 .join(', ');
             if (names) return names;
@@ -48,9 +77,10 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
         return "Chat Room";
     }
 
-    function isOnline(room: ChatRoom) {
-        if (room.type === 'GROUP') return false; // Simple for now
-        const otherParticipant = room.participants.find(p => typeof p !== 'string' && String(p.id) !== String(currentUser?.id));
+    function isOnline(room: ChatRoom | any) {
+        if (room.type === 'GROUP' || room.isGroup) return false;
+        const participants = room.participants || [];
+        const otherParticipant = participants.find((p: any) => p && String(p.id) !== String(currentUser?.id));
         return otherParticipant ? onlineUsers.has(String(otherParticipant.id)) : false;
     }
 
@@ -111,19 +141,32 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
             {/* Chats List */}
             <div className="flex-1 overflow-y-auto hidden-scrollbar">
                 {isLoading ? (
-                    <div className="p-6 text-center text-sm text-slate-500 animate-pulse">Loading chats...</div>
+                    <div className="flex flex-col">
+                        {[...Array(6)].map((_, i) => (
+                            <div key={i} className="px-6 py-4 flex gap-4 items-center">
+                                <Skeleton className="w-12 h-12 rounded-full shrink-0" />
+                                <div className="flex-1 space-y-2 py-1">
+                                    <div className="flex justify-between">
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-3 w-10" />
+                                    </div>
+                                    <Skeleton className="h-3 w-full opacity-60" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 ) : filteredConversations?.length === 0 ? (
                     <div className="p-6 text-center text-sm text-slate-500">No conversations found.</div>
                 ) : (
                     <div className="flex flex-col">
-                        {filteredConversations?.map((chat) => (
+                        {filteredConversations?.map((chat: any) => (
                             <ChatListItem
-                                key={chat._id}
+                                key={chat._id || chat.id}
                                 chat={chat}
                                 name={getRoomName(chat)}
-                                active={selectedId === chat._id}
+                                active={selectedId === (chat._id || chat.id)}
                                 isOnline={isOnline(chat)}
-                                onClick={() => onSelect(chat._id, chat)}
+                                onClick={() => onSelect(chat._id || chat.id, chat)}
                                 avatar={getAvatar(chat)}
                             />
                         ))}

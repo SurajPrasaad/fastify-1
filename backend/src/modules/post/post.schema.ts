@@ -90,6 +90,7 @@ export const getPostsQuerySchema = z.object({
     limit: z.coerce.number().min(1).max(50).default(10),
     authorUsername: z.string().optional(),
     authorId: z.string().uuid().optional(),
+    tag: z.string().optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;

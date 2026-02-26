@@ -192,13 +192,17 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate, onPostCreated
             if (!part) return part;
 
             // Handle hashtags
-            if (part.startsWith('#')) {
+            if (part.startsWith('#') && part.length > 1) {
+                const tag = part.slice(1);
                 return (
-                    <span key={i} className="text-primary hover:underline cursor-pointer transition-colors" onClick={(e) => {
-                        e.stopPropagation()
-                    }}>
+                    <Link
+                        key={i}
+                        href={`/hashtag/${tag.toLowerCase()}`}
+                        className="text-primary hover:underline font-medium transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         {part}
-                    </span>
+                    </Link>
                 )
             }
 

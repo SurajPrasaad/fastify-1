@@ -6,6 +6,7 @@ import {
     createPostHandler,
     getPostsHandler,
     getPostHandler,
+    getPostsByTagHandler,
     updatePostHandler,
     archivePostHandler,
     deletePostHandler,
@@ -33,6 +34,21 @@ export async function postRoutes(app: FastifyInstance) {
             }
         },
         getPostsHandler
+    );
+
+    provider.get(
+        "/hashtag/:tag",
+        {
+            schema: {
+                params: z.object({ tag: z.string() }),
+                querystring: z.object({
+                    cursor: z.string().optional(),
+                    limit: z.coerce.number().min(1).max(50).default(10),
+                }),
+                tags: ["Posts"],
+            }
+        },
+        getPostsByTagHandler
     );
 
     provider.get(

@@ -126,7 +126,7 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                                     key={item.id || idx}
                                     onClick={() => {
                                         if (searchType === "users") router.push(`/${item.username}`)
-                                        else if (searchType === "hashtags") router.push(`/explore?tag=${item.name}`)
+                                        else if (searchType === "hashtags") router.push(`/hashtag/${item.name}`)
                                         setIsFocused(false)
                                     }}
                                     className="w-full flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
