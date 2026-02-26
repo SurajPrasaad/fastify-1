@@ -99,9 +99,9 @@ export default function AccountSettingsPage() {
 
             <div className="space-y-8">
                 {/* Account Information Section */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                        <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                        <div className="size-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                             <Info className="size-6" />
                         </div>
                         <div>
@@ -118,7 +118,7 @@ export default function AccountSettingsPage() {
                                     <input
                                         type="email"
                                         className={cn(
-                                            "w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white",
+                                            "w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white",
                                             errors.email && "border-red-500"
                                         )}
                                         {...register("email")}
@@ -138,7 +138,7 @@ export default function AccountSettingsPage() {
                                         type="tel"
                                         placeholder="+1 (555) 000-0000"
                                         className={cn(
-                                            "w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white",
+                                            "w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white",
                                             errors.phoneNumber && "border-red-500"
                                         )}
                                         {...register("phoneNumber")}
@@ -153,7 +153,7 @@ export default function AccountSettingsPage() {
                             <button
                                 type="submit"
                                 disabled={isUpdatingProfile || !isDirty}
-                                className="px-8 py-3 bg-primary text-white text-sm font-bold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                                className="px-8 py-3 bg-primary text-white text-sm font-bold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
                             >
                                 {isUpdatingProfile && <Loader2 className="size-4 animate-spin" />}
                                 Update Profile
@@ -163,9 +163,9 @@ export default function AccountSettingsPage() {
                 </section>
 
                 {/* Security Section */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                        <div className="size-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                        <div className="size-12 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                             <Shield className="size-6" />
                         </div>
                         <div>
@@ -175,17 +175,17 @@ export default function AccountSettingsPage() {
                     </div>
 
                     <div className="p-8 space-y-6">
-                        <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800">
                             <div>
                                 <h3 className="font-bold text-slate-900 dark:text-white">Password</h3>
                                 <p className="text-sm text-slate-500 mt-1">{getPasswordAge()}</p>
                             </div>
-                            <button className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            <button className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                 Change Password
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800">
                             <div className="max-w-[70%]">
                                 <h3 className="font-bold text-slate-900 dark:text-white">Two-factor authentication</h3>
                                 <p className="text-sm text-slate-500 mt-1 leading-relaxed">Add an extra layer of security to your account by requiring more than just a password to log in.</p>
@@ -197,17 +197,17 @@ export default function AccountSettingsPage() {
                                     onChange={() => setIs2FAEnabled(!is2FAEnabled)}
                                     className="sr-only peer"
                                 />
-                                <div className="w-12 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                <div className="w-12 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-lg peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                             </label>
                         </div>
                     </div>
                 </section>
 
                 {/* Account Status */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="size-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                            <div className="size-12 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
                                 <Crown className="size-6" />
                             </div>
                             <div>
@@ -222,16 +222,16 @@ export default function AccountSettingsPage() {
                 </section>
 
                 {/* Danger Zone */}
-                <section className="border border-red-500/20 bg-red-50/30 dark:bg-red-950/10 rounded-3xl overflow-hidden shadow-sm shadow-red-500/5">
+                <section className="border border-red-500/20 bg-red-50/30 dark:bg-red-950/10 rounded-lg overflow-hidden shadow-sm shadow-red-500/5">
                     <div className="p-8 border-b border-red-500/10 flex items-center gap-4">
-                        <div className="size-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
+                        <div className="size-12 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
                             <AlertTriangle className="size-6" />
                         </div>
                         <h2 className="text-xl font-bold text-red-500">Danger Zone</h2>
                     </div>
 
                     <div className="p-8 space-y-6">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900/60 rounded-2xl border border-red-500/10">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900/60 rounded-lg border border-red-500/10">
                             <div>
                                 <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                     Deactivate Account
@@ -240,20 +240,20 @@ export default function AccountSettingsPage() {
                             </div>
                             <button
                                 onClick={handleDeactivate}
-                                className="px-6 py-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors font-bold text-sm text-right"
+                                className="px-6 py-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors font-bold text-sm text-right"
                             >
                                 Deactivate
                             </button>
                         </div>
 
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-red-500/5 rounded-2xl border border-red-500/20">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-red-500/5 rounded-lg border border-red-500/20">
                             <div>
                                 <h3 className="font-bold text-red-600 dark:text-red-400">Delete Account</h3>
                                 <p className="text-sm text-slate-500 mt-1 font-medium">Permanently remove all your data. This cannot be undone.</p>
                             </div>
                             <button
                                 onClick={handleDelete}
-                                className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+                                className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-lg shadow-red-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
                             >
                                 <Trash2 className="size-4" />
                                 Delete Account

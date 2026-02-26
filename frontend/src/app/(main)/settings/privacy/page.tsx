@@ -35,9 +35,9 @@ export default function PrivacySettingsPage() {
 
             <div className="space-y-8">
                 {/* Profile Visibility */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                        <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                        <div className="size-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                             <Eye className="size-6" />
                         </div>
                         <div>
@@ -51,7 +51,7 @@ export default function PrivacySettingsPage() {
                                 key={option.value}
                                 onClick={() => handleUpdate("profileVisibility", option.value)}
                                 className={cn(
-                                    "w-full flex items-center justify-between p-6 rounded-2xl border transition-all text-left group",
+                                    "w-full flex items-center justify-between p-6 rounded-lg border transition-all text-left group",
                                     privacy?.profileVisibility === option.value
                                         ? "bg-primary/5 border-primary shadow-sm"
                                         : "bg-slate-50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
@@ -97,11 +97,11 @@ export default function PrivacySettingsPage() {
                 </div>
 
                 {/* Activity & Search */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 space-y-8">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <div className="size-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+                                <div className="size-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500">
                                     <Activity className="size-5" />
                                 </div>
                                 <div>
@@ -112,7 +112,7 @@ export default function PrivacySettingsPage() {
                             <select
                                 value={privacy?.activityVisibility}
                                 onChange={(e) => handleUpdate("activityVisibility", e.target.value)}
-                                className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-primary outline-none"
+                                className="bg-slate-100 dark:bg-slate-800 border-none rounded-lg px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-primary outline-none"
                             >
                                 <option value="PUBLIC">Everyone</option>
                                 <option value="FOLLOWERS">Followers only</option>
@@ -124,7 +124,7 @@ export default function PrivacySettingsPage() {
 
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <div className="size-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
                                     <Search className="size-5" />
                                 </div>
                                 <div>
@@ -146,12 +146,12 @@ export default function PrivacySettingsPage() {
                 </section>
 
                 {/* Enhanced Protection Promo */}
-                <div className="p-8 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-3xl relative overflow-hidden group">
+                <div className="p-8 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-lg relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
                         <Shield className="size-32" />
                     </div>
                     <div className="relative z-10 flex items-start gap-4">
-                        <div className="size-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <div className="size-10 rounded-lg bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
                             <Shield className="size-5" />
                         </div>
                         <div className="flex-1">
@@ -168,7 +168,7 @@ export default function PrivacySettingsPage() {
             </div>
 
             {isUpdating && (
-                <div className="fixed bottom-8 right-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-6 py-4 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-right-4">
+                <div className="fixed bottom-8 right-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-6 py-4 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-right-4">
                     <Loader2 className="size-5 animate-spin text-primary" />
                     <span className="text-sm font-bold">Saving changes...</span>
                 </div>
@@ -187,9 +187,9 @@ interface VisibilityCardProps {
 
 function VisibilityCard({ title, description, icon, value, onChange }: VisibilityCardProps) {
     return (
-        <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 space-y-6">
+        <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg p-8 space-y-6">
             <div className="flex items-center gap-3">
-                <div className="size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                <div className="size-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
                     {icon}
                 </div>
                 <div>
@@ -204,7 +204,7 @@ function VisibilityCard({ title, description, icon, value, onChange }: Visibilit
                         key={option}
                         onClick={() => onChange(option)}
                         className={cn(
-                            "w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-sm",
+                            "w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-all text-sm",
                             value === option
                                 ? "bg-primary/5 border-primary/30 text-primary font-bold shadow-sm"
                                 : "bg-slate-50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 font-medium"

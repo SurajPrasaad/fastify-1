@@ -52,21 +52,21 @@ export default function NotificationsPage() {
                     <div className="flex items-center gap-4">
                         <h1 className="text-xl font-bold tracking-tight">Notifications</h1>
                         {isConnected && (
-                            <div className="size-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" title="Connected" />
+                            <div className="size-2 rounded-lg bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" title="Connected" />
                         )}
                     </div>
                     <div className="flex items-center gap-3">
                         <button
                             disabled={isRefetching}
                             onClick={() => refetch()}
-                            className="size-9 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            className="size-9 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
                             <RefreshCw className={cn("size-4 text-slate-500", isRefetching && "animate-spin")} />
                         </button>
                         <button
                             onClick={() => markAllRead()}
                             disabled={isMarkingAll || unreadCount === 0}
-                            className="text-primary text-sm font-bold hover:bg-primary/10 px-4 py-2 rounded-xl transition-all disabled:opacity-50"
+                            className="text-primary text-sm font-bold hover:bg-primary/10 px-4 py-2 rounded-lg transition-all disabled:opacity-50"
                         >
                             Mark all as read
                         </button>
@@ -118,7 +118,7 @@ export default function NotificationsPage() {
                                     variant="ghost"
                                     onClick={() => fetchNextPage()}
                                     disabled={isFetchingNextPage}
-                                    className="text-primary font-bold hover:bg-primary/10 rounded-xl px-8"
+                                    className="text-primary font-bold hover:bg-primary/10 rounded-lg px-8"
                                 >
                                     {isFetchingNextPage ? (
                                         <Loader2 className="size-4 animate-spin mr-2" />
@@ -153,7 +153,7 @@ function NotificationSkeleton() {
 function EmptyState({ activeTab }: { activeTab: string }) {
     return (
         <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-            <div className="size-20 rounded-full bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center mb-6">
+            <div className="size-20 rounded-lg bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center mb-6">
                 <BellOff className="size-10 text-slate-400" />
             </div>
             <h3 className="text-xl font-bold mb-2">No notifications yet</h3>

@@ -224,8 +224,7 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate, onPostCreated
 
     return (
         <article
-            className="p-4 border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-all cursor-pointer group/post"
-            onClick={() => router.push(`/post/${post.id}`)}
+            className="p-4 border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-900/40"
         >
             <div className="flex gap-4">
                 {/* Avatar */}

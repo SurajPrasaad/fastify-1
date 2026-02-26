@@ -103,7 +103,7 @@ export default function SettingsHelpPage() {
                     </div>
                     <button
                         onClick={() => setIsTicketModalOpen(true)}
-                        className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-8 py-3.5 rounded-2xl font-black transition-all shadow-xl shadow-primary/20 hover:-translate-y-0.5 active:translate-y-0"
+                        className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-8 py-3.5 rounded-lg font-black transition-all shadow-xl shadow-primary/20 hover:-translate-y-0.5 active:translate-y-0"
                     >
                         <PlusCircle className="size-5" />
                         Create New Ticket
@@ -120,7 +120,7 @@ export default function SettingsHelpPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="block w-full pl-16 pr-8 py-6 bg-white dark:bg-slate-900 border-2 border-transparent focus:border-primary focus:ring-0 rounded-3xl shadow-xl dark:shadow-none placeholder-slate-400 dark:placeholder-slate-600 text-xl font-bold transition-all"
+                            className="block w-full pl-16 pr-8 py-6 bg-white dark:bg-slate-900 border-2 border-transparent focus:border-primary focus:ring-0 rounded-lg shadow-xl dark:shadow-none placeholder-slate-400 dark:placeholder-slate-600 text-xl font-bold transition-all"
                             placeholder="How can we help you today?"
                         />
                     </div>
@@ -142,9 +142,9 @@ export default function SettingsHelpPage() {
                         {POPULAR_TOPICS.map((topic) => (
                             <div
                                 key={topic.title}
-                                className="bg-white dark:bg-slate-900/40 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 hover:border-primary/50 dark:hover:border-primary/30 transition-all cursor-pointer group shadow-sm hover:shadow-xl hover:shadow-primary/5"
+                                className="bg-white dark:bg-slate-900/40 p-10 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-primary/50 dark:hover:border-primary/30 transition-all cursor-pointer group shadow-sm hover:shadow-xl hover:shadow-primary/5"
                             >
-                                <div className={cn("size-14 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300", topic.color)}>
+                                <div className={cn("size-14 rounded-lg flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300", topic.color)}>
                                     <topic.icon className="size-7" />
                                 </div>
                                 <h4 className="text-xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">{topic.title}</h4>
@@ -165,7 +165,7 @@ export default function SettingsHelpPage() {
                         </h3>
                         <button className="text-sm font-black uppercase tracking-widest text-primary hover:underline">View all history</button>
                     </div>
-                    <div className="bg-white dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                    <div className="bg-white dark:bg-slate-900/40 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
                         <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse min-w-[600px]">
                                 <thead>
@@ -216,15 +216,15 @@ export default function SettingsHelpPage() {
                 </section>
 
                 {/* Contact CTA */}
-                <div className="p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 rounded-[3rem] flex flex-col items-center text-center shadow-xl shadow-primary/5">
-                    <div className="size-20 bg-primary/20 rounded-3xl flex items-center justify-center mb-8 animate-pulse shadow-inner shadow-primary/20">
+                <div className="p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 rounded-lg flex flex-col items-center text-center shadow-xl shadow-primary/5">
+                    <div className="size-20 bg-primary/20 rounded-lg flex items-center justify-center mb-8 animate-pulse shadow-inner shadow-primary/20">
                         <Headset className="size-10 text-primary" />
                     </div>
                     <h4 className="text-3xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">Still need help?</h4>
                     <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-10 text-lg font-medium leading-relaxed">
                         If you couldn't find what you're looking for, our expert team is ready to assist you personally.
                     </p>
-                    <button className="bg-primary text-white px-10 py-5 rounded-2xl font-black transition-all shadow-2xl shadow-primary/30 hover:shadow-primary/40 hover:-translate-y-1 active:translate-y-0 text-lg">
+                    <button className="bg-primary text-white px-10 py-5 rounded-lg font-black transition-all shadow-2xl shadow-primary/30 hover:shadow-primary/40 hover:-translate-y-1 active:translate-y-0 text-lg">
                         Chat with Support Now
                     </button>
                 </div>
@@ -239,7 +239,7 @@ export default function SettingsHelpPage() {
             {/* Create New Ticket Modal */}
             {isTicketModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white dark:bg-[#161B22] w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                    <div className="bg-white dark:bg-[#161B22] w-full max-w-2xl rounded-lg shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-10 py-8 border-b border-slate-100 dark:border-slate-800">
                             <div>
@@ -248,7 +248,7 @@ export default function SettingsHelpPage() {
                             </div>
                             <button
                                 onClick={() => setIsTicketModalOpen(false)}
-                                className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white"
                             >
                                 <X className="size-6" />
                             </button>
@@ -261,7 +261,7 @@ export default function SettingsHelpPage() {
                                 <div className="space-y-3">
                                     <label className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">Subject</label>
                                     <input
-                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-slate-900 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 font-bold text-slate-900 dark:text-white"
                                         placeholder="Briefly describe your issue"
                                         type="text"
                                         value={formData.subject}
@@ -277,7 +277,7 @@ export default function SettingsHelpPage() {
                                         <select
                                             value={formData.category}
                                             onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
-                                            className="w-full appearance-none bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
+                                            className="w-full appearance-none bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                                         >
                                             <option value="TECHNICAL">Technical Issue</option>
                                             <option value="ACCOUNT">Account Access</option>
@@ -293,7 +293,7 @@ export default function SettingsHelpPage() {
                                 <div className="space-y-3">
                                     <label className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">Description</label>
                                     <textarea
-                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 resize-none font-medium text-slate-900 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-5 py-4 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 resize-none font-medium text-slate-900 dark:text-white"
                                         placeholder="Provide more details about your request..."
                                         rows={4}
                                         value={formData.description}
@@ -305,7 +305,7 @@ export default function SettingsHelpPage() {
                                 {/* Attachments / Upload (Mock for now) */}
                                 <div className="space-y-3">
                                     <label className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">Attachments</label>
-                                    <div className="border-3 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl p-12 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-800/30 transition-all cursor-pointer group hover:border-primary/50">
+                                    <div className="border-3 border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-12 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/20 hover:bg-slate-100 dark:hover:bg-slate-800/30 transition-all cursor-pointer group hover:border-primary/50">
                                         <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform shadow-inner shadow-primary/10">
                                             <Upload className="size-8" />
                                         </div>
@@ -320,7 +320,7 @@ export default function SettingsHelpPage() {
                         <div className="px-10 py-8 bg-slate-50/50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-5">
                             <button
                                 onClick={() => setIsTicketModalOpen(false)}
-                                className="px-8 py-4 rounded-2xl font-black text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all"
+                                className="px-8 py-4 rounded-lg font-black text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all"
                             >
                                 Cancel
                             </button>
@@ -328,7 +328,7 @@ export default function SettingsHelpPage() {
                                 type="submit"
                                 form="support-ticket-form"
                                 disabled={createTicket.isPending}
-                                className="px-10 py-4 rounded-2xl font-black bg-primary text-white hover:bg-primary/90 shadow-2xl shadow-primary/30 transition-all active:scale-95 flex items-center gap-2 hover:-translate-y-0.5 disabled:opacity-50"
+                                className="px-10 py-4 rounded-lg font-black bg-primary text-white hover:bg-primary/90 shadow-2xl shadow-primary/30 transition-all active:scale-95 flex items-center gap-2 hover:-translate-y-0.5 disabled:opacity-50"
                             >
                                 {createTicket.isPending ? <Loader2 className="size-4 animate-spin" /> : "Submit Ticket"}
                                 <Send className="size-4" />

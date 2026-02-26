@@ -112,7 +112,7 @@ export function ExplorePostCard({ post, index = 0 }: ExplorePostCardProps) {
         <article
             ref={cardRef}
             className={cn(
-                "p-5 border-b border-slate-200/60 dark:border-slate-800/40 transition-all duration-200 cursor-pointer group/post",
+                "p-4 sm:p-5 border-b border-slate-200/60 dark:border-slate-800/40 transition-all duration-200 cursor-pointer group/post w-full overflow-hidden",
                 "hover:bg-slate-50/50 dark:hover:bg-white/[0.02]"
             )}
             style={{ animationDelay: `${index * 50}ms` }}
@@ -142,22 +142,22 @@ export function ExplorePostCard({ post, index = 0 }: ExplorePostCardProps) {
                     />
                 </div>
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 overflow-hidden">
                     {/* Header */}
-                    <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="flex items-center gap-1.5 mb-1 mt-0.5 min-w-0">
                         <span
-                            className="font-bold text-[15px] hover:underline truncate cursor-pointer"
+                            className="font-bold text-[15px] hover:underline truncate cursor-pointer shrink"
                             onClick={(e) => { e.stopPropagation(); router.push(`/${post.author.username}`) }}
                         >
                             {post.author.name}
                         </span>
-                        <span className="text-slate-500 text-sm truncate">@{post.author.username}</span>
-                        <span className="text-slate-400 text-sm shrink-0">· {timeAgo}</span>
+                        <span className="text-slate-500 text-sm truncate shrink">@{post.author.username}</span>
+                        <span className="text-slate-400 text-sm shrink-0 ml-auto sm:ml-0">· {timeAgo}</span>
                     </div>
 
                     {/* Content */}
                     {post.content && (
-                        <div className="text-[15px] leading-relaxed mb-3 whitespace-pre-wrap dark:text-slate-200">
+                        <div className="text-[14px] sm:text-[15px] leading-relaxed mb-3 whitespace-pre-wrap break-words dark:text-slate-200">
                             {renderContent(post.content)}
                         </div>
                     )}
@@ -202,7 +202,7 @@ export function ExplorePostCard({ post, index = 0 }: ExplorePostCardProps) {
                     )}
 
                     {/* Engagement Bar */}
-                    <div className="flex items-center justify-between mt-1 text-slate-500 max-w-md -ml-2">
+                    <div className="flex items-center justify-between mt-2 text-slate-500 w-full max-w-md -ml-1.5 sm:-ml-2">
                         <EngagementBtn
                             icon="chat_bubble"
                             count={post.commentsCount}

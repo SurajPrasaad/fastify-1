@@ -6,6 +6,10 @@ export default fp(async (fastify) => {
     await fastify.register(rateLimit, {
         max: 100,
         timeWindow: '1 minute',
+        global: true,
+        keyGenerator: (request) => {
+            return `${request.ip}-${request.routeOptions.url}`;
+        },
         redis: redis, // Use the shared Redis instance
         errorResponseBuilder: (request, context) => {
             return {

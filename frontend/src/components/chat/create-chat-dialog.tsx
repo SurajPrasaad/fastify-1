@@ -141,9 +141,9 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-none bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xl">
-                <DialogHeader className="p-8 pb-0">
-                    <DialogTitle className="text-2xl font-bold bg-gradient-to-br from-slate-900 to-slate-500 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
+            <DialogContent className="w-[95vw] max-h-[90dvh] overflow-y-auto custom-scrollbar sm:max-w-[480px] p-0 border-none bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl rounded-3xl">
+                <DialogHeader className="p-5 sm:p-8 pb-0 pt-6">
+                    <DialogTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-br from-slate-900 to-slate-500 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
                         New Message
                     </DialogTitle>
                     <DialogDescription className="text-slate-500 dark:text-slate-400">
@@ -151,9 +151,9 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="p-8 pt-6">
+                <div className="p-5 sm:p-8 pt-4 sm:pt-6">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
                             <FormField
                                 control={form.control}
                                 name="type"
@@ -230,7 +230,7 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
                                     />
                                 </div>
 
-                                <ScrollArea className="h-[240px] rounded-2xl bg-slate-100/30 dark:bg-slate-800/10 p-2 overflow-hidden">
+                                <ScrollArea className="h-[200px] sm:h-[240px] rounded-2xl bg-slate-100/30 dark:bg-slate-800/10 p-2 overflow-hidden">
                                     {isSearching && (
                                         <div className="flex flex-col items-center justify-center h-full p-8 space-y-3 opacity-50">
                                             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />

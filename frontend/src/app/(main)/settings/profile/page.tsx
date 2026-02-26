@@ -99,7 +99,7 @@ export default function SettingsProfilePage() {
             {/* Success Toast */}
             {showSuccess && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
-                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-emerald-500/20 shadow-2xl shadow-emerald-500/10 rounded-xl px-6 py-4">
+                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-emerald-500/20 shadow-2xl shadow-emerald-500/10 rounded-lg px-6 py-4">
                         <div className="bg-emerald-500 rounded-full p-1 flex">
                             <span className="material-symbols-outlined text-white text-[16px] font-bold">check</span>
                         </div>
@@ -119,7 +119,7 @@ export default function SettingsProfilePage() {
                 <p className="text-slate-500 dark:text-slate-400 mt-2">Manage how you appear to others on the SocialApp platform.</p>
             </header>
 
-            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="p-8 lg:p-10 space-y-10">
                         {/* Avatar Section */}
@@ -160,7 +160,7 @@ export default function SettingsProfilePage() {
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={isUploading}
-                                        className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
+                                        className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
                                     >
                                         {isUploading && <Loader2 className="size-4 animate-spin" />}
                                         Change avatar
@@ -169,7 +169,7 @@ export default function SettingsProfilePage() {
                                         type="button"
                                         onClick={handleRemoveAvatar}
                                         disabled={isUploading || !user.avatarUrl}
-                                        className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                                        className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
                                     >
                                         Remove
                                     </button>
@@ -199,7 +199,7 @@ export default function SettingsProfilePage() {
                                 <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Bio</label>
                                 <textarea
                                     className={cn(
-                                        "w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-white resize-none text-[15px]",
+                                        "w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-white resize-none text-[15px]",
                                         errors.bio && "border-red-500"
                                     )}
                                     placeholder="Write something about yourself..."
@@ -253,7 +253,7 @@ export default function SettingsProfilePage() {
                         <button
                             type="submit"
                             disabled={isUpdatingProfile || !isDirty}
-                            className="px-10 py-3 bg-primary text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                            className="px-10 py-3 bg-primary text-white text-sm font-bold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
                         >
                             {isUpdatingProfile && <Loader2 className="size-4 animate-spin" />}
                             Save Changes
@@ -264,7 +264,7 @@ export default function SettingsProfilePage() {
 
             {/* Secondary Info Section */}
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-6 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl group hover:border-primary/30 transition-colors">
+                <div className="p-6 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg group hover:border-primary/30 transition-colors">
                     <div className="flex items-center gap-3 mb-4">
                         <span className="material-symbols-outlined text-primary">visibility</span>
                         <h4 className="font-bold">Privacy Control</h4>
@@ -273,7 +273,7 @@ export default function SettingsProfilePage() {
                         Control who can see your bio and location on your public profile. These settings can be adjusted in the Privacy tab.
                     </p>
                 </div>
-                <div className="p-6 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl group hover:border-primary/30 transition-colors">
+                <div className="p-6 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg group hover:border-primary/30 transition-colors">
                     <div className="flex items-center gap-3 mb-4">
                         <span className="material-symbols-outlined text-primary">verified_user</span>
                         <h4 className="font-bold">Verification</h4>
@@ -313,7 +313,7 @@ function TagInput({ value = [], onChange, disabled }: { value: string[], onChang
 
     return (
         <div className={cn(
-            "flex flex-wrap gap-2 p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all min-h-[52px]",
+            "flex flex-wrap gap-2 p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all min-h-[52px]",
             disabled && "opacity-50 cursor-not-allowed"
         )}>
             {value.map((tag, index) => (
@@ -355,7 +355,7 @@ function SettingsInput({ label, icon, register, error, placeholder, disabled, ty
                 <input
                     type={type}
                     className={cn(
-                        "w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white text-[15px]",
+                        "w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none text-slate-900 dark:text-white text-[15px]",
                         error && "border-red-500 focus:ring-red-500/10"
                     )}
                     placeholder={placeholder}

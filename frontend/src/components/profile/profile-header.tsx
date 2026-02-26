@@ -56,13 +56,21 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
                     </div>
                     <div className="pb-2 flex gap-2">
                         {profile.isSelf ? (
-                            <EditProfileDialog
-                                trigger={
-                                    <button className="px-6 py-2 rounded-full border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                                        Edit Profile
-                                    </button>
-                                }
-                            />
+                            <>
+                                <EditProfileDialog
+                                    trigger={
+                                        <button className="px-6 py-2 rounded-full border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                            Edit Profile
+                                        </button>
+                                    }
+                                />
+                                <Link
+                                    href="/settings/profile"
+                                    className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center"
+                                >
+                                    <span className="material-symbols-outlined">settings</span>
+                                </Link>
+                            </>
                         ) : (
                             <FollowButton
                                 userId={profile.id}

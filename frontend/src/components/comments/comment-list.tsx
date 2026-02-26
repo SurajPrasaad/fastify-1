@@ -54,7 +54,7 @@ export function CommentList({ postId }: CommentListProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => fetchMore(true)}
-                    className="gap-2 rounded-full"
+                    className="gap-2 rounded-lg"
                 >
                     <RefreshCcw className="h-4 w-4" />
                     Try again
@@ -74,8 +74,8 @@ export function CommentList({ postId }: CommentListProps) {
 
     if (!isLoading && comments.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-6 bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col items-center justify-center py-12 text-center px-6 bg-slate-50/50 dark:bg-white/[0.02] rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center mb-4 shadow-sm border border-slate-100 dark:border-slate-800">
                     <MessageCircle className="h-8 w-8 text-primary opacity-20" />
                 </div>
                 <h3 className="text-lg font-bold tracking-tight">No responses yet</h3>
@@ -112,7 +112,7 @@ export function CommentList({ postId }: CommentListProps) {
                             size="sm"
                             disabled={isLoading}
                             onClick={() => fetchMore(false)}
-                            className="text-primary font-bold hover:bg-primary/10 rounded-full h-10 px-6"
+                            className="text-primary font-bold hover:bg-primary/10 rounded-lg h-10 px-6"
                         >
                             {isLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

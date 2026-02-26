@@ -112,6 +112,15 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
         };
     }, [showEmojiPicker]);
 
+    // Hide mobile bottom nav when chat window is active
+    useEffect(() => {
+        const nav = document.getElementById("mobile-nav");
+        if (nav) nav.style.display = "none";
+        return () => {
+            if (nav) nav.style.display = "";
+        };
+    }, []);
+
     const handleEmojiClick = (emojiData: any) => {
         setInput(prev => prev + emojiData.emoji);
     };
@@ -318,9 +327,9 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
             </div>
 
             {/* Bottom Input Tray */}
-            <footer className="p-6 bg-white dark:bg-background-dark/95 border-t border-slate-200 dark:border-slate-800 transition-all">
-                <div className="max-w-4xl mx-auto flex items-end gap-3 px-4">
-                    <div className="flex items-center gap-1 mb-1 relative" ref={emojiPickerRef} {...getRootProps()}>
+            <footer className="p-3 pb-4 sm:p-4 md:p-6 bg-white dark:bg-background-dark/95 border-t border-slate-200 dark:border-slate-800 transition-all">
+                <div className="w-full max-w-4xl mx-auto flex items-end gap-2 sm:gap-3 px-1 sm:px-4">
+                    <div className="flex items-center gap-1 mb-1 relative shrink-0" ref={emojiPickerRef} {...getRootProps()}>
                         <input {...getInputProps()} />
                         <IconButton
                             icon={isFileUploading ? "sync" : "add_circle"}
@@ -344,9 +353,9 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
                             </div>
                         )}
                     </div>
-                    <div className="flex-1 relative">
+                    <div className="flex-1 min-w-0 relative">
                         <textarea
-                            className="w-full py-3 px-5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-primary/20 resize-none max-h-32 text-sm leading-relaxed placeholder:text-slate-500 outline-none transition-all"
+                            className="w-full py-3 px-4 sm:px-5 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-primary/20 resize-none max-h-32 text-sm leading-relaxed placeholder:text-slate-500 outline-none transition-all"
                             placeholder="Type a message..."
                             rows={1}
                             value={input}
@@ -361,7 +370,7 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
                     </div>
                     <button
                         onClick={handleSend}
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center bg-primary text-white shadow-lg shadow-primary/30 hover:scale-105 transition-all active:scale-95"
+                        className="w-[42px] h-[42px] sm:w-12 sm:h-12 shrink-0 rounded-2xl flex items-center justify-center bg-primary text-white shadow-lg shadow-primary/30 hover:scale-105 transition-all active:scale-95"
                     >
                         <span className="material-symbols-outlined rotate-[-45deg] mb-0.5 ml-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
                     </button>

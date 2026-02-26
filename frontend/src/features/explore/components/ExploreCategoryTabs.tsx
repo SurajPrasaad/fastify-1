@@ -26,27 +26,30 @@ export function ExploreCategoryTabs({ activeCategory, onCategoryChange }: Explor
     const scrollRef = React.useRef<HTMLDivElement>(null)
 
     return (
-        <div className="relative">
+        <div className="relative w-full">
             {/* Fade edges for scroll indication */}
             <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
             <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
             <div
                 ref={scrollRef}
-                className="flex gap-2 overflow-x-auto px-6 py-4 hidden-scrollbar scroll-smooth"
+                className="flex gap-1.5 md:gap-2 overflow-x-scroll px-4 md:px-6 py-4 md:py-5 hidden-scrollbar scroll-smooth"
             >
                 {CATEGORIES.map((cat) => {
                     const isActive = activeCategory === cat.slug
                     return (
                         <button
                             key={cat.slug}
-                            onClick={() => onCategoryChange(cat.slug)}
+                            onClick={(e) => {
+                                onCategoryChange(cat.slug)
+                                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+                            }}
                             className={cn(
-                                "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap",
+                                "flex items-center gap-1.5 md:gap-2 px-3.5 md:px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-bold whitespace-nowrap",
                                 "transition-all duration-200 ease-out shrink-0",
                                 "active:scale-95",
                                 isActive
-                                    ? "bg-primary text-white shadow-lg shadow-primary/25"
+                                    ? "bg-primary text-white shadow-md shadow-primary/30"
                                     : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-700 dark:hover:text-slate-200"
                             )}
                         >

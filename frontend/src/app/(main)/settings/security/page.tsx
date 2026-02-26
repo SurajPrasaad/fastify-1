@@ -86,10 +86,10 @@ export default function SecuritySettingsPage() {
 
             <div className="space-y-10">
                 {/* Password Section */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 flex items-center justify-between gap-6">
                         <div className="flex items-center gap-4">
-                            <div className="size-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                            <div className="size-12 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
                                 <Key className="size-6" />
                             </div>
                             <div>
@@ -102,7 +102,7 @@ export default function SecuritySettingsPage() {
                             </div>
                         </div>
                         <Button
-                            className="rounded-2xl font-bold px-6 shadow-lg shadow-primary/20"
+                            className="rounded-lg font-bold px-6 shadow-lg shadow-primary/20"
                             onClick={() => setShowPasswordModal(true)}
                         >
                             Change Password
@@ -112,9 +112,9 @@ export default function SecuritySettingsPage() {
 
                 {/* Change Password Modal */}
                 <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
-                    <DialogContent className="sm:max-w-md rounded-3xl overflow-hidden border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-2xl">
+                    <DialogContent className="sm:max-w-md rounded-lg overflow-hidden border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-2xl">
                         <DialogHeader>
-                            <div className="size-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 mb-2">
+                            <div className="size-12 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 mb-2">
                                 <Lock className="size-6" />
                             </div>
                             <DialogTitle className="text-2xl font-black tracking-tight">Change Password</DialogTitle>
@@ -129,7 +129,7 @@ export default function SecuritySettingsPage() {
                                 <Input
                                     type="password"
                                     placeholder="••••••••"
-                                    className="rounded-2xl h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-primary/20"
+                                    className="rounded-lg h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-primary/20"
                                     value={passwords.currentPassword}
                                     onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
                                 />
@@ -139,7 +139,7 @@ export default function SecuritySettingsPage() {
                                 <Input
                                     type="password"
                                     placeholder="••••••••"
-                                    className="rounded-2xl h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-primary/20"
+                                    className="rounded-lg h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-primary/20"
                                     value={passwords.newPassword}
                                     onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
                                 />
@@ -150,7 +150,7 @@ export default function SecuritySettingsPage() {
                                 <Input
                                     type="password"
                                     placeholder="••••••••"
-                                    className="rounded-2xl h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-primary/20"
+                                    className="rounded-lg h-12 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 focus:ring-primary/20"
                                     value={passwords.confirmPassword}
                                     onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
                                 />
@@ -160,13 +160,13 @@ export default function SecuritySettingsPage() {
                         <DialogFooter className="bg-slate-50/50 dark:bg-slate-900/50 -mx-6 -mb-6 p-6 flex flex-row items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
                             <Button
                                 variant="ghost"
-                                className="rounded-2xl font-bold h-12"
+                                className="rounded-lg font-bold h-12"
                                 onClick={() => setShowPasswordModal(false)}
                             >
                                 Cancel
                             </Button>
                             <Button
-                                className="rounded-2xl font-bold h-12 px-8 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
+                                className="rounded-lg font-bold h-12 px-8 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
                                 disabled={!passwords.currentPassword || !passwords.newPassword || passwords.newPassword !== passwords.confirmPassword || isChangingPassword}
                                 onClick={async () => {
                                     try {
@@ -189,10 +189,10 @@ export default function SecuritySettingsPage() {
                 </Dialog>
 
                 {/* 2FA Section */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="p-8 flex items-center justify-between gap-6">
                         <div className="flex items-center gap-4">
-                            <div className="size-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                            <div className="size-12 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
                                 <Shield className="size-6" />
                             </div>
                             <div>
@@ -222,10 +222,10 @@ export default function SecuritySettingsPage() {
 
                 {/* 2FA Setup Modal */}
                 <Dialog open={show2FAModal} onOpenChange={setShow2FAModal}>
-                    <DialogContent className="sm:max-w-xl rounded-[2.5rem] overflow-hidden border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-0 gap-0 shadow-2xl">
+                    <DialogContent className="sm:max-w-xl rounded-lg overflow-hidden border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-0 gap-0 shadow-2xl">
                         <div className="bg-gradient-to-br from-primary/5 via-transparent to-transparent p-8">
                             <DialogHeader>
-                                <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-4">
+                                <div className="size-14 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-4">
                                     <QrCode className="size-8" />
                                 </div>
                                 <DialogTitle className="text-3xl font-black tracking-tight">Two-Factor Auth</DialogTitle>
@@ -239,20 +239,20 @@ export default function SecuritySettingsPage() {
                                 <div className="flex flex-col items-center justify-center space-y-4">
                                     {setupData?.qrCodeUrl ? (
                                         <div className="relative group">
-                                            <div className="absolute -inset-4 bg-primary/20 rounded-[2rem] blur-2xl opacity-50 group-hover:opacity-100 transition duration-500" />
-                                            <div className="relative p-3 bg-white rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl">
+                                            <div className="absolute -inset-4 bg-primary/20 rounded-lg blur-2xl opacity-50 group-hover:opacity-100 transition duration-500" />
+                                            <div className="relative p-3 bg-white rounded-lg border border-slate-100 dark:border-slate-800 shadow-xl">
                                                 <Image
                                                     src={setupData.qrCodeUrl}
                                                     alt="2FA QR Code"
                                                     width={180}
                                                     height={180}
-                                                    className="rounded-xl"
+                                                    className="rounded-lg"
                                                     unoptimized
                                                 />
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="size-[200px] bg-slate-100 dark:bg-slate-800/50 animate-pulse rounded-3xl flex items-center justify-center">
+                                        <div className="size-[200px] bg-slate-100 dark:bg-slate-800/50 animate-pulse rounded-lg flex items-center justify-center">
                                             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
                                         </div>
                                     )}
@@ -277,14 +277,14 @@ export default function SecuritySettingsPage() {
                                             Enter key manually
                                         </h3>
                                         <div className="space-y-2">
-                                            <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-3 group">
+                                            <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between gap-3 group">
                                                 <code className="text-[11px] font-mono font-bold text-primary truncate max-w-[140px] block uppercase tracking-wider">
                                                     {setupData?.secret}
                                                 </code>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="size-8 rounded-xl hover:bg-primary/10 hover:text-primary shrink-0"
+                                                    className="size-8 rounded-lg hover:bg-primary/10 hover:text-primary shrink-0"
                                                     onClick={() => {
                                                         navigator.clipboard.writeText(setupData?.secret || "");
                                                         toast.success("Secret key copied!");
@@ -311,7 +311,7 @@ export default function SecuritySettingsPage() {
                                         value={verificationCode}
                                         onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                                         className={cn(
-                                            "rounded-2xl h-16 text-center text-3xl font-black border-2 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all",
+                                            "rounded-lg h-16 text-center text-3xl font-black border-2 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all",
                                             verificationCode.length > 0 && "tracking-[0.5em] pl-[0.5em]"
                                         )}
                                     />
@@ -322,7 +322,7 @@ export default function SecuritySettingsPage() {
                         <div className="bg-slate-50 dark:bg-slate-900/50 p-6 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
                             <Button
                                 variant="ghost"
-                                className="rounded-2xl font-bold h-12 px-6"
+                                className="rounded-lg font-bold h-12 px-6"
                                 onClick={() => {
                                     setShow2FAModal(false);
                                     setVerificationCode("");
@@ -331,7 +331,7 @@ export default function SecuritySettingsPage() {
                                 Not now
                             </Button>
                             <Button
-                                className="rounded-2xl font-bold h-12 px-10 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                                className="rounded-lg font-bold h-12 px-10 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-transform"
                                 disabled={verificationCode.length !== 6 || isVerifying2FA}
                                 onClick={async () => {
                                     try {
@@ -361,11 +361,11 @@ export default function SecuritySettingsPage() {
                         <Monitor className="size-5 text-primary" />
                         <h2 className="text-xl font-bold">Login Activity</h2>
                     </div>
-                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
                         {sessions?.map((session: any) => (
                             <div key={session.id} className="p-6 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="size-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors">
+                                    <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors">
                                         {getDeviceIcon(session.userAgent || '')}
                                     </div>
                                     <div>
@@ -388,7 +388,7 @@ export default function SecuritySettingsPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl font-bold"
+                                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg font-bold"
                                         onClick={() => revokeSession(session.id)}
                                     >
                                         Log out
@@ -405,12 +405,12 @@ export default function SecuritySettingsPage() {
                         <Globe className="size-5 text-primary" />
                         <h2 className="text-xl font-bold">Connected Apps</h2>
                     </div>
-                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
                         {connectedApps && connectedApps.length > 0 ? (
                             connectedApps.map((app: any) => (
                                 <div key={app.id} className="p-6 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                                     <div className="flex items-center gap-4">
-                                        <div className="size-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors uppercase font-black text-xs">
+                                        <div className="size-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors uppercase font-black text-xs">
                                             {app.provider.slice(0, 2)}
                                         </div>
                                         <div>
@@ -425,7 +425,7 @@ export default function SecuritySettingsPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl font-bold"
+                                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg font-bold"
                                         onClick={() => revokeApp(app.id)}
                                     >
                                         Revoke Access

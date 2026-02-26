@@ -26,20 +26,20 @@ export function CreatorRecommendations() {
     }
 
     return (
-        <div className="bg-slate-50 dark:bg-white/[0.03] rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5">
-            <div className="flex items-center gap-2 p-4 pb-2">
+        <div className="bg-slate-50 dark:bg-white/[0.03] rounded-xl md:rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5">
+            <div className="flex items-center gap-2 p-3 md:p-4 md:pb-2">
                 <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                     person_add
                 </span>
-                <h3 className="text-lg font-bold tracking-tight">Suggested Creators</h3>
+                <h3 className="text-base md:text-lg font-bold tracking-tight">Suggested Creators</h3>
             </div>
 
             <div className="flex flex-col">
                 {isLoading ? (
-                    <div className="p-4 space-y-4">
+                    <div className="p-3 md:p-4 space-y-3 md:space-y-4">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="flex items-center gap-3 animate-pulse">
-                                <div className="size-11 rounded-full bg-slate-200 dark:bg-slate-800" />
+                            <div key={i} className="flex items-center gap-2 md:gap-3 animate-pulse">
+                                <div className="size-10 md:size-11 rounded-full bg-slate-200 dark:bg-slate-800" />
                                 <div className="flex-1 space-y-2">
                                     <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
                                     <div className="h-2 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
@@ -54,11 +54,11 @@ export function CreatorRecommendations() {
                         return (
                             <div
                                 key={creator.id}
-                                className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/[0.04] transition-all cursor-pointer group"
+                                className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 hover:bg-slate-100 dark:hover:bg-white/[0.04] transition-all cursor-pointer group"
                                 onClick={() => router.push(`/${creator.username}`)}
                             >
                                 {/* Avatar */}
-                                <div className="size-11 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
+                                <div className="size-10 md:size-11 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                                     <img
                                         src={creator.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${creator.username}`}
                                         alt={creator.name}

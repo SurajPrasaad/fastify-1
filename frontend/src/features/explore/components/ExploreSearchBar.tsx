@@ -51,7 +51,7 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                 isFocused && "scale-[1.01]"
             )}>
                 <span className={cn(
-                    "material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200",
+                    "material-symbols-outlined absolute left-3 md:left-4 top-1/2 -translate-y-1/2 transition-colors duration-200",
                     isFocused ? "text-primary" : "text-slate-500"
                 )}>
                     search
@@ -63,7 +63,7 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                     className={cn(
-                        "w-full bg-slate-100 dark:bg-slate-900/80 rounded-2xl pl-12 pr-12 py-3.5",
+                        "w-full bg-slate-100 dark:bg-slate-900/80 rounded-xl md:rounded-2xl pl-10 md:pl-12 pr-10 md:pr-12 py-2.5 md:py-3.5",
                         "text-sm font-medium outline-none border border-transparent",
                         "transition-all duration-300",
                         "placeholder:text-slate-400 dark:placeholder:text-slate-600",
@@ -77,7 +77,7 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                 {query && (
                     <button
                         onClick={() => { setQuery(""); inputRef.current?.focus() }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                        className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                     >
                         <span className="material-symbols-outlined text-[18px]">close</span>
                     </button>
@@ -86,7 +86,7 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
 
             {/* Search Dropdown */}
             {isFocused && query.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl shadow-black/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl md:rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                     {/* Type Filter Chips */}
                     <div className="flex gap-2 p-3 border-b border-slate-100 dark:border-slate-800">
                         {searchTypes.map(st => (
@@ -109,10 +109,10 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                     {/* Results */}
                     <div className="max-h-80 overflow-y-auto custom-scrollbar">
                         {isLoading ? (
-                            <div className="p-4 space-y-3">
+                            <div className="p-3 md:p-4 space-y-3">
                                 {[1, 2, 3].map(i => (
-                                    <div key={i} className="flex items-center gap-3 animate-pulse">
-                                        <div className="size-9 rounded-full bg-slate-200 dark:bg-slate-800" />
+                                    <div key={i} className="flex items-center gap-2 md:gap-3 animate-pulse">
+                                        <div className="size-8 md:size-9 rounded-full bg-slate-200 dark:bg-slate-800" />
                                         <div className="flex-1 space-y-1.5">
                                             <div className="h-3 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
                                             <div className="h-2 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
@@ -129,11 +129,11 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                                         else if (searchType === "hashtags") router.push(`/explore?tag=${item.name}`)
                                         setIsFocused(false)
                                     }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                                    className="w-full flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                                 >
                                     {searchType === "users" ? (
                                         <>
-                                            <div className="size-9 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden shrink-0">
+                                            <div className="size-8 md:size-9 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden shrink-0">
                                                 <img
                                                     src={item.avatarUrl || `https://api.dicebear.com/7.x/beta/svg?seed=${item.username}`}
                                                     alt={item.username}
@@ -147,7 +147,7 @@ export function ExploreSearchBar({ onSearchStateChange, onSearchResults }: Explo
                                         </>
                                     ) : searchType === "hashtags" ? (
                                         <>
-                                            <div className="size-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                            <div className="size-8 md:size-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                                                 <span className="material-symbols-outlined text-primary text-[18px]">tag</span>
                                             </div>
                                             <div className="flex-1 min-w-0">

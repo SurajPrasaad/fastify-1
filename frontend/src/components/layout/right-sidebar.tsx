@@ -47,7 +47,7 @@ export function RightSidebar({ className }: { className?: string }) {
             </div>
 
             {/* Trending Section */}
-            <div className="bg-slate-100 dark:bg-surface-dark rounded-2xl overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
+            <div className="bg-slate-100 dark:bg-surface-dark rounded-lg overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
                 <h3 className="text-lg font-bold p-4 pb-2">Trending</h3>
                 <div className="flex flex-col max-h-[400px] overflow-y-auto custom-scrollbar">
                     {isLoadingTrends ? (
@@ -85,7 +85,7 @@ export function RightSidebar({ className }: { className?: string }) {
             </div>
 
             {/* Who to Follow */}
-            <div className="bg-slate-100 dark:bg-surface-dark rounded-2xl overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
+            <div className="bg-slate-100 dark:bg-surface-dark rounded-lg overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
                 <h3 className="text-lg font-bold p-4 pb-2">Who to follow</h3>
                 <div className="flex flex-col max-h-[300px] overflow-y-auto custom-scrollbar">
                     {isLoadingSuggestions ? (
@@ -128,7 +128,7 @@ export function RightSidebar({ className }: { className?: string }) {
             </div>
 
             {/* Active Friends */}
-            <div className="bg-slate-100 dark:bg-surface-dark rounded-2xl overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
+            <div className="bg-slate-100 dark:bg-surface-dark rounded-lg overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
                 <h3 className="text-sm font-bold p-4 pb-2 text-slate-500 uppercase tracking-widest">Active Friends</h3>
                 <div className="flex flex-col px-2 py-2 gap-1 max-h-[250px] overflow-y-auto custom-scrollbar">
                     {isLoadingFriends ? (

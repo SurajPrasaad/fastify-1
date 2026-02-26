@@ -44,7 +44,7 @@ export default function SettingsBlockingPage() {
                     </p>
                 </header>
 
-                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden shadow-2xl flex flex-col min-h-[500px]">
+                <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-2xl flex flex-col min-h-[500px]">
                     {/* Search Header */}
                     <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/10">
                         <div className="relative group">
@@ -54,7 +54,7 @@ export default function SettingsBlockingPage() {
                                 placeholder="Search blocked accounts..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-[15px] transition-all"
+                                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-3.5 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-[15px] transition-all"
                             />
                         </div>
                     </div>
@@ -65,7 +65,7 @@ export default function SettingsBlockingPage() {
                             filteredUsers.map((item) => (
                                 <div
                                     key={item.userId}
-                                    className="group flex items-center justify-between p-4 rounded-2xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300"
+                                    className="group flex items-center justify-between p-4 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all duration-300"
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className="relative h-14 w-14 group-hover:scale-105 transition-transform duration-300">
@@ -88,7 +88,7 @@ export default function SettingsBlockingPage() {
                                     </div>
                                     <button
                                         onClick={() => setSelectedUser(item)}
-                                        className="px-6 py-2.5 text-xs font-black uppercase tracking-widest border-2 border-slate-200 dark:border-slate-700 rounded-xl hover:bg-primary hover:border-primary hover:text-white transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-sm"
+                                        className="px-6 py-2.5 text-xs font-black uppercase tracking-widest border-2 border-slate-200 dark:border-slate-700 rounded-lg hover:bg-primary hover:border-primary hover:text-white transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-sm"
                                     >
                                         Unblock
                                     </button>
@@ -96,7 +96,7 @@ export default function SettingsBlockingPage() {
                             ))
                         ) : (
                             <div className="flex flex-col items-center justify-center p-20 text-center animate-in fade-in duration-500">
-                                <div className="size-16 bg-slate-100 dark:bg-slate-800/40 rounded-3xl flex items-center justify-center mb-4">
+                                <div className="size-16 bg-slate-100 dark:bg-slate-800/40 rounded-lg flex items-center justify-center mb-4">
                                     <Search className="size-8 text-slate-400" />
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">No users found</h3>
@@ -119,9 +119,9 @@ export default function SettingsBlockingPage() {
             {/* Unblock Confirmation Modal */}
             {selectedUser && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
                         <div className="p-10 text-center">
-                            <div className="size-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                            <div className="size-20 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-8">
                                 <UserPlus className="h-10 w-10 text-primary" />
                             </div>
                             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">

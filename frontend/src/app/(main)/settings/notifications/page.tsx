@@ -66,7 +66,7 @@ export default function SettingsNotificationsPage() {
 
             <div className="space-y-8">
                 {/* Push Notifications Card */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                             <span className="material-symbols-outlined text-primary fill-icon">send_to_mobile</span>
@@ -114,7 +114,7 @@ export default function SettingsNotificationsPage() {
                 </section>
 
                 {/* Email Notifications Card */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
                         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                             <span className="material-symbols-outlined text-primary fill-icon">mail</span>
@@ -155,7 +155,7 @@ export default function SettingsNotificationsPage() {
                     <button
                         onClick={handleSave}
                         disabled={isUpdating}
-                        className="px-10 py-3 bg-primary text-white text-sm font-black rounded-xl shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:pointer-events-none flex items-center gap-2"
+                        className="px-10 py-3 bg-primary text-white text-sm font-black rounded-lg shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:pointer-events-none flex items-center gap-2"
                     >
                         {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
                         Save Changes

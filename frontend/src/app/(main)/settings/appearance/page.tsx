@@ -141,7 +141,7 @@ export default function SettingsAppearancePage() {
                         <span className="material-symbols-outlined text-[18px] fill-icon text-primary">format_size</span>
                         Font Size
                     </h3>
-                    <div className="bg-slate-50 dark:bg-slate-900/40 rounded-2xl p-8 border border-slate-200 dark:border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-900/40 rounded-lg p-8 border border-slate-200 dark:border-slate-800">
                         <div className="flex flex-col gap-6">
                             <div className="flex justify-between items-end px-1">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Extra Small</span>
@@ -171,7 +171,7 @@ export default function SettingsAppearancePage() {
                                 </div>
                             </div>
 
-                            <div className="p-5 bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 mt-2 shadow-sm">
+                            <div className="p-5 bg-white dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 mt-2 shadow-sm">
                                 <p className={cn(
                                     "transition-all duration-300 leading-relaxed text-slate-600 dark:text-slate-300",
                                     fontSize === 0 && "text-xs",
@@ -189,9 +189,9 @@ export default function SettingsAppearancePage() {
 
                 {/* Interface Density Section */}
                 <section>
-                    <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:border-primary/20 transition-all">
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-900/40 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm group hover:border-primary/20 transition-all">
                         <div className="flex items-center gap-4">
-                            <div className="size-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <div className="size-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                                 <span className="material-symbols-outlined text-primary fill-icon">view_comfy</span>
                             </div>
                             <div>
@@ -214,10 +214,10 @@ export default function SettingsAppearancePage() {
                             resetAppearance();
                             setTheme('system');
                         }}
-                        className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all font-display">
+                        className="px-6 py-2.5 rounded-lg font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all font-display">
                         Reset Defaults
                     </button>
-                    <button className="px-10 py-3 bg-primary text-white rounded-xl font-black text-sm hover:brightness-110 shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 active:translate-y-0 font-display">
+                    <button className="px-10 py-3 bg-primary text-white rounded-lg font-black text-sm hover:brightness-110 shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 active:translate-y-0 font-display">
                         Save Changes
                     </button>
                 </footer>
@@ -230,7 +230,7 @@ function ThemeCard({ label, active, onClick, previewClass, children }: any) {
     return (
         <button className="group flex flex-col text-left outline-none" onClick={onClick}>
             <div className={cn(
-                "w-full aspect-[4/3] rounded-2xl border-2 p-3 mb-3 relative overflow-hidden transition-all duration-300",
+                "w-full aspect-[4/3] rounded-lg border-2 p-3 mb-3 relative overflow-hidden transition-all duration-300",
                 previewClass,
                 active ? "border-primary shadow-xl shadow-primary/10 scale-[1.02]" : "hover:border-primary/30"
             )}>

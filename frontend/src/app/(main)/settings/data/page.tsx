@@ -85,7 +85,7 @@ export default function SettingsDataPage() {
 
             <div className="space-y-10">
                 {/* Download Data Section */}
-                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm">
+                <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg p-8 shadow-sm">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                         <div className="flex-1 space-y-2">
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Download Your Data</h3>
@@ -96,7 +96,7 @@ export default function SettingsDataPage() {
                         <button
                             onClick={handleDownloadRequest}
                             disabled={requestDataArchive.isPending}
-                            className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-primary px-8 text-sm font-black text-white transition-all hover:bg-blue-700 active:scale-95 shadow-xl shadow-primary/20 disabled:opacity-70"
+                            className="flex h-14 items-center justify-center gap-3 rounded-lg bg-primary px-8 text-sm font-black text-white transition-all hover:bg-blue-700 active:scale-95 shadow-xl shadow-primary/20 disabled:opacity-70"
                         >
                             {requestDataArchive.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
                             Request Download
@@ -110,13 +110,13 @@ export default function SettingsDataPage() {
                         <h3 className="text-xl font-bold text-slate-900 dark:text-white">Account Activity</h3>
                         <button className="text-[13px] font-black uppercase tracking-widest text-primary hover:underline transition-all">View all history</button>
                     </div>
-                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {(auditLogs.data || []).length > 0 ? (auditLogs.data || []).map((item) => {
                                 const info = auditLogIcons[item.action] || auditLogIcons.DEFAULT;
                                 return (
                                     <div key={item.id} className="flex items-start gap-5 p-6 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
-                                        <div className={cn("size-10 shrink-0 items-center justify-center rounded-2xl flex", info.color)}>
+                                        <div className={cn("size-10 shrink-0 items-center justify-center rounded-lg flex", info.color)}>
                                             <info.icon className="size-5" />
                                         </div>
                                         <div className="flex flex-1 flex-col gap-1.5">
@@ -150,7 +150,7 @@ export default function SettingsDataPage() {
                         <button
                             onClick={() => revokeAllSessions.mutate(undefined, { onSuccess: () => logout() })}
                             disabled={revokeAllSessions.isPending}
-                            className="rounded-xl border-2 border-rose-500/20 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-500 transition-all hover:bg-rose-500 hover:text-white shadow-sm disabled:opacity-50"
+                            className="rounded-lg border-2 border-rose-500/20 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-rose-500 transition-all hover:bg-rose-500 hover:text-white shadow-sm disabled:opacity-50"
                         >
                             Log out from all devices
                         </button>
@@ -159,8 +159,8 @@ export default function SettingsDataPage() {
                         {(sessions.data || []).map((session) => {
                             const { name, Icon } = parseUserAgent(session.userAgent);
                             return (
-                                <div key={session.id} className="group relative flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 p-6 shadow-sm transition-all hover:border-primary/20">
-                                    <div className="size-14 shrink-0 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                                <div key={session.id} className="group relative flex items-center gap-5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 p-6 shadow-sm transition-all hover:border-primary/20">
+                                    <div className="size-14 shrink-0 bg-slate-100 dark:bg-slate-900 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                                         <Icon className={cn("size-6", session.isValid ? "text-primary" : "text-slate-400")} />
                                     </div>
                                     <div className="flex-1 overflow-hidden">
@@ -195,13 +195,13 @@ export default function SettingsDataPage() {
                 {/* Third-party Apps Section */}
                 <section className="space-y-5">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white px-2">Third-party Apps</h3>
-                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {(security?.connectedApps || []).length > 0 ? (
                                 (security?.connectedApps || []).map((app: any) => (
                                     <div key={app.id} className="flex items-center justify-between p-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
                                         <div className="flex items-center gap-5">
-                                            <div className={cn("size-12 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-black/10 bg-primary")}>
+                                            <div className={cn("size-12 rounded-lg flex items-center justify-center text-white font-black text-xl shadow-lg shadow-black/10 bg-primary")}>
                                                 {app.provider?.slice(0, 2).toUpperCase()}
                                             </div>
                                             <div>
@@ -211,7 +211,7 @@ export default function SettingsDataPage() {
                                         </div>
                                         <button
                                             onClick={() => revokeApp(app.id)}
-                                            className="rounded-xl bg-slate-100 dark:bg-slate-800 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-500 hover:dark:bg-rose-500/10 hover:dark:text-rose-400">
+                                            className="rounded-lg bg-slate-100 dark:bg-slate-800 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-500 hover:dark:bg-rose-500/10 hover:dark:text-rose-400">
                                             Revoke Access
                                         </button>
                                     </div>
@@ -232,9 +232,9 @@ export default function SettingsDataPage() {
                 </section>
 
                 {/* Danger Zone Section */}
-                <section className="rounded-2xl border-2 border-rose-500/10 bg-rose-500/5 p-8 dark:bg-rose-500/10">
+                <section className="rounded-lg border-2 border-rose-500/10 bg-rose-500/5 p-8 dark:bg-rose-500/10">
                     <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                        <div className="size-14 shrink-0 items-center justify-center rounded-2xl bg-rose-500/20 flex text-rose-500">
+                        <div className="size-14 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 flex text-rose-500">
                             <ShieldAlert className="size-8" />
                         </div>
                         <div className="flex-1 space-y-1">
@@ -250,7 +250,7 @@ export default function SettingsDataPage() {
                                 }
                             }}
                             disabled={isDeleting}
-                            className="flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-8 py-4 text-sm font-black text-white transition-all hover:bg-rose-600 active:scale-95 shadow-xl shadow-rose-500/20 disabled:opacity-70 disabled:pointer-events-none"
+                            className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-8 py-4 text-sm font-black text-white transition-all hover:bg-rose-600 active:scale-95 shadow-xl shadow-rose-500/20 disabled:opacity-70 disabled:pointer-events-none"
                         >
                             {isDeleting && <Loader2 className="size-4 animate-spin" />}
                             Delete Account

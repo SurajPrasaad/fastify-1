@@ -82,29 +82,18 @@ export default function ExplorePage() {
     }, [])
 
     return (
-        <div className="flex flex-col min-h-screen" ref={feedRef}>
+        <div className="flex flex-col min-h-screen w-full min-w-0" ref={feedRef}>
             {/* ─── Sticky Header ───────────────────────────────────────────── */}
             <header className="sticky top-0 z-40 bg-white/80 dark:bg-background/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/30">
                 {/* Page Title */}
-                <div className="flex items-center justify-between px-6 pt-4 pb-2">
+                <div className="flex items-center justify-between px-4 md:px-6 pt-3 md:pt-4 pb-2">
                     <div className="flex items-center gap-2.5">
-                        <h1 className="text-xl font-bold tracking-tight">Explore</h1>
-                        <span className="relative flex items-center gap-1 px-2 py-0.5 bg-primary/10 rounded-full">
-                            <span className="material-symbols-outlined text-primary text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                auto_awesome
-                            </span>
-                            <span className="text-[11px] font-bold text-primary">AI</span>
-                        </span>
+                        <h1 className="text-lg md:text-xl font-bold tracking-tight">Explore</h1>
                     </div>
-                    <button className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all">
-                        <span className="material-symbols-outlined text-[22px] text-slate-600 dark:text-slate-400">
-                            tune
-                        </span>
-                    </button>
                 </div>
 
                 {/* Search Bar */}
-                <div className="px-6 pb-3">
+                <div className="px-4 md:px-6 pb-2 md:pb-3">
                     <ExploreSearchBar onSearchStateChange={setIsSearching} />
                 </div>
 
@@ -124,7 +113,7 @@ export default function ExplorePage() {
             )}>
                 {/* Inline trending + creators for "For You" tab */}
                 {activeCategory === "for-you" && !activeQuery.isLoading && posts.length > 0 && (
-                    <div className="lg:hidden px-4 py-4 space-y-4 border-b border-slate-200/60 dark:border-slate-800/40">
+                    <div className="lg:hidden px-3 md:px-4 py-3 md:py-4 space-y-3 md:space-y-4 border-b border-slate-200/60 dark:border-slate-800/40">
                         <TrendingPanel />
                         <CreatorRecommendations />
                     </div>

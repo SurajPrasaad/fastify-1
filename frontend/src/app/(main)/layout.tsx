@@ -20,14 +20,14 @@ export default function MainLayout({
 
     return (
         <AuthGuard>
-            <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen font-display">
-                <div className="max-w-[1440px] mx-auto flex justify-center min-h-screen relative">
+            <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased min-h-screen font-display max-w-[100vw] overflow-x-clip">
+                <div className="max-w-[1440px] w-full mx-auto flex justify-center min-h-screen relative">
                     {/* Left Sidebar */}
-                    <Sidebar className="sticky top-0 h-screen shrink-0 hidden md:flex" />
+                    <Sidebar className="sticky top-0 h-screen shrink-0 hidden md:flex self-start" />
 
                     {/* Center Feed / Content */}
                     <main className={cn(
-                        "flex-1 border-x border-slate-200 dark:border-slate-800/50 min-h-screen transition-all",
+                        "flex-1 w-full min-w-0 border-x border-slate-200 dark:border-slate-800/50 min-h-screen transition-all",
                         (isMessages || isSettings) ? "max-w-[1168px]" : "max-w-[800px]"
                     )}>
                         {children}
@@ -35,12 +35,12 @@ export default function MainLayout({
 
                     {/* Right Sidebar - Hidden on Messages/Settings */}
                     {!isMessages && !isSettings && (
-                        <RightSidebar className="sticky top-0 h-screen shrink-0 hidden lg:flex" />
+                        <RightSidebar className="sticky top-0 h-screen shrink-0 hidden lg:flex self-start" />
                     )}
                 </div>
 
                 {/* Mobile Navigation Bar */}
-                <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800/50 flex items-center justify-around z-50">
+                <div id="mobile-nav" className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800/50 flex items-center justify-around z-50">
                     <MobileNavLink icon="home" href="/" active={pathname === "/"} />
                     <MobileNavLink icon="search" href="/explore" active={pathname === "/explore"} />
                     <MobileNavLink icon="notifications" href="/notifications" active={pathname === "/notifications"} />
@@ -60,7 +60,7 @@ function MobileNavLink({ icon, href, active, badge }: { icon: string, href: stri
                 style={{ fontVariationSettings: `'FILL' ${active ? 1 : 0}` }}
             >
                 {icon}
-                {badge && <div className="absolute top-0 right-0 size-2 bg-primary rounded-full border border-background"></div>}
+                {badge && <div className="absolute top-0 right-0 size-2 bg-primary rounded-lg border border-background"></div>}
             </span>
         </Link>
     )

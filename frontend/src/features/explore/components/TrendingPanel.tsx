@@ -23,15 +23,15 @@ export function TrendingPanel() {
     }
 
     return (
-        <div className="bg-slate-50 dark:bg-white/[0.03] rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5">
-            <div className="flex items-center justify-between p-4 pb-2">
-                <h3 className="text-lg font-bold tracking-tight">Trending Now</h3>
+        <div className="bg-slate-50 dark:bg-white/[0.03] rounded-xl md:rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5">
+            <div className="flex items-center justify-between p-3 md:p-4 md:pb-2">
+                <h3 className="text-base md:text-lg font-bold tracking-tight">Trending Now</h3>
                 <div className="size-2 bg-primary rounded-full animate-pulse" />
             </div>
 
             <div className="flex flex-col">
                 {isLoading ? (
-                    <div className="p-4 space-y-4">
+                    <div className="p-3 md:p-4 space-y-3 md:space-y-4">
                         {[1, 2, 3, 4, 5].map(i => (
                             <div key={i} className="animate-pulse space-y-1.5">
                                 <div className="h-2 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
@@ -47,7 +47,7 @@ export function TrendingPanel() {
                             <button
                                 key={hashtag.id}
                                 onClick={() => router.push(`/hashtag/${hashtag.name}`)}
-                                className="w-full text-left px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/[0.04] transition-all group"
+                                className="w-full text-left px-3 md:px-4 py-2 md:py-3 hover:bg-slate-100 dark:hover:bg-white/[0.04] transition-all group"
                             >
                                 <div className="flex items-center justify-between mb-0.5">
                                     <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">
@@ -62,7 +62,7 @@ export function TrendingPanel() {
                                         </span>
                                     </div>
                                 </div>
-                                <p className="font-bold text-[15px] group-hover:text-primary transition-colors">
+                                <p className="font-bold text-sm md:text-[15px] group-hover:text-primary transition-colors">
                                     #{hashtag.name}
                                 </p>
                                 <p className="text-xs text-slate-500 mt-0.5">
@@ -81,7 +81,7 @@ export function TrendingPanel() {
                 {hashtags.length > 5 && (
                     <button
                         onClick={() => setShowAll(!showAll)}
-                        className="w-full px-4 py-3 text-primary text-sm font-bold hover:bg-slate-100 dark:hover:bg-white/[0.04] transition-all border-t border-slate-100 dark:border-white/5"
+                        className="w-full px-3 md:px-4 py-2 md:py-3 text-primary text-xs md:text-sm font-bold hover:bg-slate-100 dark:hover:bg-white/[0.04] transition-all border-t border-slate-100 dark:border-white/5"
                     >
                         {showAll ? "Show less" : "Show more"}
                     </button>

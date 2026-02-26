@@ -61,7 +61,7 @@ export default function SettingsChatPage() {
 
                 <div className="space-y-8">
                     {/* Messaging Section */}
-                    <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
                             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                                 <span className="material-symbols-outlined text-primary fill-icon">chat</span>
@@ -91,7 +91,7 @@ export default function SettingsChatPage() {
                     </section>
 
                     {/* Media & Storage Section */}
-                    <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
                             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                                 <span className="material-symbols-outlined text-primary fill-icon">perm_media</span>
@@ -115,7 +115,7 @@ export default function SettingsChatPage() {
                     </section>
 
                     {/* Privacy & History Section */}
-                    <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <section className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm">
                         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
                             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                                 <span className="material-symbols-outlined text-primary fill-icon">history</span>
@@ -126,13 +126,13 @@ export default function SettingsChatPage() {
                             <button
                                 onClick={() => clearChatHistory.mutate()}
                                 disabled={clearChatHistory.isPending}
-                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                 {clearChatHistory.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                                 Clear all chat history
                             </button>
                             <button
                                 onClick={() => setIsDeleteDialogOpen(true)}
-                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-black text-rose-500 border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 rounded-xl transition-all"
+                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-black text-rose-500 border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 rounded-lg transition-all"
                             >
                                 Delete all conversations
                             </button>
@@ -149,7 +149,7 @@ export default function SettingsChatPage() {
                         <button
                             onClick={handleSave}
                             disabled={updateChatSettings.isPending}
-                            className="px-10 py-3 bg-primary text-white text-sm font-black rounded-xl shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:pointer-events-none flex items-center gap-2"
+                            className="px-10 py-3 bg-primary text-white text-sm font-black rounded-lg shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70 disabled:pointer-events-none flex items-center gap-2"
                         >
                             {updateChatSettings.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                             Save Changes
@@ -161,9 +161,9 @@ export default function SettingsChatPage() {
             {/* Delete Confirmation Modal */}
             {isDeleteDialogOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
                         <div className="p-10 text-center">
-                            <div className="size-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto mb-8 animate-bounce-[0.5s]">
+                            <div className="size-20 bg-rose-500/10 rounded-lg flex items-center justify-center mx-auto mb-8 animate-bounce-[0.5s]">
                                 <span className="material-symbols-outlined text-rose-500 text-4xl fill-icon">delete_forever</span>
                             </div>
                             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">
@@ -181,14 +181,14 @@ export default function SettingsChatPage() {
                                         onSuccess: () => setIsDeleteDialogOpen(false)
                                     });
                                 }}
-                                className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-2xl transition-all shadow-xl shadow-rose-500/25 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none"
+                                className="w-full flex items-center justify-center gap-2 py-4 px-6 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-lg transition-all shadow-xl shadow-rose-500/25 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none"
                             >
                                 {deleteAllChats.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                                 Delete All
                             </button>
                             <button
                                 onClick={() => setIsDeleteDialogOpen(false)}
-                                className="w-full py-4 px-6 bg-transparent text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded-2xl"
+                                className="w-full py-4 px-6 bg-transparent text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all rounded-lg"
                             >
                                 Cancel
                             </button>

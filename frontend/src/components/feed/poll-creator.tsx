@@ -52,7 +52,7 @@ export function PollCreator({ onUpdate }: PollCreatorProps) {
                             placeholder={`Choice ${index + 1}`}
                             value={option}
                             onChange={(e) => handleOptionChange(index, e.target.value)}
-                            className="bg-transparent border-slate-700 focus:border-primary transition-all"
+                            className="bg-transparent border-slate-700 focus:border-primary transition-all flex-1 min-w-0"
                         />
                         {options.length > 2 && (
                             <button
@@ -77,7 +77,7 @@ export function PollCreator({ onUpdate }: PollCreatorProps) {
             <div className="border-t border-slate-800 pt-3 mt-1">
                 <label className="text-xs text-slate-500 uppercase font-bold tracking-wider">Poll length</label>
                 <div className="flex gap-4 mt-2">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         <select
                             value={duration}
                             onChange={(e) => setDuration(e.target.value)}
