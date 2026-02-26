@@ -165,10 +165,10 @@ export function MainPost({ post, isPreview = false }: MainPostProps) {
                     onClick={handleLike}
                     className={cn(
                         "flex items-center gap-2 transition-all group p-2",
-                        isLiked ? "text-pink-500" : "text-muted-foreground hover:text-pink-500"
+                        isLiked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
                     )}
                 >
-                    <div className="p-2 rounded-full group-hover:bg-pink-500/10 transition-colors">
+                    <div className="p-2 rounded-full group-hover:bg-red-500/10 transition-colors">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={isLiked ? "liked" : "unliked"}

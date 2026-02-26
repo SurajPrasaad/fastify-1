@@ -3,6 +3,7 @@ export type ResourceType = "POST" | "COMMENT";
 export interface ToggleLikePayload {
     resourceId: string;
     resourceType: ResourceType;
+    action?: "LIKE" | "UNLIKE";
 }
 
 export interface Comment {

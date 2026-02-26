@@ -53,9 +53,9 @@ export const PostActions = memo(({ post, onCommentClick }: PostActionsProps) => 
             icon: Heart,
             count: likesCount,
             active: isLiked,
-            color: "hover:text-pink-500",
-            bg: "hover:bg-pink-500/10",
-            activeColor: "text-pink-500",
+            color: "hover:text-red-500",
+            bg: "hover:bg-red-500/10",
+            activeColor: "text-red-500",
             onClick: handleLikeClick
         },
         {

@@ -9,7 +9,7 @@ export class InteractionRepository {
     /**
      * Toggles a like on a Post or Comment within a transaction.
      */
-    async toggleLike(userId: string, resourceId: string, resourceType: ResourceType) {
+    async toggleLike(userId: string, resourceId: string, resourceType: ResourceType, action?: "LIKE" | "UNLIKE") {
         return await db.transaction(async (tx) => {
             // Check if like exists
             const existingLike = await tx
@@ -25,6 +25,10 @@ export class InteractionRepository {
                 .limit(1);
 
             if (existingLike.length > 0) {
+                if (action === "LIKE") {
+                    return { liked: true, count: await this.getLikesCount(tx, resourceId, resourceType) };
+                }
+
                 // Unlike: Delete row and decrement counter
                 await tx
                     .delete(likes)
@@ -36,20 +40,29 @@ export class InteractionRepository {
                         )
                     );
 
+                let count = 0;
                 if (resourceType === "POST") {
-                    await tx
+                    const [updated] = await tx
                         .update(posts)
                         .set({ likesCount: sql`${posts.likesCount} - 1` })
-                        .where(eq(posts.id, resourceId));
+                        .where(eq(posts.id, resourceId))
+                        .returning({ count: posts.likesCount });
+                    count = updated?.count || 0;
                 } else {
-                    await tx
+                    const [updated] = await tx
                         .update(comments)
                         .set({ likesCount: sql`${comments.likesCount} - 1` })
-                        .where(eq(comments.id, resourceId));
+                        .where(eq(comments.id, resourceId))
+                        .returning({ count: comments.likesCount });
+                    count = updated?.count || 0;
                 }
 
-                return { liked: false, count: await this.getLikesCount(resourceId, resourceType) };
+                return { liked: false, count };
             } else {
+                if (action === "UNLIKE") {
+                    return { liked: false, count: await this.getLikesCount(tx, resourceId, resourceType) };
+                }
+
                 // Like: Insert row and increment counter
                 await tx.insert(likes).values({
                     userId,
@@ -57,19 +70,24 @@ export class InteractionRepository {
                     targetType: resourceType,
                 });
 
+                let count = 0;
                 if (resourceType === "POST") {
-                    await tx
+                    const [updated] = await tx
                         .update(posts)
                         .set({ likesCount: sql`${posts.likesCount} + 1` })
-                        .where(eq(posts.id, resourceId));
+                        .where(eq(posts.id, resourceId))
+                        .returning({ count: posts.likesCount });
+                    count = updated?.count || 0;
                 } else {
-                    await tx
+                    const [updated] = await tx
                         .update(comments)
                         .set({ likesCount: sql`${comments.likesCount} + 1` })
-                        .where(eq(comments.id, resourceId));
+                        .where(eq(comments.id, resourceId))
+                        .returning({ count: comments.likesCount });
+                    count = updated?.count || 0;
                 }
 
-                return { liked: true, count: await this.getLikesCount(resourceId, resourceType) };
+                return { liked: true, count };
             }
         });
     }
@@ -77,12 +95,12 @@ export class InteractionRepository {
     /**
      * Helper to get the current likes count for a resource.
      */
-    private async getLikesCount(resourceId: string, resourceType: ResourceType): Promise<number> {
+    private async getLikesCount(tx: any, resourceId: string, resourceType: ResourceType): Promise<number> {
         if (resourceType === "POST") {
-            const result = await db.select({ count: posts.likesCount }).from(posts).where(eq(posts.id, resourceId)).limit(1);
+            const result = await tx.select({ count: posts.likesCount }).from(posts).where(eq(posts.id, resourceId)).limit(1);
             return result[0]?.count || 0;
         } else {
-            const result = await db.select({ count: comments.likesCount }).from(comments).where(eq(comments.id, resourceId)).limit(1);
+            const result = await tx.select({ count: comments.likesCount }).from(comments).where(eq(comments.id, resourceId)).limit(1);
             return result[0]?.count || 0;
         }
     }

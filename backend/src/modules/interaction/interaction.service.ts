@@ -19,8 +19,8 @@ export class InteractionService {
     /**
      * Toggles a like and updates Redis cache for fast "Is Liked" checks.
      */
-    async toggleLike(userId: string, resourceId: string, resourceType: ResourceType) {
-        const result = await this.repo.toggleLike(userId, resourceId, resourceType);
+    async toggleLike(userId: string, resourceId: string, resourceType: ResourceType, action?: "LIKE" | "UNLIKE") {
+        const result = await this.repo.toggleLike(userId, resourceId, resourceType, action);
 
         // Write-Through Cache Strategy
         const cacheKey = `user:likes:${userId}`;

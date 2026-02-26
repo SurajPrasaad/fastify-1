@@ -98,9 +98,9 @@ export const ReplyCard = React.memo(({ reply, isLast }: ReplyCardProps) => {
                         </button>
                         <button className={cn(
                             "flex items-center gap-1.5 transition-colors group/btn",
-                            reply.isLiked ? "text-pink-500" : "text-muted-foreground hover:text-pink-500"
+                            reply.isLiked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
                         )}>
-                            <div className="p-2 rounded-full group-hover/btn:bg-pink-500/10">
+                            <div className="p-2 rounded-full group-hover/btn:bg-red-500/10">
                                 <Heart className={cn("w-4 h-4", reply.isLiked && "fill-current")} />
                             </div>
                             <span className="text-xs">{reply.stats.likes}</span>

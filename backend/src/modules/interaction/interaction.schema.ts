@@ -6,6 +6,7 @@ export const resourceTypeSchema = z.enum(["POST", "COMMENT"]);
 export const toggleLikeSchema = z.object({
     resourceId: z.string().uuid(),
     resourceType: resourceTypeSchema,
+    action: z.enum(["LIKE", "UNLIKE"]).optional(),
 });
 
 export const toggleBookmarkSchema = z.object({

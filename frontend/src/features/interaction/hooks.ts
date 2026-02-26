@@ -25,7 +25,8 @@ export function useToggleLike(initialLiked: boolean = false, initialCount: numbe
         onToggle?.(newLiked);
 
         try {
-            const result = await interactionApi.toggleLike({ resourceId, resourceType });
+            const action = newLiked ? "LIKE" : "UNLIKE";
+            const result = await interactionApi.toggleLike({ resourceId, resourceType, action });
             // Sync with server response just in case
             setIsLiked(result.liked);
             setCount(result.count);

@@ -25,7 +25,8 @@ export async function toggleLikeHandler(
     const result = await service.toggleLike(
         userId,
         request.body.resourceId,
-        request.body.resourceType
+        request.body.resourceType,
+        request.body.action
     );
     return reply.send(result);
 }
