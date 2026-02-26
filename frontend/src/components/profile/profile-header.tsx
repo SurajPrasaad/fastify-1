@@ -40,10 +40,19 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
 
     return (
         <div className="flex flex-col">
-            {/* ... cover photo and avatar area ... */}
+            {/* Cover photo area */}
             <div className="relative w-full">
-                {/* ... h-48 cover area ... */}
-                {/* ... avatar area ... */}
+                <div className="h-48 w-full bg-slate-200 dark:bg-slate-800 relative group overflow-hidden">
+                    {profile.coverUrl ? (
+                        <img
+                            src={profile.coverUrl}
+                            alt={`${profile.displayName}'s banner`}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 dark:from-blue-500/10 dark:to-purple-500/10" />
+                    )}
+                </div>
                 <div className="px-6 relative -mt-16 flex justify-between items-end">
                     <div className="size-32 rounded-full border-4 border-background-light dark:border-background-dark bg-slate-200 overflow-hidden relative group">
                         <img
