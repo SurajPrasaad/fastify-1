@@ -29,7 +29,8 @@ export const useAuthActions = () => {
             if (!data.mfaRequired) {
                 queryClient.setQueryData(["auth", "me"], data.user);
                 toast.success("Welcome back!");
-                router.replace("/");
+                const redirectPath = data.user.auth.role === 'ADMIN' ? '/admin' : '/';
+                router.replace(redirectPath);
             }
         },
     });
@@ -41,7 +42,8 @@ export const useAuthActions = () => {
             if (!data.mfaRequired) {
                 queryClient.setQueryData(["auth", "me"], data.user);
                 toast.success("Signed in with Google!");
-                router.replace("/");
+                const redirectPath = data.user.auth.role === 'ADMIN' ? '/admin' : '/';
+                router.replace(redirectPath);
             }
         },
     });
@@ -69,7 +71,8 @@ export const useAuthActions = () => {
         onSuccess: (data) => {
             queryClient.setQueryData(["auth", "me"], data.user);
             toast.success("Security verification successful!");
-            router.replace("/");
+            const redirectPath = data.user.auth.role === 'ADMIN' ? '/admin' : '/';
+            router.replace(redirectPath);
         },
     });
 

@@ -13,6 +13,7 @@ export const users = pgTable("users", {
     isEmailVerified: boolean("is_email_verified").default(false).notNull(),
     tokenVersion: integer("token_version").default(1).notNull(),
     status: text("status").$type<"ACTIVE" | "DEACTIVATED" | "SUSPENDED" | "DELETED">().default("ACTIVE").notNull(),
+    role: text("role").$type<"USER" | "ADMIN">().default("USER").notNull(),
     regionAffinity: varchar("region_affinity", { length: 20 }), // For multi-region routing
     techStack: jsonb("tech_stack").$type<string[]>().default([]),
     website: text("website"),

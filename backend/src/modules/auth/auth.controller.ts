@@ -22,22 +22,7 @@ export class AuthController {
     return reply.status(201).send({
       message: "User registered successfully. check your email for verification.",
       accessToken: tokens.accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        coverUrl: user.coverUrl,
-        bio: user.bio,
-        website: user.website,
-        location: user.location,
-        profile: {
-          techStack: user.techStack || [],
-          followersCount: user.followersCount || 0,
-          followingCount: user.followingCount || 0,
-        }
-      },
+      user,
     });
   };
 
@@ -77,22 +62,7 @@ export class AuthController {
     return reply.status(200).send({
       message: "Login successful",
       accessToken: result.tokens!.accessToken,
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        name: result.user.name,
-        username: result.user.username,
-        avatarUrl: result.user.avatarUrl,
-        coverUrl: result.user.coverUrl,
-        bio: result.user.bio,
-        website: result.user.website,
-        location: result.user.location,
-        profile: {
-          techStack: result.user.techStack || [],
-          followersCount: result.user.followersCount || 0,
-          followingCount: result.user.followingCount || 0,
-        }
-      },
+      user: result.user
     });
   };
 
@@ -112,22 +82,7 @@ export class AuthController {
     return reply.status(200).send({
       message: "Google login successful",
       accessToken: tokens.accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        coverUrl: user.coverUrl,
-        bio: user.bio,
-        website: user.website,
-        location: user.location,
-        profile: {
-          techStack: user.techStack || [],
-          followersCount: user.followersCount || 0,
-          followingCount: user.followingCount || 0,
-        }
-      }
+      user
     });
   };
 
@@ -173,22 +128,7 @@ export class AuthController {
     return reply.status(200).send({
       message: "Login successful",
       accessToken: tokens.accessToken,
-      user: {
-        id: user!.id,
-        email: user!.email,
-        name: user!.name,
-        username: user!.username,
-        avatarUrl: user!.avatarUrl,
-        coverUrl: user!.coverUrl,
-        bio: user!.bio,
-        website: user!.website,
-        location: user!.location,
-        profile: {
-          techStack: user!.techStack || [],
-          followersCount: user!.followersCount || 0,
-          followingCount: user!.followingCount || 0,
-        }
-      },
+      user,
     });
   };
 

@@ -10,9 +10,33 @@ import {
     Verified
 } from "lucide-react";
 
+import { useCurrentUser } from "@/features/auth/hooks";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+    const { data: user, isLoading } = useCurrentUser();
+    const router = useRouter();
     const pathname = usePathname();
     const [isDarkMode, setIsDarkMode] = useState(true);
+
+    useEffect(() => {
+        if (!isLoading && (!user || user.auth.role !== 'ADMIN')) {
+            router.replace("/");
+        }
+    }, [user, isLoading, router]);
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-black">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]"></div>
+            </div>
+        );
+    }
+
+    if (!user || user.auth.role !== 'ADMIN') {
+        return null;
+    }
 
     const navItems = [
         { name: "Dashboard", href: "/admin", icon: LayoutDashboard },

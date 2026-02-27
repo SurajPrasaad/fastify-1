@@ -67,7 +67,8 @@ export class AuthService {
 
         // 4. Create Session
         const tokens = await this.createSession(user.id, deviceId, meta);
-        return { user, tokens };
+        const fullUser = await this.getMe(user.id);
+        return { user: fullUser, tokens };
     }
 
     async register(data: RegisterDto, meta: { ip?: string, ua?: string }) {
@@ -88,7 +89,8 @@ export class AuthService {
         // Send Verification Email
         await this.sendVerificationEmail(user);
 
-        return { user, tokens };
+        const fullUser = await this.getMe(user.id);
+        return { user: fullUser, tokens };
     }
 
     async sendVerificationEmail(user: { id: string, email: string }) {
@@ -148,7 +150,8 @@ export class AuthService {
         }
 
         const tokens = await this.createSession(user.id, data.deviceId, meta);
-        return { user, tokens, mfaRequired: false as const };
+        const fullUser = await this.getMe(user.id);
+        return { user: fullUser, tokens, mfaRequired: false as const };
     }
 
     async getMe(userId: string) {
@@ -192,7 +195,7 @@ export class AuthService {
             auth: {
                 isEmailVerified: user.isEmailVerified,
                 twoFactorEnabled,
-                role: "user", // Static for now
+                role: user.role,
                 status: user.status,
                 activeSessionsCount,
                 lastLoginAt: lastLoginAt || user.createdAt, // Fallback to createdAt
@@ -222,9 +225,9 @@ export class AuthService {
         // Login successful
         const tokens = await this.createSession(userId, deviceId, meta);
         // Fetch user details for consistency 
-        const user = await this.authRepository.findUserById(userId);
+        const fullUser = await this.getMe(userId);
 
-        return { user, tokens };
+        return { user: fullUser, tokens };
     }
 
 
@@ -373,7 +376,7 @@ export class AuthService {
             {
                 sub: userId,
                 sid: session.id, // Bind to session
-                role: 'user' // Fetch role if needed
+                role: (await this.authRepository.findUserById(userId))?.role || 'USER'
             },
             this.privateKey,
             {
