@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useChatStore } from '../store/chat.store';
+import { useChatStore } from '../store/chat-store';
 import { IConversation } from '../types/chat.types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';

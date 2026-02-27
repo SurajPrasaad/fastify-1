@@ -8,7 +8,7 @@ import { ChatService } from "@/services/chat.service"
 import { ChatRoom } from "@/types/chat"
 import { CreateChatDialog } from "./create-chat-dialog"
 import { DialogTrigger } from "@/components/ui/dialog"
-import { useChatStore } from "@/features/chat/store/chat.store"
+import { useChatStore } from "@/features/chat/store/chat-store"
 import { useUser } from "@/hooks/use-auth"
 import { Skeleton } from "@/components/ui/skeleton"
 

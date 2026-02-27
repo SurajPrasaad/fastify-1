@@ -1,7 +1,7 @@
 
 import { useEffect } from 'react';
 import { chatWebSocket } from '../services/websocket.manager';
-import { useChatStore } from '../store/chat.store';
+import { useChatStore } from '../store/chat-store';
 import { ChatEvent, MessageStatus } from '../types/chat.types';
 
 export const useRealtimeChat = (token?: string) => {

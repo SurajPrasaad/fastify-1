@@ -6,7 +6,7 @@ import { ConversationList } from './ConversationList';
 import { ChatHeader } from './ChatHeader';
 import { MessageList } from './MessageList';
 import { MessageInput, TypingIndicator } from './MessageInput';
-import { useChatStore } from '../store/chat.store';
+import { useChatStore } from '../store/chat-store';
 import { useMessages } from '../hooks/useMessages';
 import { useRealtimeChat } from '../hooks/useRealtimeChat';
 import { ChatService } from '../services/chat.service';

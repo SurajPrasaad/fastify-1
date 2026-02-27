@@ -15,7 +15,7 @@ import { useUser } from "@/hooks/use-auth"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BlockGuard } from "@/features/block/components/BlockGuard"
 import { useQueryClient } from "@tanstack/react-query"
-import { useChatStore } from "@/features/chat/store/chat.store"
+import { useChatStore } from "@/features/chat/store/chat-store"
 import { useCall } from "@/features/call/context/CallContext"
 
 interface ChatWindowProps {

@@ -1,6 +1,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
-import { useChatStore } from '../store/chat.store';
+import { useChatStore } from '../store/chat-store';
 import { ChatService } from '../services/chat.service';
 
 

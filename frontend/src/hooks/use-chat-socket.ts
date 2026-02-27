@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { socketService } from "@/services/socket.service";
-import { useChatStore } from "@/features/chat/store/chat.store";
+import { useChatStore } from "@/features/chat/store/chat-store";
 import { MessageStatus } from "@/features/chat/types/chat.types";
 import { useUser } from "@/hooks/use-auth";
 import { toast } from "sonner";

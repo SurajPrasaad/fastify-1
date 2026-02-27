@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { MoreVertical, Phone, Video, Search, ChevronLeft } from 'lucide-react';
-import { useChatStore } from '../store/chat.store';
+import { useChatStore } from '../store/chat-store';
 import { useCall } from '../../call/context/CallContext';
 
 export const ChatHeader: React.FC = () => {
