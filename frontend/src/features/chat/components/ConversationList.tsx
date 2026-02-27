@@ -9,13 +9,13 @@ export const ConversationItem: React.FC<{ conversation: IConversation; isActive:
     conversation,
     isActive
 }) => {
-    const setActiveConversation = useChatStore(state => state.setActiveConversation);
+    const setActiveRoom = useChatStore(state => state.setActiveRoom);
     const onlineUsers = useChatStore(state => state.onlineUsers);
     const isOnline = conversation.participants.some(p => onlineUsers.has(p.id));
 
     return (
         <div
-            onClick={() => setActiveConversation(conversation.id)}
+            onClick={() => setActiveRoom(conversation.id)}
             className={cn(
                 "flex items-center gap-3 p-3 cursor-pointer transition-all duration-200 rounded-xl mx-2",
                 isActive
@@ -69,7 +69,7 @@ export const ConversationItem: React.FC<{ conversation: IConversation; isActive:
 
 export const ConversationList: React.FC = () => {
     const conversations = useChatStore(state => Object.values(state.conversations));
-    const activeId = useChatStore(state => state.activeConversationId);
+    const activeId = useChatStore(state => state.activeRoomId);
 
     return (
         <div className="flex flex-col h-full bg-card/50 backdrop-blur-sm border-r">

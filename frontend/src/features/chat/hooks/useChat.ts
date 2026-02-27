@@ -17,17 +17,17 @@ export const useChat = (roomId?: string) => {
     }, [roomId]);
 
     const messages = useMemo(() => {
-        return roomId ? (store.messagesByRoom[roomId] || []) : [];
-    }, [roomId, store.messagesByRoom]);
+        return roomId ? (store.messages[roomId] || []) : [];
+    }, [roomId, store.messages]);
 
     const activeConversation = useMemo(() => {
-        return store.conversations.find(c => c.id === roomId);
+        return roomId ? store.conversations[roomId] : null;
     }, [roomId, store.conversations]);
 
     const sendMessage = useCallback(async (content: string, type?: any, mediaUrl?: string) => {
         if (!roomId) return;
         await store.sendMessage(roomId, content, type, mediaUrl);
-    }, [roomId, store]);
+    }, [roomId, store.sendMessage]);
 
     const sendTyping = useCallback(() => {
         if (roomId) socketManager.sendTyping(roomId);

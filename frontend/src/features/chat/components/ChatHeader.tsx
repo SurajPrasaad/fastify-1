@@ -5,10 +5,10 @@ import { useChatStore } from '../store/chat-store';
 import { useCall } from '../../call/context/CallContext';
 
 export const ChatHeader: React.FC = () => {
-    const activeId = useChatStore(state => state.activeConversationId);
+    const activeId = useChatStore(state => state.activeRoomId);
     const conversation = useChatStore(state => activeId ? state.conversations[activeId] : null);
     const onlineUsers = useChatStore(state => state.onlineUsers);
-    const setActiveConversation = useChatStore(state => state.setActiveConversation);
+    const setActiveRoom = useChatStore(state => state.setActiveRoom);
     const { initiateCall } = useCall();
 
     if (!conversation) return null;
@@ -25,7 +25,7 @@ export const ChatHeader: React.FC = () => {
         <div className="h-16 border-b bg-background/80 backdrop-blur-md px-4 flex items-center justify-between sticky top-0 z-20">
             <div className="flex items-center gap-3">
                 <button
-                    onClick={() => setActiveConversation(null)}
+                    onClick={() => setActiveRoom(null)}
                     className="md:hidden p-2 hover:bg-muted rounded-full transition-colors"
                 >
                     <ChevronLeft className="w-5 h-5" />

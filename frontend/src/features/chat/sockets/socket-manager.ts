@@ -1,7 +1,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import { useChatStore } from '../store/chat-store';
-import { IMessage } from '../types';
+import { IMessage, MessageStatus } from '../types/chat.types';
 
 class SocketManager {
     private socket: Socket | null = null;
@@ -67,7 +67,7 @@ class SocketManager {
                     });
                     break;
                 case 'READ_ACK':
-                    chatStore.updateMessage(payload.roomId, payload.messageId, { status: 'read' });
+                    chatStore.updateMessage(payload.roomId, payload.messageId, { status: MessageStatus.READ });
                     break;
 
                 // --- Social Engagement Events ---

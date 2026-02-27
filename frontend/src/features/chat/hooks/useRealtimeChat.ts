@@ -10,7 +10,7 @@ export const useRealtimeChat = (token?: string) => {
         updateMessage,
         setTyping,
         setOnlineStatus,
-        activeConversationId,
+        activeRoomId,
         markAsRead
     } = useChatStore();
 
@@ -24,7 +24,7 @@ export const useRealtimeChat = (token?: string) => {
                 case 'NEW_MESSAGE':
                     addMessage(event.payload.conversationId, event.payload);
                     // If message is in active conversation, mark as read automatically
-                    if (activeConversationId === event.payload.conversationId) {
+                    if (activeRoomId === event.payload.conversationId) {
                         markAsRead(event.payload.conversationId);
                     }
                     break;
@@ -57,7 +57,7 @@ export const useRealtimeChat = (token?: string) => {
             unsubscribe();
             chatWebSocket.disconnect();
         };
-    }, [token, activeConversationId, addMessage, updateMessage, setTyping, setOnlineStatus, markAsRead]);
+    }, [token, activeRoomId, addMessage, updateMessage, setTyping, setOnlineStatus, markAsRead]);
 
     return {
         sendTypingStatus: (conversationId: string, isTyping: boolean) => {

@@ -15,7 +15,7 @@ import { MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const ChatLayout: React.FC = () => {
-    const activeConversationId = useChatStore(state => state.activeConversationId);
+    const activeRoomId = useChatStore(state => state.activeRoomId);
     const setConversations = useChatStore(state => state.setConversations);
     const sendMessage = useChatStore(state => state.sendMessage);
 
@@ -28,10 +28,10 @@ export const ChatLayout: React.FC = () => {
         isFetchingMore,
         loadMoreMessages,
         hasMore
-    } = useMessages(activeConversationId);
+    } = useMessages(activeRoomId);
 
     const conversation = useChatStore(state =>
-        activeConversationId ? state.conversations[activeConversationId] : null
+        activeRoomId ? state.conversations[activeRoomId] : null
     );
 
     useEffect(() => {
@@ -48,7 +48,7 @@ export const ChatLayout: React.FC = () => {
             {/* Sidebar - HIDDEN ON MOBILE IF CONVERSATION ACTIVE */}
             <div className={cn(
                 "w-full md:w-[320px] lg:w-[400px] h-full flex-shrink-0 border-r",
-                activeConversationId ? "hidden md:flex" : "flex"
+                activeRoomId ? "hidden md:flex" : "flex"
             )}>
                 <ConversationList />
             </div>
@@ -56,12 +56,12 @@ export const ChatLayout: React.FC = () => {
             {/* Main Chat Area */}
             <div className={cn(
                 "flex-1 flex flex-col h-full bg-muted/20 relative",
-                !activeConversationId ? "hidden md:flex items-center justify-center" : "flex"
+                !activeRoomId ? "hidden md:flex items-center justify-center" : "flex"
             )}>
                 <AnimatePresence mode="wait">
-                    {activeConversationId ? (
+                    {activeRoomId ? (
                         <motion.div
-                            key={activeConversationId}
+                            key={activeRoomId}
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
@@ -80,8 +80,8 @@ export const ChatLayout: React.FC = () => {
                             <TypingIndicator users={conversation?.typingUsers || []} />
 
                             <MessageInput
-                                onSendMessage={(content) => sendMessage(activeConversationId, content)}
-                                onTyping={(isTyping) => sendTypingStatus(activeConversationId, isTyping)}
+                                onSendMessage={(content) => sendMessage(activeRoomId, content)}
+                                onTyping={(isTyping) => sendTypingStatus(activeRoomId, isTyping)}
                             />
                         </motion.div>
                     ) : (
