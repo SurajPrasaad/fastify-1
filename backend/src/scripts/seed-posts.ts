@@ -365,6 +365,8 @@ async function seed() {
         const userIdx = Math.floor(Math.random() * existingUsers.length);
         const user = existingUsers[userIdx];
 
+        if (!user) continue;
+
         const publishedAt = randomDate(seedPost.hoursAgo);
 
         const [newPost] = await db.insert(posts).values({

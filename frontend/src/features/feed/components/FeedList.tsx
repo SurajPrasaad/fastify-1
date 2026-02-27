@@ -62,7 +62,7 @@ export const FeedList = ({
     return (
         <div
             ref={parentRef}
-            className="h-full overflow-y-auto scrollbar-hide"
+            className="flex-1 w-full overflow-y-auto scrollbar-hide"
             style={{ contain: 'strict' }}
         >
             <div

@@ -271,7 +271,15 @@ export class FeedRepository {
             .orderBy(desc(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`))
             .limit(limit);
 
-        const withPolls = await Promise.all(items.map(async (item) => {
+        const uniqueItemsMap = new Map();
+        for (const item of items) {
+            if (!uniqueItemsMap.has(item.id)) {
+                uniqueItemsMap.set(item.id, item);
+            }
+        }
+        const uniqueItems = Array.from(uniqueItemsMap.values());
+
+        const withPolls = await Promise.all(uniqueItems.map(async (item) => {
             if (!item.pollId) return { ...item, poll: null };
             const [pollData] = await db.select().from(polls).where(eq(polls.id, item.pollId));
             if (!pollData) return { ...item, poll: null };
@@ -332,6 +340,12 @@ export class FeedRepository {
             .orderBy(desc(sql`${posts.likesCount} + ${posts.commentsCount} * 2`))
             .limit(limit);
 
-        return items;
+        const uniqueItemsMap = new Map();
+        for (const item of items) {
+            if (!uniqueItemsMap.has(item.id)) {
+                uniqueItemsMap.set(item.id, item);
+            }
+        }
+        return Array.from(uniqueItemsMap.values());
     }
 }

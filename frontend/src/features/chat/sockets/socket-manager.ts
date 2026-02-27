@@ -39,7 +39,7 @@ class SocketManager {
             const { type, payload } = event;
             const chatStore = useChatStore.getState();
             // We use global feed store here for real-time updates
-            const { updatePostStats } = (require('../../features/shared/stores') as any).useFeedStore.getState();
+            const { updatePostStats } = (require('../../feed/store/feed.store') as any).useFeedStore.getState();
 
             switch (type) {
                 case 'NEW_MESSAGE':
