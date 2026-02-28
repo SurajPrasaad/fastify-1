@@ -30,7 +30,7 @@ const kpiData = {
 const KpiCard = ({ title, value, change, isPositive, icon: Icon, colorClass, onClick }: any) => (
     <div
         onClick={onClick}
-        className="bg-[#16181C] p-5 rounded-2xl border border-[#2F3336] shadow-sm hover:border-[#71767B]/50 transition-all cursor-pointer group relative overflow-hidden"
+        className="bg-[#16181C] p-5 rounded-xl border border-[#2F3336] shadow-sm hover:border-[#71767B]/50 transition-all cursor-pointer group relative overflow-hidden"
     >
         <div className="flex items-center justify-between mb-3">
             <div className={`w-10 h-10 rounded-xl bg-[#000000] border border-[#2F3336] flex items-center justify-center ${colorClass}`}>
@@ -274,7 +274,7 @@ export default function AnalyticsDashboardPage() {
                     {/* Secondary Stack: Geo & Moderation */}
                     <div className="space-y-6">
                         {/* Geographic Density Mini-widget */}
-                        <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-5 shadow-sm h-[178px] flex flex-col cursor-pointer hover:border-[#71767B]/50 transition-colors" onClick={() => setDrilldown("Regional Infrastructure")}>
+                        <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm h-[178px] flex flex-col cursor-pointer hover:border-[#71767B]/50 transition-colors" onClick={() => setDrilldown("Regional Infrastructure")}>
                             <h3 className="text-[14px] font-bold text-[#E7E9EA] mb-4 flex justify-between items-center">
                                 Request Origin Density
                                 <MapPinIcon />
@@ -308,7 +308,7 @@ export default function AnalyticsDashboardPage() {
                         </div>
 
                         {/* Content Moderation Spikes */}
-                        <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-5 shadow-sm h-[178px] flex flex-col cursor-pointer hover:border-[#71767B]/50 transition-colors" onClick={() => setDrilldown("Moderation Pipeline")}>
+                        <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm h-[178px] flex flex-col cursor-pointer hover:border-[#71767B]/50 transition-colors" onClick={() => setDrilldown("Moderation Pipeline")}>
                             <h3 className="text-[14px] font-bold text-[#E7E9EA] mb-4 flex justify-between items-center">
                                 Moderation Load
                                 <span className="text-[11px] px-2 py-0.5 bg-[#F91880]/10 text-[#F91880] rounded border border-[#F91880]/20 font-bold">Elevated</span>
@@ -330,7 +330,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
 
                 {/* 3. PLATFORM HEALTH TABLE (Virtualized Concept) */}
-                <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl shadow-sm overflow-hidden flex flex-col lg:hidden xl:flex">
+                <div className="bg-[#16181C] border border-[#2F3336] rounded-xl shadow-sm overflow-hidden flex flex-col lg:hidden xl:flex">
                     <div className="px-5 py-4 border-b border-[#2F3336] flex items-center justify-between">
                         <h3 className="text-[16px] font-bold text-[#E7E9EA]">Real-Time Anomalies & Events</h3>
                         <button className="text-[12px] font-bold text-[#1D9BF0] hover:text-white transition-colors">View All Logs</button>

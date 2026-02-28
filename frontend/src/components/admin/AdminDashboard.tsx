@@ -33,7 +33,7 @@ const KPI_DATA = {
 const KpiCard = ({ title, value, change, isPositive, icon: Icon, colorClass, onClick }: any) => (
     <div
         onClick={onClick}
-        className="bg-[#16181C] p-5 rounded-2xl border border-[#2F3336] shadow-sm hover:border-[#71767B]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between"
+        className="bg-[#16181C] p-5 rounded-xl border border-[#2F3336] shadow-sm hover:border-[#71767B]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col justify-between"
     >
         <div className="flex items-center justify-between mb-3 text-[#71767B]">
             <span className="font-semibold text-[13px] tracking-wide uppercase">{title}</span>
@@ -199,7 +199,7 @@ export default function AdminDashboardPage() {
                     <div className="flex items-center gap-3 mt-1 text-[12px] text-[#71767B] font-mono">
                         <span className="flex items-center gap-1.5">
                             <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00BA7C] opacity-75"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-xl bg-[#00BA7C] opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00BA7C]"></span>
                             </span>
                             LIVE SYSTEM
@@ -221,10 +221,10 @@ export default function AdminDashboardPage() {
                             </button>
                         ))}
                     </div>
-                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-[#16181C] border border-[#2F3336] rounded-md text-[13px] font-bold text-[#E7E9EA] hover:bg-[#2F3336]">
+                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-[#16181C] border border-[#2F3336] rounded-xl text-[13px] font-bold text-[#E7E9EA] hover:bg-[#2F3336]">
                         <Globe className="w-4 h-4 text-[#71767B]" /> Global <ChevronDown className="w-3.5 h-3.5 ml-1" />
                     </button>
-                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-[#16181C] border border-[#2F3336] rounded-md text-[13px] font-bold text-[#1D9BF0] border-[#1D9BF0]/30 hover:bg-[#1D9BF0]/10">
+                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-[#16181C] border border-[#2F3336] rounded-xl text-[13px] font-bold text-[#1D9BF0] border-[#1D9BF0]/30 hover:bg-[#1D9BF0]/10">
                         <Filter className="w-4 h-4" /> Advanced Filter
                     </button>
                 </div>
@@ -247,7 +247,7 @@ export default function AdminDashboardPage() {
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
                     {/* 2. USER GROWTH SECTION */}
-                    <div className="xl:col-span-2 bg-[#16181C] border border-[#2F3336] rounded-2xl p-6 flex flex-col min-h-[400px]">
+                    <div className="xl:col-span-2 bg-[#16181C] border border-[#2F3336] rounded-xl p-6 flex flex-col min-h-[400px]">
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <h3 className="text-[18px] font-bold text-[#E7E9EA]">Audience Growth</h3>
@@ -266,7 +266,7 @@ export default function AdminDashboardPage() {
 
                     <div className="flex flex-col gap-6">
                         {/* 3. ENGAGEMENT DISTRIBUTION */}
-                        <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-6 flex flex-col flex-1 min-h-[220px]">
+                        <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-6 flex flex-col flex-1 min-h-[220px]">
                             <div className="flex justify-between items-center mb-2">
                                 <h3 className="text-[16px] font-bold text-[#E7E9EA]">Engagement Distribution</h3>
                                 <button className="text-[#71767B] hover:text-[#E7E9EA]" onClick={() => setDrilldown("Engagement")}><ArrowUpRight className="w-4 h-4" /></button>
@@ -277,14 +277,14 @@ export default function AdminDashboardPage() {
                         </div>
 
                         {/* 4. MODERATION CATEGORIES */}
-                        <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-6 flex items-center justify-between min-h-[160px]">
+                        <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-6 flex items-center justify-between min-h-[160px]">
                             <div className="flex-1">
                                 <h3 className="text-[16px] font-bold text-[#E7E9EA] mb-4">Report Categories</h3>
                                 <div className="space-y-2.5">
-                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-full bg-[#71767B]"></span> Spam (45%)</div>
-                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-full bg-[#FFD400]"></span> Harassment (30%)</div>
-                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-full bg-[#F91880]"></span> Hate Speech (15%)</div>
-                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-full bg-[#8247E5]"></span> NSFW (10%)</div>
+                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-xl bg-[#71767B]"></span> Spam (45%)</div>
+                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-xl bg-[#FFD400]"></span> Harassment (30%)</div>
+                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-xl bg-[#F91880]"></span> Hate Speech (15%)</div>
+                                    <div className="flex items-center gap-2 text-[12px] text-[#E7E9EA]"><span className="w-2 h-2 rounded-xl bg-[#8247E5]"></span> NSFW (10%)</div>
                                 </div>
                             </div>
                             <div className="w-[140px] h-[140px] relative">
@@ -299,7 +299,7 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* 5. PLATFORM HEALTH SUMMARY */}
-                <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl shadow-sm overflow-hidden">
+                <div className="bg-[#16181C] border border-[#2F3336] rounded-xl shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-[#2F3336] flex items-center justify-between bg-[#16181C]">
                         <h3 className="text-[16px] font-bold text-[#E7E9EA]">Platform Health Check</h3>
                         <span className="flex items-center gap-2 text-[12px] font-bold text-[#00BA7C] bg-[#00BA7C]/10 px-3 py-1 rounded-full border border-[#00BA7C]/20">

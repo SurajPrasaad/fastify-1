@@ -428,7 +428,7 @@ export default function NotificationsConsolePage() {
                             {KPI_DATA.map((kpi, idx) => {
                                 const Icon = kpi.icon;
                                 return (
-                                    <div key={idx} className="bg-[#16181C] p-5 rounded-2xl border border-[#2F3336] shadow-sm flex flex-col justify-between group cursor-default hover:border-[#71767B]/50 transition-colors">
+                                    <div key={idx} className="bg-[#16181C] p-5 rounded-xl border border-[#2F3336] shadow-sm flex flex-col justify-between group cursor-default hover:border-[#71767B]/50 transition-colors">
                                         <div className="flex items-center justify-between mb-3">
                                             <div className={`w-8 h-8 rounded-lg bg-[#000000] border border-[#2F3336] flex items-center justify-center ${kpi.color}`}>
                                                 <Icon className="w-4 h-4" />
@@ -445,7 +445,7 @@ export default function NotificationsConsolePage() {
                         </div>
 
                         {/* 2. RECENT NOTIFICATIONS TABLE */}
-                        <div className="bg-[#000000] border border-[#2F3336] rounded-2xl overflow-hidden shadow-sm flex-1 flex flex-col">
+                        <div className="bg-[#000000] border border-[#2F3336] rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
                             <div className="px-6 py-4 border-b border-[#2F3336] flex items-center justify-between bg-[#16181C]">
                                 <h3 className="text-[16px] font-bold text-[#E7E9EA]">Active & Recent Campaigns</h3>
                                 <div className="flex gap-2">
@@ -494,7 +494,7 @@ export default function NotificationsConsolePage() {
                 )}
 
                 {activeTab === 'campaigns' && (
-                    <div className="bg-[#000000] border border-[#2F3336] rounded-2xl overflow-hidden shadow-sm flex-1 flex flex-col">
+                    <div className="bg-[#000000] border border-[#2F3336] rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
                         <div className="px-6 py-4 border-b border-[#2F3336] flex items-center justify-between bg-[#16181C]">
                             <h3 className="text-[16px] font-bold text-[#E7E9EA]">Campaign Management</h3>
                             <div className="flex gap-2">
@@ -549,7 +549,7 @@ export default function NotificationsConsolePage() {
                 )}
 
                 {activeTab === 'segments' && (
-                    <div className="bg-[#000000] border border-[#2F3336] rounded-2xl overflow-hidden shadow-sm flex-1 flex flex-col">
+                    <div className="bg-[#000000] border border-[#2F3336] rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
                         <div className="px-6 py-4 border-b border-[#2F3336] flex items-center justify-between bg-[#16181C]">
                             <h3 className="text-[16px] font-bold text-[#E7E9EA]">Audience Segments</h3>
                             <div className="flex gap-2">
@@ -596,7 +596,7 @@ export default function NotificationsConsolePage() {
                     <div className="flex flex-col gap-6">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Chart 1: Volume */}
-                            <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-5 shadow-sm h-[320px] flex flex-col">
+                            <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm h-[320px] flex flex-col">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-[15px] font-bold text-[#E7E9EA]">Delivery Volume (7 Days)</h3>
                                     <button className="text-[#71767B] hover:text-[#E7E9EA]"><MoreHorizontal className="w-5 h-5" /></button>
@@ -607,7 +607,7 @@ export default function NotificationsConsolePage() {
                             </div>
 
                             {/* Chart 2: Engagement */}
-                            <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-5 shadow-sm h-[320px] flex flex-col">
+                            <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm h-[320px] flex flex-col">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-[15px] font-bold text-[#E7E9EA]">Average Open Rate</h3>
                                     <button className="text-[#71767B] hover:text-[#E7E9EA]"><MoreHorizontal className="w-5 h-5" /></button>
@@ -620,7 +620,7 @@ export default function NotificationsConsolePage() {
 
                         {/* Chart 3 & Funnel Details Table */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="bg-[#16181C] border border-[#2F3336] rounded-2xl p-5 shadow-sm h-[320px] flex flex-col">
+                            <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm h-[320px] flex flex-col">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-[15px] font-bold text-[#E7E9EA]">Channel Dominance</h3>
                                 </div>
@@ -629,7 +629,7 @@ export default function NotificationsConsolePage() {
                                 </div>
                             </div>
 
-                            <div className="col-span-1 lg:col-span-2 bg-[#16181C] border border-[#2F3336] rounded-2xl p-5 shadow-sm">
+                            <div className="col-span-1 lg:col-span-2 bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-[15px] font-bold text-[#E7E9EA]">Conversion Funnel (Current Week)</h3>
                                 </div>

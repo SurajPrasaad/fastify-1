@@ -381,7 +381,7 @@ export default function RBACConsolePage() {
 
                 {/* 2. CENTER PANEL - PERMISSION MATRIX */}
                 <div className="flex-1 overflow-y-auto bg-[#000000] relative">
-                    <div className="p-8 pb-32 max-w-[800px] mx-auto">
+                    <div className="p-8 pb-32 max-w-auto mx-auto">
 
                         <div className="mb-6 flex flex-col gap-2">
                             <h2 className="text-[18px] font-bold text-[#E7E9EA] flex items-center gap-2">
