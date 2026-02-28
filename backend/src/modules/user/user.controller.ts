@@ -209,4 +209,21 @@ export class UserController {
     const settings = await this.userService.updateNotificationSettings(userId, request.body);
     return reply.status(200).send({ message: "Notification settings updated", settings });
   };
+
+  promoteUserToAdminHandler = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) => {
+    const { id } = request.params;
+    await this.userService.setRole(id, "ADMIN");
+    return reply.status(200).send({ message: "User promoted to admin" });
+  };
+
+  getAdminStatsHandler = async (
+    request: FastifyRequest,
+    reply: FastifyReply
+  ) => {
+    const stats = await this.userService.getAdminStats();
+    return reply.status(200).send(stats);
+  };
 }

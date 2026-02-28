@@ -277,4 +277,19 @@ export class UserService {
       }
     };
   }
+
+  async setRole(userId: string, role: "USER" | "ADMIN") {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new AppError("User not found", 404);
+
+    return this.userRepository.update(userId, { role });
+  }
+
+  async getAdminStats() {
+    const users = await this.userRepository.findAll(1000, 0);
+    return {
+      totalUsers: users.length,
+      activeUsers: users.filter(u => u.status === "ACTIVE").length,
+    };
+  }
 }

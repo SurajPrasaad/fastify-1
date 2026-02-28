@@ -24,6 +24,7 @@ import {
 } from "./user.schema.js";
 
 import { requireAuth } from "../../middleware/auth.js";
+import { requireAdmin } from "../../middleware/admin.js";
 import { optionalAuth } from "../../middleware/optional-auth.js";
 import { getUserRepliesHandler, getUserLikedPostsHandler, getProfileRepliesHandler, getProfileLikedPostsHandler } from "../interaction/interaction.controller.js";
 import { getUserRepliesSchema } from "../interaction/interaction.schema.js";
@@ -294,6 +295,24 @@ export async function userRoutes(fastify: FastifyInstance) {
                 schema: updateNotificationSettingsRouteSchema,
             },
             userController.updateNotificationSettingsHandler
+        );
+    });
+
+    // Admin Routes
+    fastify.register(async (adminApp) => {
+        adminApp.addHook("preHandler", requireAuth);
+        adminApp.addHook("preHandler", requireAdmin);
+
+        adminApp.withTypeProvider<ZodTypeProvider>().post(
+            "/promote/:id",
+            {},
+            userController.promoteUserToAdminHandler
+        );
+
+        adminApp.withTypeProvider<ZodTypeProvider>().get(
+            "/admin/stats",
+            {},
+            userController.getAdminStatsHandler
         );
     });
 }

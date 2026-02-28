@@ -5,8 +5,9 @@ import { RightSidebar } from "@/components/layout/right-sidebar"
 import { AuthGuard } from "@/features/auth/components/AuthGuard"
 import { useAuth } from "@/features/auth/components/AuthProvider"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { useEffect } from "react"
 import { CallProvider } from "@/features/call/context/CallContext"
 import { CallModal } from "@/features/call/components/CallModal"
 import { RealtimeChatListener } from "@/features/chat/components/RealtimeChatListener"
@@ -17,9 +18,20 @@ export default function MainLayout({
     children: React.ReactNode
 }) {
     const pathname = usePathname()
-    const { user } = useAuth()
+    const router = useRouter()
+    const { user, isLoading } = useAuth()
     const isMessages = pathname.startsWith("/messages")
     const isSettings = pathname.startsWith("/settings")
+
+    useEffect(() => {
+        if (!isLoading && user?.auth?.role === 'ADMIN') {
+            router.replace("/admin")
+        }
+    }, [user, isLoading, router])
+
+    if (!isLoading && user?.auth?.role === 'ADMIN') {
+        return null;
+    }
 
     return (
         <AuthGuard>

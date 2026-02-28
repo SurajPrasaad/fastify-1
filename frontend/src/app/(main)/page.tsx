@@ -5,7 +5,6 @@ import { FeedList } from "@/components/feed/feed-list"
 import { Post } from "@/components/feed/post-card"
 import { PostComposer } from "@/components/feed/post-composer"
 import { cn } from "@/lib/utils"
-
 export default function FeedPage() {
     const [activeTab, setActiveTab] = React.useState<"for-you" | "following">("for-you")
     const [posts, setPosts] = React.useState<Post[]>([])

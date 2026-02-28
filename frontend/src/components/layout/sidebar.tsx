@@ -45,6 +45,9 @@ export function Sidebar({ className }: SidebarProps) {
                         <SidebarLink icon="person" label="Profile" href={`/${user?.username || "profile"}`} active={user?.username ? pathname.startsWith(`/${user.username}`) : false} />
                         <SidebarLink icon="bookmark" label="Bookmarks" href="/bookmarks" active={pathname === "/bookmarks"} />
                         <SidebarLink icon="settings" label="Settings" href="/settings" active={pathname === "/settings"} />
+                        {user?.auth?.role === 'ADMIN' && (
+                            <SidebarLink icon="admin_panel_settings" label="Admin Panel" href="/admin" active={pathname.startsWith("/admin")} />
+                        )}
                     </nav>
 
                     {/* <button className="w-full bg-primary text-white font-bold py-4 rounded-full shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] transition-all active:scale-[0.98] flex items-center justify-center gap-2">

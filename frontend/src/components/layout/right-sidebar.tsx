@@ -129,8 +129,8 @@ export function RightSidebar({ className }: { className?: string }) {
 
             {/* Active Friends */}
             <div className="bg-slate-100 dark:bg-surface-dark rounded-lg overflow-hidden shadow-sm border border-slate-200/50 dark:border-white/5">
-                <h3 className="text-sm font-bold p-4 pb-2 text-slate-500 uppercase tracking-widest">Active Friends</h3>
-                <div className="flex flex-col px-2 py-2 gap-1 max-h-[250px] overflow-y-auto custom-scrollbar">
+                <h3 className="text-lg font-bold p-4 pb-2">Active Friends</h3>
+                <div className="flex flex-col px-2 py-2 gap-1 max-h-[130px] overflow-y-auto custom-scrollbar">
                     {isLoadingFriends ? (
                         <div className="px-2 py-2 space-y-3">
                             {[1, 2].map(i => (
@@ -149,7 +149,7 @@ export function RightSidebar({ className }: { className?: string }) {
                             />
                         ))
                     ) : (
-                        <p className="p-4 text-[12px] text-slate-500 text-center">No friends active</p>
+                        <p className="p-6 text-sm text-slate-500 text-center">No friends active</p>
                     )}
                 </div>
             </div>

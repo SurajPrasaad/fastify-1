@@ -35,14 +35,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export function GuestGuard({ children }: { children: React.ReactNode }) {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading, user } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
         if (!isLoading && isAuthenticated) {
-            router.replace("/");
+            const redirectPath = user?.auth?.role === 'ADMIN' ? '/admin' : '/';
+            router.replace(redirectPath);
         }
-    }, [isAuthenticated, isLoading, router]);
+    }, [isAuthenticated, isLoading, user, router]);
 
     if (isLoading) {
         return (
