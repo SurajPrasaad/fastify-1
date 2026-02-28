@@ -84,6 +84,59 @@ export class NotificationService {
     }
 
     /**
+     * ①.c Repost → Notify post owner
+     */
+    async onPostReposted(senderId: string, postOwnerId: string, postId: string, postContent?: string, postMedia?: string[]) {
+        if (senderId === postOwnerId) return;
+
+        const sender = await this.repository.getUserById(senderId);
+        if (!sender) return;
+
+        const snippet = postContent
+            ? postContent.length > 50
+                ? postContent.substring(0, 50) + "..."
+                : postContent
+            : undefined;
+
+        const message = snippet
+            ? `${sender.name} reposted your post: "${snippet}"`
+            : `${sender.name} reposted your post`;
+
+        const notification = await this.repository.createNotification({
+            recipientId: postOwnerId,
+            actorId: senderId,
+            entityType: "POST",
+            entityId: postId,
+            message,
+            type: "REPOST",
+            postId,
+            metaData: {
+                actionUrl: `/post/${postId}`,
+                image: postMedia?.[0] || undefined,
+                snippet,
+            },
+        });
+
+        if (!notification) return;
+
+        await this.emitRealTimeNotification(postOwnerId, {
+            id: notification.id,
+            type: "REPOST",
+            sender: {
+                id: sender.id,
+                username: sender.username,
+                name: sender.name,
+                avatarUrl: sender.avatarUrl || undefined,
+            },
+            message: notification.message,
+            postId,
+            createdAt: notification.createdAt.toISOString(),
+        });
+
+        await this.enqueuePushNotification(postOwnerId, notification);
+    }
+
+    /**
      * ①.b Comment Like → Notify comment owner
      */
     async onCommentLiked(

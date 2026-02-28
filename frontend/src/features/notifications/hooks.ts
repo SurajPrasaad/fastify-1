@@ -294,6 +294,8 @@ export const useNotificationSocket = () => {
                 REPLY: "↩️",
                 MENTION: "📢",
                 FOLLOW: "👤",
+                REPOST: "🔁",
+                VERIFIED: "✅",
                 SYSTEM: "🔔",
             }[adapted.type] || "🔔";
 

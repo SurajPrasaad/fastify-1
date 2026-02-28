@@ -11,6 +11,7 @@ import {
     triggerCommentNotification,
     triggerReplyNotification,
     triggerMentionNotifications,
+    triggerRepostNotification,
 } from "../notification/notification.triggers.js";
 
 export class InteractionService {
@@ -166,8 +167,16 @@ export class InteractionService {
             throw new Error("Failed to create repost");
         }
 
-        // 🔔 Optional: Trigger Repost Notification
-        // In a real app, you'd notify the owner of originalPostId
+        // 🔔 Trigger Repost Notification
+        if (repost.originalPostUserId) {
+            triggerRepostNotification(
+                userId,
+                repost.originalPostUserId,
+                originalPostId,
+                repost.originalPost?.content || undefined,
+                repost.originalPost?.mediaUrls || undefined
+            );
+        }
 
         return repost;
     }

@@ -17,7 +17,7 @@ const configMap: Record<string, { icon: string; color: string; fill?: boolean }>
     REPLY: { icon: "reply", color: "text-primary", fill: true },
     MENTION: { icon: "alternate_email", color: "text-primary", fill: true },
     FOLLOW: { icon: "person_add", color: "text-primary", fill: true },
-    REPOST: { icon: "repeat", color: "text-emerald-500" },
+    REPOST: { icon: "repeat", color: "text-emerald-500", fill: true },
     SYSTEM: { icon: "info", color: "text-slate-500" },
 };
 
@@ -51,7 +51,7 @@ export function NotificationItem({ item, onRead }: NotificationItemProps) {
         <div
             onClick={handleClick}
             className={cn(
-                "group relative flex gap-4 p-6 transition-all duration-300 cursor-pointer border-l-4",
+                "group relative flex gap-4 p-6 transition-all duration-300 cursor-pointer ",
                 !isRead
                     ? "bg-primary/[0.04] border-primary"
                     : "hover:bg-slate-50 dark:hover:bg-slate-800/20 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
@@ -95,30 +95,33 @@ export function NotificationItem({ item, onRead }: NotificationItemProps) {
                     </div>
                 </div>
 
-                {/* Message Body */}
-                <p className="text-[15px] leading-relaxed dark:text-slate-300 mb-3">
-                    {renderMessageWithTags(message)}
-                </p>
+                <div className="space-y-3">
+                    <p className="text-[15px] leading-relaxed dark:text-slate-300">
+                        {renderMessageWithTags(message)}
+                    </p>
 
-                {/* Optional Metadata / Snippet */}
-                {metaData?.snippet && (
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-white/50 dark:bg-slate-900/30 transition-colors group-hover:bg-white dark:group-hover:bg-slate-900/50">
-                        <p className="text-sm text-slate-500 line-clamp-1 italic">
-                            {metaData.snippet}
-                        </p>
-                    </div>
-                )}
-
-                {/* Visual Thumbnail (if any) */}
-                {metaData?.image && (
-                    <div className="mt-3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 aspect-video max-w-sm">
-                        <img
-                            src={metaData.image}
-                            alt="Preview"
-                            className="w-full h-full object-cover"
-                        />
-                    </div>
-                )}
+                    {/* Rich Post Preview (Snippet + Image) */}
+                    {(metaData?.snippet || metaData?.image) && (
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-0 overflow-hidden bg-white/50 dark:bg-slate-900/10 transition-colors group-hover:bg-white dark:group-hover:bg-slate-900/30">
+                            {metaData?.image && (
+                                <div className="aspect-video w-full overflow-hidden border-b border-slate-100 dark:border-slate-800/50">
+                                    <img
+                                        src={metaData.image}
+                                        alt="Post preview"
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    />
+                                </div>
+                            )}
+                            {metaData?.snippet && (
+                                <div className="p-3">
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 italic">
+                                        "{metaData.snippet}"
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Quick Actions */}

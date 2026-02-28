@@ -48,6 +48,22 @@ export function triggerLikeNotification(
 }
 
 /**
+ * When a user reposts a post → notify post owner
+ */
+export function triggerRepostNotification(
+    senderId: string,
+    postOwnerId: string,
+    postId: string,
+    postContent?: string,
+    postMedia?: string[]
+) {
+    fireAndForget(
+        () => notificationService.onPostReposted(senderId, postOwnerId, postId, postContent, postMedia),
+        "REPOST"
+    );
+}
+
+/**
  * When a user likes a comment → notify comment owner
  */
 export function triggerCommentLikeNotification(

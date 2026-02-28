@@ -3,6 +3,8 @@ import { redis } from "../../config/redis.js";
 import { EngagementRepository } from "./engagement.repository.js";
 import { AppError } from "../../utils/AppError.js";
 
+import { triggerRepostNotification } from "../notification/notification.triggers.js";
+
 export class EngagementService {
     constructor(private repository: EngagementRepository) { }
 
@@ -49,12 +51,16 @@ export class EngagementService {
     }
 
     async repost(userId: string, postId: string, quoteText?: string) {
-        const repost = await this.repository.createRepost(userId, postId, quoteText);
+        const { repost, originalPost } = await this.repository.createRepost(userId, postId, quoteText);
 
         const statKey = this.getStatKey(postId);
         await redis.hincrby(statKey, "reposts", 1);
 
         console.log(`[Kafka] Emitting event: engagement.reposted`, { userId, postId });
+
+        // Trigger Notification
+        triggerRepostNotification(userId, originalPost.userId, postId, originalPost.content || undefined, originalPost.mediaUrls || undefined);
+
         return repost;
     }
 

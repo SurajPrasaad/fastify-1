@@ -124,7 +124,7 @@ export class EngagementRepository {
                 })
                 .where(eq(posts.id, postId));
 
-            return repost;
+            return { repost, originalPost };
         });
     }
 

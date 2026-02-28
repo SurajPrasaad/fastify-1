@@ -514,7 +514,8 @@ export class InteractionRepository {
 
             return {
                 ...hydrated,
-                originalPost: origDetails || null
+                originalPost: origDetails || null,
+                originalPostUserId: originalPost.userId
             };
         });
     }
