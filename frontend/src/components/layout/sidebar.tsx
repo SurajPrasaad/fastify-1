@@ -7,13 +7,21 @@ import { usePathname } from "next/navigation"
 import { useAuth } from "@/features/auth/components/AuthProvider"
 import { useTheme } from "next-themes"
 import { Switch } from "@/components/ui/switch"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useRouter } from "next/navigation"
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> { }
 
 export function Sidebar({ className }: SidebarProps) {
-    const { user } = useAuth()
+    const { user, logout } = useAuth()
     const pathname = usePathname()
     const { theme, setTheme } = useTheme()
+    const router = useRouter()
 
     return (
         <aside className={cn("hidden md:flex flex-col w-72 h-screen p-6", className)}>
@@ -32,7 +40,7 @@ export function Sidebar({ className }: SidebarProps) {
                         <SidebarLink icon="home" label="Home" href="/" active={pathname === "/"} fillIcon />
                         <SidebarLink icon="explore" label="Explore" href="/explore" active={pathname === "/explore"} />
                         <SidebarLink icon="mail" label="Messages" href="/messages" active={pathname.startsWith("/messages")} badge="4" />
-                        {/* <SidebarLink icon="call" label="Calls" href="/calls" active={pathname === "/calls"} /> */}
+                        <SidebarLink icon="call" label="Calls" href="/calls" active={pathname === "/calls"} />
                         <SidebarLink icon="notifications" label="Notifications" href="/notifications" active={pathname === "/notifications"} />
                         <SidebarLink icon="person" label="Profile" href={`/${user?.username || "profile"}`} active={user?.username ? pathname.startsWith(`/${user.username}`) : false} />
                         <SidebarLink icon="bookmark" label="Bookmarks" href="/bookmarks" active={pathname === "/bookmarks"} />
@@ -64,20 +72,40 @@ export function Sidebar({ className }: SidebarProps) {
 
                     {/* User Account */}
                     {user ? (
-                        <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer group">
-                            <div className="size-10 rounded-full bg-slate-500 overflow-hidden shrink-0">
-                                <img
-                                    className="w-full h-full object-cover"
-                                    alt={user.name}
-                                    src={user.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuCiOL2n_wnGX-tkNBmn9gmSIO2py_5xhODyOdE2R10P7HxgjYmnH9d38rfNSl-_PT0a7K-oozQygeBMztHAO5W5u5qEeMlbqCr6_Hqn9JcyIEX8X7LPzhvFFNlxpMD2aRyuRUaW5o5lxnHkj-2oGoMSGk37wybjSgFXw0anwxAHcpicg8P9U-6cfeulPNyxhBCyzbfca7rtxBGgJ0jZPwfhUoevY9RSvmr64jIn2fXTcvF0SAn7PXAo7VgIt58c"}
-                                />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm truncate">{user.name}</p>
-                                <p className="text-xs text-slate-500 truncate">@{user.username}</p>
-                            </div>
-                            <span className="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors">more_horiz</span>
-                        </div>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer group outline-none">
+                                    <div className="size-10 rounded-full bg-slate-500 overflow-hidden shrink-0">
+                                        <img
+                                            className="w-full h-full object-cover"
+                                            alt={user.name}
+                                            src={user.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuCiOL2n_wnGX-tkNBmn9gmSIO2py_5xhODyOdE2R10P7HxgjYmnH9d38rfNSl-_PT0a7K-oozQygeBMztHAO5W5u5qEeMlbqCr6_Hqn9JcyIEX8X7LPzhvFFNlxpMD2aRyuRUaW5o5lxnHkj-2oGoMSGk37wybjSgFXw0anwxAHcpicg8P9U-6cfeulPNyxhBCyzbfca7rtxBGgJ0jZPwfhUoevY9RSvmr64jIn2fXTcvF0SAn7PXAo7VgIt58c"}
+                                        />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-sm truncate">{user.name}</p>
+                                        <p className="text-xs text-slate-500 truncate">@{user.username}</p>
+                                    </div>
+                                    <span className="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors">more_horiz</span>
+                                </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-white dark:bg-slate-900 border-none shadow-2xl shadow-black/20 mb-4 ml-6">
+                                <DropdownMenuItem
+                                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:bg-slate-100 dark:focus:bg-slate-800 outline-none"
+                                    onClick={() => router.push(`/${user.username}`)}
+                                >
+                                    <span className="material-symbols-outlined text-slate-500">person</span>
+                                    <span className="font-semibold">Profile</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-500 transition-colors focus:bg-rose-50 dark:focus:bg-rose-950/20 outline-none"
+                                    onClick={() => logout()}
+                                >
+                                    <span className="material-symbols-outlined">logout</span>
+                                    <span className="font-semibold">Logout @{user.username}</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     ) : (
                         <div className="px-3 py-2 animate-pulse flex items-center gap-3">
                             <div className="size-10 rounded-full bg-slate-300 dark:bg-slate-800 shrink-0" />

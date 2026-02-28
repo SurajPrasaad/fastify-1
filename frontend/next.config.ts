@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  allowedDevOrigins: ["enrique-overhearty-affirmatively.ngrok-free.dev"]
+  allowedDevOrigins: ["*.trycloudflare.com"],
 };
 
 

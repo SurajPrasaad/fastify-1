@@ -50,6 +50,7 @@ export const useChat = (roomId?: string) => {
         loadHistory,
         isLoading: store.isLoading,
         error: store.error,
-        presenceMap: store.presenceMap
+        presenceMap: store.presenceMap,
+        hasMore: !!roomId && !!store.hasMoreByConversation[roomId]
     };
 };

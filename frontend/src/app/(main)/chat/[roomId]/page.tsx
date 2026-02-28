@@ -12,7 +12,14 @@ import { useAuth } from '@/features/auth/components/AuthProvider';
 export default function ChatRoomPage() {
     const { roomId } = useParams<{ roomId: string }>();
     const { user } = useAuth();
-    const { activeConversation, presenceMap } = useChat(roomId);
+    const {
+        activeConversation,
+        presenceMap,
+        messages,
+        isLoading,
+        loadHistory,
+        hasMore
+    } = useChat(roomId);
 
     // Assuming DIRECT for title logic
     const otherUser = activeConversation?.participants.find(p => p.id !== user?.id);
@@ -59,7 +66,13 @@ export default function ChatRoomPage() {
             </header>
 
             {/* Messages Component */}
-            <MessageList roomId={roomId} />
+            <MessageList
+                messages={messages}
+                currentUserId={user?.id || 'me'}
+                isFetchingMore={isLoading}
+                onLoadMore={() => loadHistory(messages[0]?.createdAt)}
+                hasMore={hasMore}
+            />
         </div>
     );
 }

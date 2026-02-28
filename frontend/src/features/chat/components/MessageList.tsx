@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { IMessage } from '../types/chat.types';
 import { MessageBubble } from './MessageBubble';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -70,6 +70,13 @@ export const MessageList: React.FC<MessageListProps> = ({
         setShowScrollToBottom(!isNearBottom);
     };
 
+    const getDateLabel = (date: string) => {
+        const d = new Date(date);
+        if (isToday(d)) return 'Today';
+        if (isYesterday(d)) return 'Yesterday';
+        return format(d, 'MMMM d, yyyy');
+    };
+
     return (
         <div
             ref={parentRef}
@@ -107,10 +114,12 @@ export const MessageList: React.FC<MessageListProps> = ({
                             className="py-1"
                         >
                             {item.type === 'date' ? (
-                                <div className="flex justify-center my-4 sticky top-0 z-20">
-                                    <span className="px-3 py-1 bg-background/80 backdrop-blur-sm border rounded-full text-[11px] font-medium text-muted-foreground shadow-sm">
-                                        {format(new Date(item.date), 'MMMM d, yyyy')}
-                                    </span>
+                                <div className="flex justify-center my-6 sticky top-2 z-30">
+                                    <div className="px-4 py-1.5 bg-[#182229]/90 backdrop-blur-md border border-white/5 rounded-full shadow-lg">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#8696a0]">
+                                            {getDateLabel(item.date)}
+                                        </span>
+                                    </div>
                                 </div>
                             ) : (
                                 <MessageBubble
