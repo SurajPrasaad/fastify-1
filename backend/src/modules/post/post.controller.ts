@@ -25,8 +25,29 @@ export async function publishDraftHandler(
 ) {
     const { id } = request.params;
     const userId = request.user!.sub;
-    const published = await postService.publishDraft(id, userId);
+    // In pre-moderation model, "publish" means "submit for review"
+    const published = await postService.submitForReview(id, userId);
     return reply.send(published);
+}
+
+export async function submitForReviewHandler(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+) {
+    const { id } = request.params;
+    const userId = request.user!.sub;
+    const result = await postService.submitForReview(id, userId);
+    return reply.send(result);
+}
+
+export async function resubmitHandler(
+    request: FastifyRequest<{ Params: { id: string }, Body: UpdatePostInput }>,
+    reply: FastifyReply
+) {
+    const { id } = request.params;
+    const userId = request.user!.sub;
+    const result = await postService.resubmitPost(id, userId, request.body);
+    return reply.send(result);
 }
 
 export async function getPostHandler(
@@ -110,15 +131,9 @@ export async function getUserPostsHandler(
     const userId = request.user!.sub;
     const { limit, cursor } = request.query;
 
-    // Fetch posts authored by the current user
-    const posts = await postService.getFeed(
-        limit || 20,
-        cursor,
-        userId,
-        { authorId: userId }
-    );
+    const posts = await postService.getUserPosts(userId, limit || 20, cursor);
 
-    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).publishedAt?.toISOString() : null;
+    const nextCursor = posts.length > 0 ? (posts[posts.length - 1] as any).createdAt?.toISOString() : null;
 
     return reply.send({
         data: posts,
@@ -167,5 +182,4 @@ export async function votePollHandler(
     await postService.votePoll(userId, id, optionId);
     return reply.send({ message: "Vote recorded" });
 }
-
 

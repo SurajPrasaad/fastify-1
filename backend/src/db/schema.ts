@@ -1,5 +1,5 @@
-import { pgTable, text, timestamp, uuid, jsonb, integer, primaryKey, index, unique, boolean, varchar, type AnyPgColumn } from "drizzle-orm/pg-core";
-import { relations } from 'drizzle-orm';
+import { pgTable, text, timestamp, uuid, jsonb, integer, primaryKey, index, unique, boolean, varchar, type AnyPgColumn, real } from "drizzle-orm/pg-core";
+import { relations, sql } from 'drizzle-orm';
 
 
 export const users = pgTable("users", {
@@ -13,7 +13,7 @@ export const users = pgTable("users", {
     isEmailVerified: boolean("is_email_verified").default(false).notNull(),
     tokenVersion: integer("token_version").default(1).notNull(),
     status: text("status").$type<"ACTIVE" | "DEACTIVATED" | "SUSPENDED" | "DELETED">().default("ACTIVE").notNull(),
-    role: text("role").$type<"USER" | "ADMIN">().default("USER").notNull(),
+    role: text("role").$type<"USER" | "ADMIN" | "SUPER_ADMIN" | "MODERATOR" | "RISK_ANALYST" | "VIEWER">().default("USER").notNull(),
     regionAffinity: varchar("region_affinity", { length: 20 }), // For multi-region routing
     techStack: jsonb("tech_stack").$type<string[]>().default([]),
     website: text("website"),
@@ -185,8 +185,24 @@ export const posts = pgTable("posts", {
     language: varchar("language", { length: 50 }),
     mediaUrls: jsonb("media_urls").$type<string[]>().default([]),
     tags: jsonb("tags").$type<string[]>().default([]),
-    status: text("status").$type<"DRAFT" | "PUBLISHED" | "ARCHIVED" | "DELETED">().default("PUBLISHED").notNull(),
+    status: text("status").$type<"DRAFT" | "PENDING_REVIEW" | "APPROVED" | "PUBLISHED" | "ARCHIVED" | "DELETED" | "FLAGGED" | "UNDER_REVIEW" | "REJECTED" | "NEEDS_REVISION" | "RESTRICTED" | "REMOVED">().default("PENDING_REVIEW").notNull(),
+    riskScore: real("risk_score").default(0).notNull(), // 0-100, AI or rule-based
+    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at"),
+    moderationMetadata: jsonb("moderation_metadata").$type<{
+        aiScore?: number;
+        flaggedBy?: string[];
+        rejectionReason?: string;
+        revisionNotes?: string;
+        lastModeratorId?: string;
+        processedAt?: string;
+        escalatedTo?: string;
+        escalationReason?: string;
+    }>().default({}),
     location: text("location"),
+    visibility: text("visibility").$type<"PUBLIC" | "PRIVATE" | "FOLLOWERS" | "GEO_RESTRICTED">().default("PUBLIC").notNull(),
+    geoRestrictions: jsonb("geo_restrictions").$type<string[]>().default([]),
+    ageRestricted: boolean("age_restricted").default(false).notNull(),
     pollId: uuid("poll_id").references(() => polls.id),
     commentsCount: integer("comments_count").default(0).notNull(),
     likesCount: integer("likes_count").default(0).notNull(),
@@ -197,6 +213,42 @@ export const posts = pgTable("posts", {
 }, (t) => ({
     userStatusIdx: index("user_status_created_idx").on(t.userId, t.status, t.createdAt.desc()),
     tagsIdx: index("tags_idx").on(t.tags),
+    // Moderation queue index: status + risk_score for priority sorting
+    pendingReviewIdx: index("pending_review_risk_idx").on(t.status, t.riskScore.desc(), t.createdAt.asc()),
+    // Published feed index: only published posts
+    publishedFeedIdx: index("published_feed_idx").on(t.status, t.publishedAt.desc()),
+    // Reviewer index: for moderator activity tracking
+    reviewerIdx: index("reviewer_idx").on(t.reviewedBy, t.reviewedAt.desc()),
+}));
+
+// ─── MODERATION LOGS (tracks every moderation action) ───
+
+export const moderationLogs = pgTable("moderation_logs", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id").references(() => posts.id, { onDelete: 'cascade' }).notNull(),
+    moderatorId: uuid("moderator_id").references(() => users.id).notNull(),
+    action: text("action").$type<"APPROVE" | "REJECT" | "REQUEST_REVISION" | "REMOVE" | "RESTORE" | "ESCALATE" | "NOTE" | "LOCK" | "UNLOCK">().notNull(),
+    previousStatus: text("previous_status"),
+    newStatus: text("new_status"),
+    reason: text("reason"),
+    internalNote: text("internal_note"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+    postIdx: index("mod_log_post_idx").on(t.postId, t.createdAt.desc()),
+    moderatorIdx: index("mod_log_moderator_idx").on(t.moderatorId, t.createdAt.desc()),
+    actionIdx: index("mod_log_action_idx").on(t.action, t.createdAt.desc()),
+}));
+
+export const moderationLogsRelations = relations(moderationLogs, ({ one }) => ({
+    post: one(posts, {
+        fields: [moderationLogs.postId],
+        references: [posts.id],
+    }),
+    moderator: one(users, {
+        fields: [moderationLogs.moderatorId],
+        references: [users.id],
+    }),
 }));
 
 export const postVersions = pgTable("post_versions", {
@@ -646,6 +698,92 @@ export const callHistoryRelations = relations(callHistory, ({ one }) => ({
     }),
     receiver: one(users, {
         fields: [callHistory.receiverId],
+        references: [users.id],
+    }),
+}));
+
+// --- MODERATION & ABUSE SYSTEM ---
+
+export const moderationReports = pgTable("moderation_reports", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reporterId: uuid("reporter_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    postId: uuid("post_id").references(() => posts.id, { onDelete: 'cascade' }),
+    commentId: uuid("comment_id").references(() => comments.id, { onDelete: 'cascade' }),
+    targetUserId: uuid("target_user_id").references(() => users.id, { onDelete: 'cascade' }),
+    reason: text("reason").notNull(),
+    category: text("category").$type<"SPAM" | "HARASSMENT" | "HATE_SPEECH" | "INAPPROPRIATE" | "CHILD_SAFETY" | "OTHER">().notNull(),
+    status: text("status").$type<"PENDING" | "RESOLVED" | "DISMISSED">().default("PENDING").notNull(),
+    priorityScore: integer("priority_score").default(0).notNull(), // 0-100, calculated by service
+    resolution: text("resolution"),
+    resolvedById: uuid("resolved_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+    postIdIdx: index("mod_report_post_idx").on(t.postId),
+    statusIdx: index("mod_report_status_idx").on(t.status),
+}));
+
+export const moderationQueue = pgTable("moderation_queue", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reportId: uuid("report_id").references(() => moderationReports.id, { onDelete: 'cascade' }).notNull(),
+    assignedToId: uuid("assigned_to_id").references(() => users.id), // Moderator ID
+    priority: integer("priority").default(0).notNull(),
+    lockedUntil: timestamp("locked_until"), // For exclusive access during review
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+    assignedToIdx: index("mod_queue_assigned_idx").on(t.assignedToId),
+    priorityIdx: index("mod_queue_priority_idx").on(t.priority.desc(), t.createdAt.asc()),
+}));
+
+export const adminAuditLogsExtended = pgTable("admin_audit_logs", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    adminId: uuid("admin_id").references(() => users.id).notNull(),
+    actionType: text("action_type").notNull(), // e.g., 'POST_DELETE', 'SHADOW_BAN'
+    resourceType: text("resource_type").notNull(), // e.g., 'POST', 'USER'
+    resourceId: uuid("resource_id").notNull(),
+    previousState: jsonb("previous_state"),
+    newState: jsonb("new_state"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+    adminActionIdx: index("admin_action_idx").on(t.adminId, t.actionType),
+    resourceIdx: index("mod_resource_idx").on(t.resourceType, t.resourceId),
+}));
+
+// Relations for moderation tables
+export const moderationReportsRelations = relations(moderationReports, ({ one }) => ({
+    reporter: one(users, {
+        fields: [moderationReports.reporterId],
+        references: [users.id],
+    }),
+    post: one(posts, {
+        fields: [moderationReports.postId],
+        references: [posts.id],
+    }),
+    comment: one(comments, {
+        fields: [moderationReports.commentId],
+        references: [comments.id],
+    }),
+    targetUser: one(users, {
+        fields: [moderationReports.targetUserId],
+        references: [users.id],
+    }),
+    resolvedBy: one(users, {
+        fields: [moderationReports.resolvedById],
+        references: [users.id],
+    }),
+}));
+
+export const moderationQueueRelations = relations(moderationQueue, ({ one }) => ({
+    report: one(moderationReports, {
+        fields: [moderationQueue.reportId],
+        references: [moderationReports.id],
+    }),
+    moderator: one(users, {
+        fields: [moderationQueue.assignedToId],
         references: [users.id],
     }),
 }));

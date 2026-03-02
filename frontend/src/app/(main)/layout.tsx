@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { RightSidebar } from "@/components/layout/right-sidebar"
 import { AuthGuard } from "@/features/auth/components/AuthGuard"
 import { useAuth } from "@/features/auth/components/AuthProvider"
+import { getDashboardPathForRole } from "@/features/auth/role-utils"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -24,14 +25,13 @@ export default function MainLayout({
     const isSettings = pathname.startsWith("/settings")
 
     useEffect(() => {
-        if (!isLoading && user?.auth?.role === 'ADMIN') {
-            router.replace("/admin")
+        if (!isLoading && user && pathname === "/") {
+            const target = getDashboardPathForRole(user.auth.role)
+            if (target !== "/") {
+                router.replace(target)
+            }
         }
-    }, [user, isLoading, router])
-
-    if (!isLoading && user?.auth?.role === 'ADMIN') {
-        return null;
-    }
+    }, [user, isLoading, router, pathname])
 
     return (
         <AuthGuard>

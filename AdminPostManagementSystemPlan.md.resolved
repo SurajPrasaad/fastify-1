@@ -1,0 +1,39 @@
+# Implementation Plan: Globally Scalable Post Management System (Admin Panel)
+
+As a Principal Engineer, I will design a high-performance, resilient, and secure system for managing social media content at scale (100M+ users).
+
+## 1. High-Level System Architecture
+- **Admin API Gateway (tRPC/Next.js)**: Unified ingress for admin requests with built-in auth/RBAC.
+- **Admin Service**: Core orchestrator for admin-only actions (visibility controls, bulk actions, moderator tracking).
+- **Post/Content Service**: Read/write source of truth for all post data.
+- **Moderation Service**: Handles the moderation queue, reports, and risk scoring.
+- **AI Moderation Service**: Asynchronous analysis for automatic flagging and abuse detection.
+- **Audit Service**: Immutable logging of all admin/moderator actions.
+- **Search Service (OpenSearch)**: Real-time filtering and multi-dimensional search.
+- **Event Bus (Kafka)**: Decouples services for reactive updates and consistency.
+
+## 2. Database Design & Schema
+- **Primary Database**: PostgreSQL with multi-region replication and partitioning by `region_id` or `tenant_id`.
+- **Cache**: Redis for session management, rate limiting, and frequent lookup data.
+- **Search**: OpenSearch cluster for complex queries.
+
+## 3. Communication Strategy
+- **Frontend to Backend**: tRPC for type-safe, efficient communication.
+- **Internal Microservices**: gRPC for low-latency, high-performance RPCs.
+- **Event-Driven**: Kafka for asynchronous workflows (e.g., AI flagging, notification fan-out).
+
+## 4. Security & RBAC
+- Hybrid RBAC/ABAC model.
+- Action-level permissions (e.g., `POST_DELETE`, `AI_OVERRIDE`).
+- Admin JWT with short TTL and JTI-based revocation.
+
+## 5. Reliability & Global Scalability
+- **Multi-region K8s deployment**.
+- **Global Failover**: Active-passive or active-active depending on consistency requirements.
+- **CQRS**: Separating admin read (OpenSearch) from write (PostgreSQL).
+
+## 6. Deliverables
+- Detailed Design Document (Artifact: `post_management_system_design.md`).
+- Schema Examples.
+- Code snippets (tRPC, RBAC).
+- Architecture Diagram (Mermaid).

@@ -1,9 +1,31 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Clock, AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FeedPost } from "../types/feed.types";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+
+const StatusBadge = ({ status }: { status: string }) => {
+    const config: Record<string, { label: string; icon: any; color: string }> = {
+        PENDING_REVIEW: { label: 'Pending Review', icon: Clock, color: 'text-amber-500 bg-amber-500/10' },
+        UNDER_REVIEW: { label: 'In Review', icon: Clock, color: 'text-blue-500 bg-blue-500/10' },
+        REJECTED: { label: 'Rejected', icon: AlertCircle, color: 'text-red-500 bg-red-500/10' },
+        NEEDS_REVISION: { label: 'Needs Revision', icon: RotateCcw, color: 'text-purple-500 bg-purple-500/10' },
+        FLAGGED: { label: 'Flagged', icon: AlertCircle, color: 'text-orange-500 bg-orange-500/10' },
+    };
+
+    const item = config[status];
+    if (!item) return null;
+
+    const Icon = item.icon;
+    return (
+        <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight", item.color)}>
+            <Icon className="w-2.5 h-2.5" />
+            {item.label}
+        </div>
+    );
+};
 
 interface PostHeaderProps {
     post: FeedPost;
@@ -45,6 +67,7 @@ export const PostHeader = ({ post }: PostHeaderProps) => {
                             .replace(' day', 'd')
                         }
                     </span>
+                    <StatusBadge status={post.status} />
                 </div>
             </div>
             <Button variant="ghost" size="icon" className="rounded-full text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-500 -mr-2">

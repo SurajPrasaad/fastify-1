@@ -11,6 +11,8 @@ import {
     archivePostHandler,
     deletePostHandler,
     publishDraftHandler,
+    submitForReviewHandler,
+    resubmitHandler,
     votePollHandler
 } from "./post.controller.js";
 import {
@@ -24,7 +26,8 @@ import { z } from "zod";
 export async function postRoutes(app: FastifyInstance) {
     const provider = app.withTypeProvider<ZodTypeProvider>();
 
-    // Public Routes
+    // ─── Public Routes (only returns PUBLISHED posts) ────
+
     provider.get(
         "/",
         {
@@ -61,11 +64,13 @@ export async function postRoutes(app: FastifyInstance) {
         getPostHandler
     );
 
-    // Protected Routes
+    // ─── Protected Routes (authenticated users) ──────────
+
     app.register(async (protectedApp) => {
         const protectedProvider = protectedApp.withTypeProvider<ZodTypeProvider>();
         protectedApp.addHook("preHandler", requireAuth);
 
+        // Create post (defaults to PENDING_REVIEW)
         protectedProvider.post(
             "/",
             {
@@ -77,6 +82,18 @@ export async function postRoutes(app: FastifyInstance) {
             createPostHandler
         );
 
+        // Submit draft for review (DRAFT → PENDING_REVIEW)
+        protectedProvider.post(
+            "/:id/submit",
+            {
+                schema: {
+                    tags: ["Posts"],
+                }
+            },
+            submitForReviewHandler
+        );
+
+        // Legacy: "publish" now means "submit for review"
         protectedProvider.post(
             "/:id/publish",
             {
@@ -87,6 +104,19 @@ export async function postRoutes(app: FastifyInstance) {
             publishDraftHandler
         );
 
+        // Resubmit after revision/rejection
+        protectedProvider.post(
+            "/:id/resubmit",
+            {
+                schema: {
+                    body: updatePostSchema,
+                    tags: ["Posts"],
+                }
+            },
+            resubmitHandler
+        );
+
+        // Update post (only in DRAFT/NEEDS_REVISION/REJECTED states)
         protectedProvider.put(
             "/:id",
             {

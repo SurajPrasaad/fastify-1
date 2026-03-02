@@ -1,8 +1,22 @@
+/**
+ * Post Service — Pre-Moderation Publishing Model
+ * 
+ * Key changes from direct publishing:
+ * 1. createPost → status = PENDING_REVIEW (NOT PUBLISHED)
+ * 2. Only DRAFT status allows direct editing
+ * 3. Hashtags/mentions only processed after PUBLISH
+ * 4. Feed queries enforce WHERE status = 'PUBLISHED'
+ * 5. Kafka events emitted for lifecycle transitions
+ */
+
 import type { PostRepository } from "./post.repository.js";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 import { AppError } from "../../utils/AppError.js";
 import { parseMentions } from "../notification/mention.service.js";
 import { triggerMentionNotifications } from "../notification/notification.triggers.js";
+import { isEditable, validateTransition, type PostStatus } from "./post.state-machine.js";
+import * as events from "../moderation/moderation.events.js";
+import * as moderationQueue from "../moderation/moderation.queue.js";
 
 export class PostService {
     constructor(private postRepository: PostRepository) { }
@@ -13,9 +27,17 @@ export class PostService {
         return [...new Set(hashtags.map(t => t.slice(1).toLowerCase()))];
     }
 
+    /**
+     * Create a new post.
+     * - If isDraft = true → status = DRAFT (not in moderation queue)
+     * - Otherwise → status = PENDING_REVIEW (enters moderation queue)
+     * - Posts are NEVER directly published by users
+     */
     async createPost(userId: string, data: CreatePostInput & { isDraft?: boolean, media?: any[] }) {
         const { media: mediaData, ...postData } = data;
-        const status = data.isDraft ? "DRAFT" : "PUBLISHED";
+
+        // Pre-moderation: posts start as PENDING_REVIEW unless explicitly saved as draft
+        const status: PostStatus = data.isDraft ? "DRAFT" : "PENDING_REVIEW";
 
         const post = await this.postRepository.create({ ...postData, userId, status });
 
@@ -23,104 +45,191 @@ export class PostService {
             throw new AppError("Failed to create post", 500);
         }
 
-        // 1. If high-fidelity media metadata is provided, save it to the media table
+        // Save media metadata if provided
         if (mediaData && mediaData.length > 0) {
             await this.postRepository.saveMediaMetadata(post.id, userId, mediaData);
         }
 
-        // 2. Link hashtags asynchronously
-        if (status === "PUBLISHED") {
-            const hashtags = this.extractHashtags(data.content);
-            this.postRepository.linkHashtags(post.id, hashtags).catch(err => {
-                console.error("Failed to link hashtags:", err);
-            });
+        // If submitted for review, add to moderation queue and emit events
+        if (status === "PENDING_REVIEW") {
+            // Add to Redis priority queue
+            moderationQueue.enqueue(post.id, {
+                authorId: userId,
+                category: "NEW_POST",
+                riskScore: 0, // AI scoring would update this asynchronously
+                reportCount: 0,
+                contentPreview: data.content?.substring(0, 200) || "",
+            }).catch(err => console.error("Failed to enqueue post:", err));
 
-            // 3. Process Mentions
-            const { validUsers } = await parseMentions(data.content, userId);
-            if (validUsers.length > 0) {
-                const mentionIds = validUsers.map(u => u.id);
-                // Link in DB
-                this.postRepository.linkMentions(post.id, mentionIds).catch(err => {
-                    console.error("Failed to link mentions:", err);
-                });
-
-                // Trigger Notifications
-                triggerMentionNotifications(userId, data.content, post.id);
-            }
+            // Emit Kafka events
+            events.emitPostCreated(post.id, userId, { content: data.content?.substring(0, 200) });
+            events.emitPostSubmittedForReview(post.id, userId);
         }
 
         return post;
     }
 
+    /**
+     * Submit a draft for review.
+     * DRAFT → PENDING_REVIEW
+     */
+    async submitForReview(postId: string, userId: string) {
+        const post = await this.postRepository.findById(postId);
+        if (!post) throw new AppError("Post not found", 404);
+        if (post.userId !== userId) throw new AppError("Unauthorized", 403);
+
+        // Validate state transition
+        const transition = validateTransition(
+            post.status as PostStatus,
+            "SUBMIT",
+            "USER",
+            true
+        );
+
+        if (!transition.valid) {
+            throw new AppError(transition.error || "Cannot submit this post for review", 400);
+        }
+
+        const updated = await this.postRepository.updateStatus(postId, userId, "PENDING_REVIEW");
+
+        // Add to moderation queue
+        moderationQueue.enqueue(postId, {
+            authorId: userId,
+            category: "SUBMITTED",
+            riskScore: 0,
+            reportCount: 0,
+            contentPreview: post.content?.substring(0, 200) || "",
+        }).catch(err => console.error("Failed to enqueue post:", err));
+
+        // Emit events
+        events.emitPostSubmittedForReview(postId, userId);
+
+        return updated;
+    }
+
+    /**
+     * Publish a draft (legacy endpoint — now submits for review instead).
+     * In pre-moderation model, "publish" means "submit for review".
+     */
     async publishDraft(postId: string, userId: string) {
-        const post = await this.postRepository.publish(postId, userId);
-        if (!post) {
-            throw new AppError("Draft not found or unauthorized", 404);
-        }
-
-        // Link hashtags on publish
-        const hashtags = this.extractHashtags(post.content);
-        this.postRepository.linkHashtags(post.id, hashtags).catch(err => {
-            console.error("Failed to link hashtags on publish:", err);
-        });
-
-        // 3. Process Mentions
-        const { validUsers } = await parseMentions(post.content, userId);
-        if (validUsers.length > 0) {
-            const mentionIds = validUsers.map(u => u.id);
-            this.postRepository.linkMentions(post.id, mentionIds).catch(err => {
-                console.error("Failed to link mentions on publish:", err);
-            });
-            triggerMentionNotifications(userId, post.content, post.id);
-        }
-
-        return post;
+        return this.submitForReview(postId, userId);
     }
 
-    async getFeed(limit: number, cursor?: string, userId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined, tag?: string | undefined }) {
+    /**
+     * Get the public feed.
+     * CRITICAL: Only returns posts with status = 'PUBLISHED'.
+     */
+    async getFeed(limit: number, cursor?: string, userId?: string, filters?: {
+        authorUsername?: string | undefined;
+        authorId?: string | undefined;
+        tag?: string | undefined;
+        includeDeleted?: boolean;
+    }) {
         return this.postRepository.findMany(limit, cursor, userId, filters);
     }
 
+    /**
+     * Get a specific post.
+     * Security: only owner or moderator/admin can see non-published posts.
+     */
     async getPost(id: string, userId?: string) {
         const post = await this.postRepository.findById(id, true);
         if (!post) throw new AppError("Post not found", 404);
 
-        // Security check for drafts
-        if (post.status === "DRAFT" && post.userId !== userId) {
-            throw new AppError("Unauthorized access to draft", 403);
+        // Security: non-published posts are only visible to the owner
+        const nonPublicStatuses: PostStatus[] = [
+            "DRAFT", "PENDING_REVIEW", "REJECTED", "NEEDS_REVISION", "REMOVED"
+        ];
+
+        if (nonPublicStatuses.includes(post.status as PostStatus) && post.userId !== userId) {
+            throw new AppError("Post not found", 404); // Don't reveal existence
         }
 
         return post;
     }
 
+    /**
+     * Update a post.
+     * Only allowed for DRAFT, NEEDS_REVISION, or REJECTED posts (by the owner).
+     */
     async updatePost(id: string, userId: string, data: UpdatePostInput) {
+        const post = await this.postRepository.findById(id);
+        if (!post) throw new AppError("Post not found", 404);
+        if (post.userId !== userId) throw new AppError("Unauthorized", 403);
+
+        // Only editable in specific states
+        if (!isEditable(post.status as PostStatus)) {
+            throw new AppError(
+                `Cannot edit post with status '${post.status}'. Post can only be edited when in DRAFT, NEEDS_REVISION, or REJECTED state.`,
+                400
+            );
+        }
+
         const updated = await this.postRepository.update(id, userId, data);
         if (!updated) {
             throw new AppError("Post not found or unauthorized", 404);
         }
 
-        // Re-index hashtags for published posts
-        if (updated.status === "PUBLISHED") {
-            const hashtags = this.extractHashtags(updated.content);
-            this.postRepository.linkHashtags(updated.id, hashtags).catch(err => {
-                console.error("Failed to update hashtags:", err);
-            });
+        return updated;
+    }
 
-            // Re-process Mentions
-            const { validUsers } = await parseMentions(updated.content, userId);
-            if (validUsers.length > 0) {
-                const mentionIds = validUsers.map(u => u.id);
-                this.postRepository.linkMentions(updated.id, mentionIds).catch(err => {
-                    console.error("Failed to update mentions:", err);
-                });
-                // Note: triggerMentionNotifications handles deduplication internally or we can add it there if needed.
-                triggerMentionNotifications(userId, updated.content, updated.id);
-            }
+    /**
+     * Resubmit a post after revision/rejection.
+     * NEEDS_REVISION → PENDING_REVIEW or REJECTED → PENDING_REVIEW
+     */
+    async resubmitPost(postId: string, userId: string, data?: UpdatePostInput) {
+        const post = await this.postRepository.findById(postId);
+        if (!post) throw new AppError("Post not found", 404);
+        if (post.userId !== userId) throw new AppError("Unauthorized", 403);
+
+        // Validate transition
+        const transition = validateTransition(
+            post.status as PostStatus,
+            "RESUBMIT",
+            "USER",
+            true
+        );
+
+        if (!transition.valid) {
+            throw new AppError(transition.error || "Cannot resubmit this post", 400);
         }
+
+        // Update content if provided
+        if (data) {
+            await this.postRepository.update(postId, userId, data);
+        }
+
+        // Move to pending review
+        const updated = await this.postRepository.updateStatus(postId, userId, "PENDING_REVIEW");
+
+        // Re-enqueue
+        moderationQueue.enqueue(postId, {
+            authorId: userId,
+            category: "RESUBMITTED",
+            riskScore: 0,
+            reportCount: 0,
+            contentPreview: (data?.content || post.content)?.substring(0, 200) || "",
+        }).catch(err => console.error("Failed to enqueue resubmitted post:", err));
+
+        events.emitPostSubmittedForReview(postId, userId);
 
         return updated;
     }
 
+    /**
+     * Get user's own posts (all statuses visible to owner).
+     */
+    async getUserPosts(userId: string, limit: number = 20, cursor?: string) {
+        return this.postRepository.findMany(limit, cursor, userId, {
+            authorId: userId,
+            includeDeleted: false, // Don't show hard-deleted
+        });
+    }
+
+    /**
+     * Archive a published post.
+     * PUBLISHED → ARCHIVED
+     */
     async archivePost(id: string, userId: string) {
         const archived = await this.postRepository.archive(id, userId);
         if (!archived) {
@@ -129,6 +238,9 @@ export class PostService {
         return archived;
     }
 
+    /**
+     * Delete own post (soft delete).
+     */
     async deletePost(id: string, userId: string) {
         const deleted = await this.postRepository.delete(id, userId);
         if (!deleted) {
@@ -136,10 +248,18 @@ export class PostService {
         }
     }
 
+    /**
+     * Vote on a poll.
+     */
     async votePoll(userId: string, postId: string, optionId: string) {
         const post = await this.postRepository.findById(postId);
         if (!post) {
             throw new AppError("Post not found", 404);
+        }
+
+        // Only allow voting on published posts
+        if (post.status !== "PUBLISHED") {
+            throw new AppError("Cannot vote on a post that is not published", 400);
         }
 
         if (!post.pollId) {
@@ -152,5 +272,33 @@ export class PostService {
         }
 
         return result;
+    }
+
+    /**
+     * Process post after moderation approval (called by moderation service).
+     * Handles hashtag linking, mention notifications, etc.
+     */
+    async onPostPublished(postId: string, userId: string) {
+        const post = await this.postRepository.findById(postId, true);
+        if (!post) return;
+
+        // Link hashtags
+        const hashtags = this.extractHashtags(post.content);
+        this.postRepository.linkHashtags(post.id, hashtags).catch(err => {
+            console.error("Failed to link hashtags:", err);
+        });
+
+        // Process mentions
+        const { validUsers } = await parseMentions(post.content, userId);
+        if (validUsers.length > 0) {
+            const mentionIds = validUsers.map(u => u.id);
+            this.postRepository.linkMentions(post.id, mentionIds).catch(err => {
+                console.error("Failed to link mentions:", err);
+            });
+            triggerMentionNotifications(userId, post.content, post.id);
+        }
+
+        // Emit published event
+        events.emitPostPublished(postId, userId);
     }
 }

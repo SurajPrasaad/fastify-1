@@ -14,7 +14,8 @@ import DataTable, { TableColumn, TableStyles } from "react-data-table-component"
 // ==========================================
 
 type PostType = 'Text' | 'Image' | 'Video';
-type PostStatus = 'Active' | 'Flagged' | 'Removed';
+type PostStatus = 'PUBLISHED' | 'FLAGGED' | 'UNDER_REVIEW' | 'RESTRICTED' | 'DELETED' | 'DRAFT' | 'ARCHIVED';
+type Visibility = 'PUBLIC' | 'PRIVATE' | 'FOLLOWERS' | 'GEO_RESTRICTED';
 type RiskLevel = 'Low' | 'Medium' | 'High';
 
 interface PostData {
@@ -26,6 +27,7 @@ interface PostData {
     thumbnail?: string;
     type: PostType;
     status: PostStatus;
+    visibility: Visibility;
     risk: RiskLevel;
     likes: number;
     comments: number;
@@ -36,7 +38,7 @@ interface PostData {
 
 const generateMockPosts = (count: number): PostData[] => {
     const types: PostType[] = ['Text', 'Image', 'Video', 'Image'];
-    const statuses: PostStatus[] = ['Active', 'Active', 'Flagged', 'Removed', 'Active'];
+    const statuses: PostStatus[] = ['PUBLISHED', 'PUBLISHED', 'FLAGGED', 'DELETED', 'PUBLISHED'];
     const risks: RiskLevel[] = ['Low', 'Low', 'Medium', 'High', 'Low'];
 
     return Array.from({ length: count }).map((_, i) => ({
@@ -48,6 +50,7 @@ const generateMockPosts = (count: number): PostData[] => {
         thumbnail: Math.random() > 0.5 ? `https://picsum.photos/seed/${i}/200` : undefined,
         type: types[Math.floor(Math.random() * types.length)],
         status: statuses[Math.floor(Math.random() * statuses.length)],
+        visibility: 'PUBLIC',
         risk: risks[Math.floor(Math.random() * risks.length)],
         likes: Math.floor(Math.random() * 50000),
         comments: Math.floor(Math.random() * 5000),
@@ -66,7 +69,8 @@ const mockData: PostData[] = [
         content: "Just landed in Tokyo! The neon lights are absolutely stunning at night and the food here is incredible. Check out my latest vlog!",
         thumbnail: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=200&h=200&fit=crop",
         type: "Video",
-        status: "Active",
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
         risk: "Low",
         likes: 12400,
         comments: 428,
@@ -82,7 +86,8 @@ const mockData: PostData[] = [
         content: "Exclusive: New leaked photos of the upcoming electric hypercar. The specs are insane, claim link in bio!",
         thumbnail: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=200&h=200&fit=crop",
         type: "Image",
-        status: "Flagged",
+        status: "FLAGGED",
+        visibility: "PUBLIC",
         risk: "High",
         likes: 8400,
         comments: 2100,
@@ -97,7 +102,8 @@ const mockData: PostData[] = [
         authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuC2VwIFomgVsiVCK9TfyqUPeuuj7uSYX3mDew6s0xAuCN6i1kGuY-5elwZ-scQwO6rO8v0ltVjGthQYugrQSrDbQ7cGqkdkPj6lYXtrd0L8jYuvfp1x7EZyDKLV9aGjlWHJCHPO_ZRKdDLTuDZ1SUqsE_rvFKuEoeqSkjNRZhH9Y9kTLxL9TIa6yPhBLimPvbl1cgYhVN6uv_eQcmCPj-xHWkUrCxB3TApZP5iFzGgsZGDfPY9ia2P6RaypJDItFd5M487o14ROaj8",
         content: "[Content removed for policy violation by automated filters]",
         type: "Text",
-        status: "Removed",
+        status: "DELETED",
+        visibility: "PUBLIC",
         risk: "High",
         likes: 0,
         comments: 0,
@@ -233,14 +239,18 @@ const PostTypeBadge = ({ type }: { type: PostType }) => {
 };
 
 const StatusBadge = ({ status }: { status: PostStatus }) => {
-    const styles = {
-        Active: 'bg-[#00BA7C]/10 text-[#00BA7C] border-[#00BA7C]/20',
-        Flagged: 'bg-[#FFD400]/10 text-[#FFD400] border-[#FFD400]/20',
-        Removed: 'bg-[#F91880]/10 text-[#F91880] border-[#F91880]/20'
+    const styles: Record<PostStatus, string> = {
+        PUBLISHED: 'bg-[#00BA7C]/10 text-[#00BA7C] border-[#00BA7C]/20',
+        FLAGGED: 'bg-[#FFD400]/10 text-[#FFD400] border-[#FFD400]/20',
+        UNDER_REVIEW: 'bg-[#1D9BF0]/10 text-[#1D9BF0] border-[#1D9BF0]/20',
+        RESTRICTED: 'bg-[#8247E5]/10 text-[#8247E5] border-[#8247E5]/20',
+        DELETED: 'bg-[#F91880]/10 text-[#F91880] border-[#F91880]/20',
+        DRAFT: 'bg-[#71767B]/10 text-[#71767B] border-[#71767B]/20',
+        ARCHIVED: 'bg-[#2F3336]/10 text-[#2F3336] border-[#2F3336]/20'
     };
     return (
         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${styles[status]}`}>
-            {status}
+            {status.replace('_', ' ')}
         </span>
     );
 };
@@ -457,7 +467,7 @@ const PostDrawer = ({ post, onClose }: { post: PostData | null, onClose: () => v
 
                 {/* Footer Actions */}
                 <div className="p-4 border-t border-[#2F3336] bg-[#000000] shrink-0 grid grid-cols-2 gap-3">
-                    {post.status === 'Removed' ? (
+                    {post.status === 'DELETED' ? (
                         <button className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#00BA7C]/10 text-[#00BA7C] border border-[#2F3336] hover:border-[#00BA7C]/50 rounded-xl text-[13px] font-bold transition-colors">
                             <RotateCcw className="w-4 h-4" /> Restore Content
                         </button>
@@ -527,7 +537,7 @@ export default function PostsManagementPage() {
                     )}
                     <div className="min-w-0 flex-1">
                         <div className="text-[13px] text-[#E7E9EA] line-clamp-2 leading-relaxed mb-1" title={row.content}>
-                            {row.status === 'Removed' ? <span className="text-[#F91880] italic">[Content Removed]</span> : row.content}
+                            {row.status === 'DELETED' ? <span className="text-[#F91880] italic">[Content Removed]</span> : row.content}
                         </div>
                         <div className="flex items-center gap-1.5 text-[11px] text-[#71767B]">
                             <span>{row.id}</span>

@@ -1,0 +1,175 @@
+# Pre-Moderation Architecture — Implementation Summary
+
+> All files compile cleanly with `tsc --noEmit` — zero errors.
+
+---
+
+## Changes Overview
+
+```mermaid
+graph LR
+    subgraph "New Files (7)"
+        A["rbac.ts"]
+        B["post.state-machine.ts"]
+        C["moderation.lock.ts"]
+        D["moderation.queue.ts"]
+        E["moderation.events.ts"]
+        F["audit.repository.ts"]
+        G["audit.service.ts"]
+    end
+
+    subgraph "Modified Files (12)"
+        H["db/schema.ts"]
+        I["post.service.ts"]
+        J["post.repository.ts"]
+        K["post.controller.ts"]
+        L["post.routes.ts"]
+        M["moderation.service.ts"]
+        N["moderation.repository.ts"]
+        O["moderation.controller.ts"]
+        P["moderation.routes.ts"]
+        Q["moderation.schema.ts"]
+        R["admin.service.ts"]
+        S["admin.routes.ts"]
+    end
+
+    subgraph "tRPC Layer (4)"
+        T["trpc.ts"]
+        U["router.ts"]
+        V["moderation.router.ts"]
+        W["admin.router.ts"]
+        X["post.router.ts"]
+    end
+```
+
+## What Was Built
+
+### 1. RBAC Middleware ([rbac.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/middleware/rbac.ts))
+
+- **Role hierarchy**: `USER < MODERATOR < ADMIN < SUPER_ADMIN`
+- **Permission matrix**: 16 permissions mapped to roles
+- **Middleware factories**: [requireRole()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/middleware/rbac.ts#115-135), [requirePermission()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/middleware/rbac.ts#138-157)
+- **Anti-privilege-escalation**: [requireHigherRole()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/middleware/rbac.ts#178-193) guard
+- **Migration path**: Designed to evolve from role-based → permission-based
+
+### 2. Post State Machine ([post.state-machine.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.state-machine.ts))
+
+- **Strict transition validation** for all 12 state transitions
+- **Role-based authorization** per transition (who can perform each action)
+- **Ownership checks** (e.g., only owner can submit/archive)
+- **Helper utilities**: [getAvailableActions()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.state-machine.ts#133-157), [isPubliclyVisible()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.state-machine.ts#160-163), [isEditable()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.state-machine.ts#166-169)
+
+### 3. Redis Distributed Locking ([moderation.lock.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/moderation/moderation.lock.ts))
+
+- **Atomic lock acquisition**: `SET NX EX` pattern
+- **5-minute TTL auto-release** (no deadlocks)
+- **Lua script check-and-delete** (safe release)
+- **Admin force-release** (override capability)
+- **Lock info and scanning** (dashboard monitoring)
+- **Lock extension** (during active review)
+
+### 4. Priority Queue ([moderation.queue.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/moderation/moderation.queue.ts))
+
+- **Redis Sorted Set**: O(log N) operations
+- **Composite priority**: `risk_score * 0.4 + report_count * 0.3 + recency * 0.2 + trust * 0.1`
+- **Queue depth monitoring** by priority tier (critical/high/medium/low)
+- **Average wait time** metric for SLA tracking
+- **7-day metadata TTL** for queue items
+
+### 5. Kafka Event System ([moderation.events.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/moderation/moderation.events.ts))
+
+- **12 event topics**: post.created, post.submitted_for_review, post.approved, etc.
+- **Structured payloads** with correlation IDs and event versioning
+- **Graceful error handling** (best-effort, never blocks main flow)
+- **Key-based partitioning** (postId/userId for ordering guarantees)
+
+### 6. Audit Service ([audit.service.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/audit/audit.service.ts) + [audit.repository.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/audit/audit.repository.ts))
+
+- **Fire-and-forget logging** (never blocks main request)
+- **Paginated queries** with 9 filter dimensions
+- **Resource history** tracking (full timeline per entity)
+- **Admin activity metrics** (who did what, how much)
+- **Action distribution** (for spike detection/alerting)
+
+### 7. Database Schema ([schema.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/db/schema.ts))
+
+- **Posts table**: Added `risk_score`, `reviewed_by`, `reviewed_at`, `escalatedTo`, `escalationReason`
+- **New `moderation_logs` table**: Every moderation action with full context
+- **Optimized indexes**:
+  - `pending_review_risk_idx` — queue performance (status + risk_score DESC + created_at ASC)
+  - `published_feed_idx` — feed query performance (status + published_at DESC)  
+  - `reviewer_idx` — moderator activity tracking
+  - `mod_log_*` — moderation log indexes (post, moderator, action)
+- **Updated status enum**: Added `APPROVED`, `REMOVED` states; removed `AUTO_APPROVED`
+
+### 8. Post Service Rewrite ([post.service.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.service.ts))
+
+- **Pre-moderation enforcement**: Posts default to `PENDING_REVIEW` (never auto-publish)
+- **State machine integration**: All transitions validated
+- **New methods**: [submitForReview()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.service.ts#72-109), [resubmitPost()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.service.ts#176-218), [getUserPosts()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.service.ts#219-228), [onPostPublished()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.service.ts#277-304)
+- **Deferred processing**: Hashtags/mentions only processed after approval
+- **Edit restrictions**: Only DRAFT/NEEDS_REVISION/REJECTED posts editable
+
+### 9. Post Repository Updates ([post.repository.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.repository.ts))
+
+- **Removed AUTO_APPROVED bypass**: No more random AI score simulation
+- **Added [updateStatus()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/post/post.repository.ts#229-245)**: For state machine transitions
+- **Visibility enforcement**: Only `PUBLISHED` in public view (no `AUTO_APPROVED`)
+
+### 10. Moderation Service Rewrite ([moderation.service.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/moderation/moderation.service.ts))
+
+- **Full orchestration**: State machine → Lock → DB transition → Queue → Events → Audit
+- **Atomic moderation flow**:
+  1. Validate transition (state machine)
+  2. Acquire Redis lock
+  3. Update database (transaction)
+  4. Dequeue from Redis
+  5. Emit Kafka events
+  6. Write audit log
+  7. Release lock (always, even on error)
+
+### 11. Admin Service Enhancement ([admin.service.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/admin/admin.service.ts))
+
+- **User management**: [suspendUser()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/admin/admin.service.ts#78-119), [unsuspendUser()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/admin/admin.service.ts#120-150), [assignRole()](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/modules/admin/admin.service.ts#151-209)
+- **Anti-privilege-escalation**: Cannot suspend ADMIN, cannot self-assign roles
+- **Role assignment rules**: Only SUPER_ADMIN can promote to ADMIN
+- **Kafka events**: UserSuspended, UserRoleChanged for downstream services
+
+### 12. tRPC Layer ([trpc.ts](file:///c:/Users/suraj/Desktop/socialmedia/backend/src/trpc/trpc.ts))
+
+- **New `moderatorProcedure`**: MODERATOR + ADMIN access
+- **Three-tier access**: `protectedProcedure` < `moderatorProcedure` < `adminProcedure`
+- **Updated routers**: Moderation, admin, and post routers with proper access controls
+
+---
+
+## API Surface
+
+### REST Endpoints
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| POST | `/posts` | USER | Create post (→ PENDING_REVIEW) |
+| POST | `/posts/:id/submit` | USER | Submit draft for review |
+| POST | `/posts/:id/resubmit` | USER | Resubmit after revision |
+| GET | `/moderation/queue` | MOD+ | Get pending posts |
+| POST | `/moderation/moderate` | MOD+ | Approve/reject/revise |
+| POST | `/moderation/lock/:postId` | MOD+ | Lock for review |
+| DELETE | `/moderation/lock/:postId` | MOD+ | Release lock |
+| GET | `/moderation/stats` | MOD+ | Queue statistics |
+
+### tRPC Procedures
+
+| Procedure | Access | Description |
+|---|---|---|
+| `moderation.getQueue` | MOD+ | Pre-moderation queue |
+| `moderation.moderate` | MOD+ | State-machine-validated action |
+| `moderation.lockPost` | MOD+ | Exclusive review lock |
+| `moderation.getQueueStats` | MOD+ | Dashboard stats |
+| `moderation.forceUnlock` | ADMIN | Override lock release |
+| `moderation.getSlaMetrics` | ADMIN | SLA monitoring |
+| `admin.users.suspend` | ADMIN | Suspend user |
+| `admin.users.assignRole` | ADMIN | Role management |
+| `admin.auditLogs.query` | ADMIN | Paginated audit logs |
+| `posts.submitForReview` | USER | Submit draft |
+| `posts.resubmit` | USER | Resubmit post |

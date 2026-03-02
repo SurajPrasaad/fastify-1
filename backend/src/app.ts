@@ -1,6 +1,9 @@
 import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import { fastifyTRPCPlugin } from '@trpc/server/adapters/fastify';
+import { appRouter } from './trpc/router.js';
+import { createContext } from './trpc/context.js';
 import healthRoutes from './modules/health/health.route.js'
 import { userRoutes } from './modules/user/user.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
@@ -17,6 +20,8 @@ import { chatRoutes } from './modules/chat/chat.routes.js'
 import { mediaRoutes } from './modules/media/media.routes.js'
 import { settingsRoutes } from './modules/settings/settings.routes.js'
 import { exploreRoutes } from './modules/explore/explore.routes.js'
+import { moderationRoutes } from './modules/moderation/moderation.routes.js'
+import { adminRoutes } from './modules/admin/admin.routes.js'
 import fastifySocketIO from 'fastify-socket.io'
 import { chatGateway } from './modules/chat/chat.gateway.js'
 import { notificationGateway } from './modules/notification/notification.gateway.js'
@@ -82,6 +87,13 @@ app.register(mediaRoutes, { prefix: '/media' })
 app.register(settingsRoutes, { prefix: '/settings' })
 app.register(exploreRoutes, { prefix: '/explore' })
 app.register(callRoutes, { prefix: '/call' })
+app.register(moderationRoutes, { prefix: '/moderation' })
+app.register(adminRoutes, { prefix: '/admin' })
+
+app.register(fastifyTRPCPlugin, {
+  prefix: '/trpc',
+  trpcOptions: { router: appRouter, createContext },
+});
 
 
 app.setErrorHandler((error, request, reply) => {

@@ -1,39 +1,37 @@
 
 import { db } from "../../config/drizzle.js";
-import { posts, users, postVersions, hashtags, postHashtags, postMentions, media, polls, pollOptions, pollVotes, userCounters } from "../../db/schema.js";
-import { and, desc, eq, lt, sql, count, or } from "drizzle-orm";
+import {
+    posts, users, postVersions, hashtags, postHashtags, postMentions,
+    media, polls, pollOptions, pollVotes, userCounters,
+    moderationReports, adminAuditLogsExtended, engagementCounters
+} from "../../db/schema.js";
+import { and, desc, eq, lt, sql, count, or, notInArray } from "drizzle-orm";
 import type { CreatePostInput, UpdatePostInput } from "./post.schema.js";
 
 export class PostRepository {
-    async create(data: CreatePostInput & { userId: string; status?: "DRAFT" | "PUBLISHED" }) {
-        const status = data.status || 'PUBLISHED';
+    async create(data: CreatePostInput & { userId: string; status?: string }) {
+        // Pre-Moderation Model:
+        // Posts default to PENDING_REVIEW — no auto-approval bypass
+        const status = data.status || 'PENDING_REVIEW';
+
+        // Only PUBLISHED posts are publicly visible
+        const isPubliclyVisible = status === 'PUBLISHED';
+        const finalStatus = status;
 
         return await db.transaction(async (tx) => {
             let pollId: string | null = null;
-
-            // 1. Create poll if exists
+            // ... (poll logic remains same)
             if (data.poll) {
                 const [newPoll] = await tx.insert(polls).values({
-                    question: data.content.slice(0, 255), // Use part of content as internal question
+                    question: data.content.slice(0, 255),
                     expiresAt: data.poll.expiresAt,
                 }).returning();
-
-                if (!newPoll) {
-                    throw new Error("Failed to create poll");
+                pollId = newPoll?.id || null;
+                if (newPoll) {
+                    await tx.insert(pollOptions).values(data.poll.options.map(opt => ({ pollId: newPoll.id, text: opt })));
                 }
-
-                pollId = newPoll.id;
-
-                // Create poll options
-                await tx.insert(pollOptions).values(
-                    data.poll.options.map(opt => ({
-                        pollId: newPoll.id,
-                        text: opt
-                    }))
-                );
             }
 
-            // 2. Create post
             const [post] = await tx
                 .insert(posts)
                 .values({
@@ -44,17 +42,16 @@ export class PostRepository {
                     mediaUrls: data.mediaUrls || [],
                     location: data.location || null,
                     pollId: pollId,
-                    status: status,
-                    publishedAt: status === 'PUBLISHED' ? new Date() : null,
+                    status: finalStatus as any,
+                    riskScore: 0, // Will be updated by AI scoring service
+                    publishedAt: isPubliclyVisible ? new Date() : null,
                 })
                 .returning();
 
-            if (!post) {
-                throw new Error("Failed to create post");
-            }
+            if (!post) throw new Error("Failed to create post");
 
-            // 3. Update user post count if published
-            if (status === 'PUBLISHED') {
+            // 3. Update user post count ONLY if publicly visible
+            if (isPubliclyVisible) {
                 await tx
                     .update(userCounters)
                     .set({ postsCount: sql`${userCounters.postsCount} + 1`, updatedAt: new Date() })
@@ -66,8 +63,8 @@ export class PostRepository {
     }
 
     async findByIdHydrated(id: string, currentUserId?: string, tx?: any) {
-        // const client = tx || db;
-        const [item] = await tx
+        const client = tx || db;
+        const [item] = await client
             .select({
                 id: posts.id,
                 userId: posts.userId,
@@ -106,7 +103,6 @@ export class PostRepository {
             .limit(1);
 
         if (!item) return null;
-        const client = tx || db;
 
         let poll = null;
         let originalPost = null;
@@ -148,10 +144,62 @@ export class PostRepository {
             originalPost = orig || null;
         }
 
+        // 3. INTERNAL DATA (For Admin/Moderation)
+        // Fetch Reports & Priority Score
+        const [modData] = await client.select({
+            count: count(moderationReports.id),
+            avgPriority: sql<number>`avg(${moderationReports.priorityScore})`
+        })
+            .from(moderationReports)
+            .where(eq(moderationReports.postId, id));
+
+        // Fetch Analytics (Detailed)
+        const [analytics] = await client.select()
+            .from(engagementCounters)
+            .where(eq(engagementCounters.targetId, id));
+
+        // Fetch History (Audit Logs)
+        const historyCols = {
+            id: adminAuditLogsExtended.id,
+            actionType: adminAuditLogsExtended.actionType,
+            reason: adminAuditLogsExtended.reason,
+            createdAt: adminAuditLogsExtended.createdAt,
+            admin: {
+                username: users.username,
+                name: users.name,
+            }
+        };
+        const history = await client.select(historyCols)
+            .from(adminAuditLogsExtended)
+            .innerJoin(users, eq(adminAuditLogsExtended.adminId, users.id))
+            .where(and(
+                eq(adminAuditLogsExtended.resourceType, 'POST'),
+                eq(adminAuditLogsExtended.resourceId, id)
+            ))
+            .orderBy(desc(adminAuditLogsExtended.createdAt));
+
+        // Fetch Content Versions
+        const versions = await client.select()
+            .from(postVersions)
+            .where(eq(postVersions.postId, id))
+            .orderBy(desc(postVersions.version));
+
         return {
             ...item,
             poll,
-            originalPost
+            originalPost,
+            moderation: {
+                reportsCount: Number(modData?.count || 0),
+                priorityScore: Math.round(Number(modData?.avgPriority || 0)),
+                history,
+                versions
+            },
+            analytics: analytics || {
+                likesCount: item.likesCount,
+                commentsCount: item.commentsCount,
+                repostsCount: item.repostsCount,
+                reactionsCount: {}
+            }
         };
     }
 
@@ -165,17 +213,54 @@ export class PostRepository {
         const [post] = await query;
         if (!post) return null;
 
-        // Soft delete check
-        if (post.status === 'DELETED') return null;
-
-        // Draft check
-        if (post.status === 'DRAFT' && !includePrivate) return null;
+        // Visibility Rule Enforcement: only PUBLISHED for public view
+        if (!includePrivate) {
+            if (post.status !== 'PUBLISHED') {
+                return null;
+            }
+        } else {
+            // Even with includePrivate, we hard-exclude DELETED
+            if (post.status === 'DELETED') return null;
+        }
 
         return post;
     }
 
-    async findMany(limit: number, cursor?: string, currentUserId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined, tag?: string | undefined }) {
-        const conditions = [eq(posts.status, 'PUBLISHED')];
+    /**
+     * Update post status (for state machine transitions).
+     */
+    async updateStatus(id: string, userId: string, newStatus: string) {
+        const [updated] = await db
+            .update(posts)
+            .set({
+                status: newStatus as any,
+                updatedAt: new Date(),
+                ...(newStatus === 'PUBLISHED' ? { publishedAt: new Date() } : {}),
+            })
+            .where(and(eq(posts.id, id), eq(posts.userId, userId)))
+            .returning();
+
+        return updated || null;
+    }
+
+    async findMany(limit: number, cursor?: string, currentUserId?: string, filters?: { authorUsername?: string | undefined, authorId?: string | undefined, tag?: string | undefined, includeDeleted?: boolean, includePending?: boolean }) {
+        const conditions = [];
+
+        // Feed Visibility Rules Enforcement
+        if (filters?.includePending && currentUserId) {
+            // Allow user to see their own pending/rejected posts, OR allow admin to see everything
+            if (filters.authorId === currentUserId || filters.includeDeleted) {
+                conditions.push(notInArray(posts.status, ['DELETED', 'ARCHIVED']));
+            } else {
+                conditions.push(eq(posts.status, 'PUBLISHED'));
+            }
+        } else if (!filters?.includeDeleted) {
+            // Strict public feed rule: only PUBLISHED
+            conditions.push(eq(posts.status, 'PUBLISHED'));
+        } else {
+            // Admin list or special views
+            conditions.push(notInArray(posts.status, ['DELETED']));
+        }
 
         if (filters?.authorId) {
             conditions.push(eq(posts.userId, filters.authorId));

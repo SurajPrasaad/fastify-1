@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation"
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> { }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className }: Readonly<SidebarProps>) {
     const { user, logout } = useAuth()
     const pathname = usePathname()
     const { theme, setTheme } = useTheme()
@@ -45,8 +45,47 @@ export function Sidebar({ className }: SidebarProps) {
                         <SidebarLink icon="person" label="Profile" href={`/${user?.username || "profile"}`} active={user?.username ? pathname.startsWith(`/${user.username}`) : false} />
                         <SidebarLink icon="bookmark" label="Bookmarks" href="/bookmarks" active={pathname === "/bookmarks"} />
                         <SidebarLink icon="settings" label="Settings" href="/settings" active={pathname === "/settings"} />
-                        {user?.auth?.role === 'ADMIN' && (
-                            <SidebarLink icon="admin_panel_settings" label="Admin Panel" href="/admin" active={pathname.startsWith("/admin")} />
+                        {user?.auth?.role === "ADMIN" ? (
+                            <SidebarLink
+                                icon="admin_panel_settings"
+                                label="Admin Panel"
+                                href="/admin"
+                                active={pathname.startsWith("/admin")}
+                            />
+                        ) : null}
+                        {user?.auth?.role === "MODERATOR" || user?.auth?.role === "SUPER_ADMIN" ? (
+                            <SidebarLink
+                                icon="shield_person"
+                                label="Moderation"
+                                href="/moderator"
+                                active={pathname.startsWith("/moderator")}
+                            />
+                        ) : null}
+                        {user?.auth?.role === "SUPER_ADMIN" && (
+                            <SidebarLink
+                                icon="workspace_premium"
+                                label="Super Admin"
+                                href="/super-admin"
+                                active={pathname.startsWith("/super-admin")}
+                            />
+                        )}
+                        {user && (
+                            <button
+                                type="button"
+                                onClick={() => logout()}
+                                className={cn(
+                                    "mt-2 flex items-center gap-4 px-4 py-3 rounded-xl transition-all relative group",
+                                    "text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                )}
+                            >
+                                <span
+                                    className="material-symbols-outlined text-[24px]"
+                                    style={{ fontVariationSettings: `'FILL' 0` }}
+                                >
+                                    logout
+                                </span>
+                                <span className="text-lg font-semibold">Logout</span>
+                            </button>
                         )}
                     </nav>
 
@@ -124,14 +163,14 @@ export function Sidebar({ className }: SidebarProps) {
     )
 }
 
-function SidebarLink({ icon, label, href, active, badge, fillIcon }: {
+function SidebarLink({ icon, label, href, active, badge, fillIcon }: Readonly<{
     icon: string,
     label: string,
     href: string,
     active?: boolean,
     badge?: string,
     fillIcon?: boolean
-}) {
+}>) {
     return (
         <Link
             href={href}

@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "./AuthProvider";
 import { Loader2 } from "lucide-react";
+import { getDashboardPathForRole } from "../role-utils";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { user, isLoading, isAuthenticated } = useAuth();
@@ -40,7 +41,7 @@ export function GuestGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isLoading && isAuthenticated) {
-            const redirectPath = user?.auth?.role === 'ADMIN' ? '/admin' : '/';
+            const redirectPath = getDashboardPathForRole(user?.auth?.role);
             router.replace(redirectPath);
         }
     }, [isAuthenticated, isLoading, user, router]);

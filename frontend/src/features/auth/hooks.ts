@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useEffect } from "react";
 import { User } from "./types";
+import { getDashboardPathForRole } from "./role-utils";
 
 export const useCurrentUser = () => {
     return useQuery({
@@ -29,8 +30,7 @@ export const useAuthActions = () => {
             if (!data.mfaRequired) {
                 queryClient.setQueryData(["auth", "me"], data.user);
                 toast.success("Welcome back!");
-                const redirectPath = data.user.auth.role === 'ADMIN' ? '/admin' : '/';
-                router.replace(redirectPath);
+                router.replace(getDashboardPathForRole(data.user.auth.role));
             }
         },
     });
@@ -42,8 +42,7 @@ export const useAuthActions = () => {
             if (!data.mfaRequired) {
                 queryClient.setQueryData(["auth", "me"], data.user);
                 toast.success("Signed in with Google!");
-                const redirectPath = data.user.auth.role === 'ADMIN' ? '/admin' : '/';
-                router.replace(redirectPath);
+                router.replace(getDashboardPathForRole(data.user.auth.role));
             }
         },
     });
@@ -71,8 +70,7 @@ export const useAuthActions = () => {
         onSuccess: (data) => {
             queryClient.setQueryData(["auth", "me"], data.user);
             toast.success("Security verification successful!");
-            const redirectPath = data.user.auth.role === 'ADMIN' ? '/admin' : '/';
-            router.replace(redirectPath);
+            router.replace(getDashboardPathForRole(data.user.auth.role));
         },
     });
 

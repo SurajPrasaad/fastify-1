@@ -1,0 +1,264 @@
+# Enterprise Systems Design: Global Post Management & Moderation
+
+**Author**: Principal Engineer  
+**Target**: Social Media Admin Panel (100M+ Users)  
+**Status**: Architecture Design (ADR-001)
+
+---
+
+## 1. High-Level Architecture
+
+We employ a **Microservices-based, Event-Driven Architecture (EDA)** with **CQRS** (Command Query Responsibility Segregation) to ensure that heavy administrative search operations do not impact high-throughput content ingestion.
+
+### 1.1 Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph "Global Content Delivery (Cloudflare)"
+        CDN[Edge CDN]
+    end
+
+    subgraph "Admin Frontend Cluster (Next.js + tRPC)"
+        AdminUI[Admin Dashboard]
+        tRPC[Admin tRPC Router]
+    end
+
+    subgraph "Core Service Mesh (gRPC)"
+        PostSvc[Post Service]
+        ModSvc[Moderation Service]
+        AISvc[AI Moderation Service]
+        AuditSvc[Audit Log Service]
+        SearchSvc[Search Service - OpenSearch]
+    end
+
+    subgraph "Data Persistence & Intelligence"
+        PrimaryDB[(PostgreSQL - Primary)]
+        RedisCache[(Redis Cluster - Hot Cache)]
+        MQ[[Kafka - Event Bus]]
+    end
+
+    AdminUI --> tRPC
+    tRPC --> PostSvc
+    tRPC --> ModSvc
+    tRPC --> AuditSvc
+    
+    PostSvc -- Event: PostCreated --> MQ
+    MQ -- Consumer --> AISvc
+    AISvc -- Event: ContentFlagged --> MQ
+    MQ -- Consumer --> ModSvc
+    
+    PostSvc -- Write --> PrimaryDB
+    PrimaryDB -- CDC --> SearchSvc
+    SearchSvc -- Query --> tRPC
+```
+
+---
+
+## 2. Service Separation & Functional Domains
+
+### 2.1 Admin Service (Orchestrator)
+Separated from the public API to prevent noisy-neighbor issues.
+- **Responsibility**: Visibility controls, geo-restrictions, age-gating, and bulk operations.
+- **Technology**: Node.js + gRPC for internal calls; tRPC for frontend.
+
+### 2.2 Moderation Service
+Handles the lifecycle of content review.
+- **Responsibility**: Queue management (FIFO/Priority), report aggregation, shadow-banning logic.
+- **Lifecycle States**: `Draft` → `Published` → `Flagged` → `Under Review` → `Restricted` → `Deleted`.
+
+### 2.3 AI Moderation Service
+Automated safety layer.
+- **Responsibility**: NLP for hate speech, Computer Vision for image/video analysis, risk scoring.
+- **Flow**: Asynchronous. If risk score > 0.9, auto-hide and flag for human review (AI Override path).
+
+### 2.4 Audit Log Service
+Immutable record of "Who did what and when".
+- **Database**: Time-series optimized or append-only SQL table.
+- **Requirement**: No delete/update allowed on this service's data.
+
+---
+
+## 3. Database Schema Design (PostgreSQL)
+
+We use **PostgreSQL** with **Table Partitioning** by `region_id` and `created_at` (Monthly partitions).
+
+### 3.1 Post Schema
+```sql
+CREATE TABLE posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    content TEXT NOT NULL,
+    media_urls TEXT[],
+    status post_status DEFAULT 'published', -- enum: draft, published, flagged, etc.
+    visibility visibility_type DEFAULT 'public', -- enum: public, private, followers, geo_restricted
+    geo_restrictions JSONB, -- list of ISO country codes
+    age_restricted BOOLEAN DEFAULT FALSE,
+    version INTEGER DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+) PARTITION BY RANGE (created_at);
+```
+
+### 3.2 Moderation Actions & Reports
+```sql
+CREATE TABLE moderation_queue (
+    post_id UUID REFERENCES posts(id),
+    priority_score FLOAT, -- calculated via reporting volume + AI risk
+    assigned_to UUID, -- moderator_id
+    flag_reason TEXT,
+    status queue_status DEFAULT 'pending'
+);
+
+CREATE TABLE post_reports (
+    id BIGSERIAL PRIMARY KEY,
+    post_id UUID REFERENCES posts(id),
+    reporter_id UUID NOT NULL,
+    reason TEXT NOT NULL,
+    category report_category, -- spam, harassment, etc.
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3.3 Audit Trail
+```sql
+CREATE TABLE admin_audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    admin_id UUID NOT NULL,
+    action_type VARCHAR(50) NOT NULL, -- POST_DELETE, USER_BAN, AI_OVERRIDE
+    resource_id UUID NOT NULL,
+    prev_state JSONB,
+    new_state JSONB,
+    ip_address INET,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+## 4. API & Communication Design
+
+### 4.1 tRPC Router Structure (Frontend-Facing)
+```typescript
+import { initTRPC } from '@trpc/server';
+import { z } from 'zod';
+
+const t = initTRPC.context<AdminContext>().create();
+
+export const adminRouter = t.router({
+  // Post Management
+  getPostDetails: t.procedure
+    .input(z.object({ postId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      await ctx.enforcePermission('POST_VIEW');
+      return ctx.services.post.getById(input.postId);
+    }),
+
+  bulkModeration: t.procedure
+    .input(z.object({
+      postIds: z.array(z.string()),
+      action: z.enum(['APPROVE', 'REJECT', 'SHADOW_BAN']),
+      reason: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.enforcePermission('POST_MODERATE_BULK');
+      // Producer to Kafka for async processing if > 1k items
+      return ctx.services.moderation.performBulk(input);
+    }),
+});
+```
+
+### 4.2 gRPC Interface (Service-to-Service)
+```protobuf
+service ModerationService {
+  rpc UpdatePostStatus(UpdateStatusRequest) returns (UpdateStatusResponse);
+  rpc GetModerationQueue(QueueRequest) returns (QueueResponse);
+}
+```
+
+---
+
+## 5. Scalability & Performance Targets
+
+| Metric | Target | Solution |
+| :--- | :--- | :--- |
+| **Search Latency** | < 200ms | OpenSearch with indexed `PostgreSQL` via Kafka Connect / Debezium. |
+| **Bulk Action** | < 3s | Async Kafka processing for 100k+ records with incremental status updates. |
+| **Availability** | 99.99% | Multi-region K8s + Global Traffic Management (GTM). |
+| **Write Optimization** | 10k+ WTPS | Redis-backed write buffer + Postgres Partitioning. |
+
+### 5.1 Multi-Region Strategy
+- **Data Locality**: Users in EU access EU-West Primary; metadata replicated globally.
+- **Failover**: Multi-region Kubernetes clusters behind Cloudflare Load Balancers with **Health Checks**.
+
+---
+
+## 6. Security: Hybrid RBAC/ABAC
+
+We implement **Role-Based Access Control (RBAC)** for broad access and **Attribute-Based Access Control (ABAC)** for granular conditions (e.g., "Moderator can only edit posts from their assigned region").
+
+### 6.1 Policy Structure
+```json
+{
+  "role": "regional_moderator",
+  "permissions": ["POST_VIEW", "POST_DELETE"],
+  "conditions": {
+    "region_id": "eu-west-1",
+    "max_reports_handled": 500
+  }
+}
+```
+
+### 6.2 Advanced Security Mesures
+1. **IP Allowlisting**: Limit Admin Panel access to corporate VPN ranges.
+2. **JTI Revocation**: Ability to invalidate admin sessions immediately if abuse is detected.
+3. **PII Masking**: Masking user emails/phone numbers unless explicit "View PII" permission is granted.
+
+---
+
+## 7. Event Flow (Kafka Topics)
+
+1. `content.post.created`: Triggers AI Moderation + Cache warming.
+2. `content.post.flagged`: Updates Search Index + Notifies Moderation Queue.
+3. `moderation.decision.made`: Triggers Notification Service + Post status update.
+4. `admin.action.audit`: Consumed by Audit Service for compliance.
+
+---
+
+## 9. Failure Handling & Resilience Strategy
+
+| Failure Scenario | Mitigation |
+| :--- | :--- |
+| **PostgreSQL Outage** | Failover to Hot Standby (Replica) in 10-30s; write to Redis buffer if needed. |
+| **Kafka Downtime** | Local disk buffer or fallback to synchronous gRPC for high-priority flags. |
+| **AI Service Latency** | Circuit breaker (Hystrix/Resilience4j) skips AI and goes straight to "Manual Review". |
+| **Search Index Lag** | "Stale-While-Revalidate" flag; fallback to Postgres `id` lookup if record is missing. |
+
+### 9.1 Dead Letter Queues (DLQ)
+Every Consumer has a DLQ. If a moderation action fails 3 times, it's moved to `mod.action.dlq` for manual investigation by the DevOps team.
+
+---
+
+## 10. Rate Limiting strategy
+
+We implement **Tiered Rate Limiting** via Redis:
+
+1. **Global Gateway Limit**: Prevents DDoS (e.g., 5k req/s).
+2. **Admin-Specific Limit**: (e.g., 100 req/s for standard admins, 5 req/s for bulk operations).
+3. **Action-Specific Limit**: Mutating actions (`DELETE`, `SUSPEND`) are limited to 10 per second to prevent scripted massive deletions without an approved "Bulk Workflow".
+
+---
+
+## 11. Multi-Region Failover Design
+
+1. **Anycast Routing (Cloudflare)**: Routes admin traffic to the nearest healthy K8s cluster.
+2. **Global Database (Aurora Global / CockroachDB / Multi-Region Postgres)**:
+   - **Strategy**: Active-Passive for the Admin Panel (Reads are global, Writes targeting the Leader region).
+3. **Cross-Region Replication**: Kafka Mirrormaker 2.0 ensures that audit logs and moderation decisions are replicated to secondary regions for Disaster Recovery (DR).
+
+---
+
+## 12. Final Tradeoffs & Summary
+
+The choice of **Microservices** and **Kafka** is non-negotiable for a platform of this scale. While it introduces operational complexity (tracing with OpenTelemetry is required), it allows independent scaling of the **AI Moderation** (compute-heavy) from the **Post Service** (IO-heavy). The **CQRS** pattern ensures the Admin Panel remains responsive even during high-load traffic spikes on the main platform.
+
+**EOF**

@@ -55,6 +55,12 @@ export interface IPost {
     user: IUser;
     author?: IUser;
     stats: IEngagementStats;
+    status: 'DRAFT' | 'PENDING_REVIEW' | 'AUTO_APPROVED' | 'PUBLISHED' | 'ARCHIVED' | 'DELETED' | 'FLAGGED' | 'UNDER_REVIEW' | 'REJECTED' | 'NEEDS_REVISION' | 'RESTRICTED';
+    moderationMetadata?: {
+        aiScore?: number;
+        rejectionReason?: string;
+        revisionNotes?: string;
+    };
     isLiked?: boolean;
     isBookmarked?: boolean;
     isReposted?: boolean;
