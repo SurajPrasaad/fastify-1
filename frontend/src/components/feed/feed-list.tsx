@@ -17,7 +17,9 @@ interface FeedListProps {
 }
 
 export function FeedList({ initialPosts, filters }: FeedListProps) {
-    const [posts, setPosts] = React.useState<Post[]>(initialPosts)
+    const [posts, setPosts] = React.useState<Post[]>(() => {
+        return Array.from(new Map(initialPosts.map(p => [p.id, p])).values()) as Post[];
+    })
     const [isLoading, setIsLoading] = React.useState(false)
     const [hasMore, setHasMore] = React.useState(initialPosts.length >= 10)
 
@@ -28,8 +30,10 @@ export function FeedList({ initialPosts, filters }: FeedListProps) {
 
     React.useEffect(() => {
         // Sync with initialPosts when server-side data changes (e.g. on router.refresh)
-        setPosts(initialPosts)
-        setHasMore(initialPosts.length >= 10)
+        // Ensure initialPosts doesn't have internal duplicates and handles potential race conditions
+        const uniquePosts: Post[] = Array.from(new Map(initialPosts.map(p => [p.id, p])).values()) as Post[];
+        setPosts(uniquePosts)
+        setHasMore(uniquePosts.length >= 10)
     }, [initialPosts])
 
     React.useEffect(() => {
@@ -85,7 +89,11 @@ export function FeedList({ initialPosts, filters }: FeedListProps) {
                 } : null
             }));
 
-            setPosts((prev) => [...prev, ...mappedPosts])
+            setPosts((prev) => {
+                const existingIds = new Set(prev.map((p) => p.id));
+                const uniqueNewPosts = mappedPosts.filter((p) => !existingIds.has(p.id));
+                return [...prev, ...uniqueNewPosts];
+            });
             if (mappedPosts.length < 10) setHasMore(false)
         } catch (error) {
             console.error("Failed to load more posts:", error)
@@ -106,7 +114,10 @@ export function FeedList({ initialPosts, filters }: FeedListProps) {
     };
 
     const handlePostCreated = (newPost: Post) => {
-        setPosts((prev) => [newPost, ...prev]);
+        setPosts((prev) => {
+            if (prev.some(p => p.id === newPost.id)) return prev;
+            return [newPost, ...prev];
+        });
     };
 
     console.log(`FeedList rendering ${posts.length} posts`);

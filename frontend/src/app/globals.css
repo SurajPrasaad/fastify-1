@@ -47,10 +47,24 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /* Moderator dashboard: Trust & Safety palette (8px base) */
+    --mod-approved: 142 76% 36%;
+    --mod-rejected: 0 72% 51%;
+    --mod-warning: 38 92% 50%;
+    --mod-escalated: 263 70% 50%;
+    --mod-info: 217 91% 60%;
+    --mod-neutral: 0 0% 63%;
   }
 
   /* Since we want it dark by default for this UI, even .dark will use the same or slightly deeper tones */
   .dark {
+    --mod-approved: 142 76% 40%;
+    --mod-rejected: 0 72% 55%;
+    --mod-warning: 38 92% 55%;
+    --mod-escalated: 263 70% 55%;
+    --mod-info: 217 91% 65%;
+    --mod-neutral: 0 0% 63%;
     --background: 0 0% 4%;
     --foreground: 0 0% 98%;
     --card: 0 0% 7%;

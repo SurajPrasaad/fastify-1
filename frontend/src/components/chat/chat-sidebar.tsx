@@ -26,6 +26,9 @@ export function ChatSidebar({ selectedId, onSelect }: ChatSidebarProps) {
     const { data: initialConversations, isLoading } = useQuery({
         queryKey: ["chat-rooms"],
         queryFn: () => ChatService.getConversations(),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
     })
 
     const storeConversations = useChatStore(state => state.conversations);

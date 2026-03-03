@@ -95,9 +95,8 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
         if (allMessages.length > 0) {
             const lastMessage = allMessages[allMessages.length - 1];
             if (lastMessage._id && !lastMessage._id.startsWith('temp-') && lastMessage.senderId !== currentUser?.id) {
+                // Mark last message as read once it has a stable id
                 markAsRead(lastMessage._id);
-                // Also invalidate the sidebar to clear unread counts immediately
-                queryClient.invalidateQueries({ queryKey: ["chat-rooms"] });
             }
         }
     }, [allMessages, roomId, currentUser?.id]);

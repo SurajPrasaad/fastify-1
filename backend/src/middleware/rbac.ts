@@ -103,7 +103,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
 // ─── Helper: Get user's role from request ────────────────
 
 function getUserRole(request: FastifyRequest): UserRole {
-    const user = request.user as { role?: string } | undefined;
+    const user = (request as unknown as { user?: { role?: string } }).user;
     if (!user?.role) return "USER";
     const role = user.role as UserRole;
     if (!(role in ROLE_HIERARCHY)) return "USER";

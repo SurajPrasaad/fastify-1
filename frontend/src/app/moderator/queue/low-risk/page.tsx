@@ -1,6 +1,5 @@
-import { ModeratorQueueLowRisk } from "@/components/moderator/ModeratorQueue";
+import { ModerationQueueWorkspace } from "@/features/moderator/components/ModerationQueueWorkspace";
 
 export default function ModeratorQueueLowRiskPage() {
-    return <ModeratorQueueLowRisk />;
+  return <ModerationQueueWorkspace variant="LOW_RISK" />;
 }
-

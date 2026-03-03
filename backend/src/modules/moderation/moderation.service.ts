@@ -13,6 +13,7 @@ import { ModerationRepository } from "./moderation.repository.js";
 import { AuditService } from "../audit/audit.service.js";
 import { validateTransition, type PostStatus, type ModerationAction } from "../post/post.state-machine.js";
 import { acquireModerationLock, releaseModerationLock, forceReleaseLock, getLockInfo, getActiveLocks } from "./moderation.lock.js";
+import { checkModerationRateLimit } from "./moderation.rate-limit.js";
 import * as queue from "./moderation.queue.js";
 import * as events from "./moderation.events.js";
 import type { CreateReportInput, ResolveReportInput, ModeratePostInput } from "./moderation.schema.js";
@@ -138,6 +139,12 @@ export class ModerationService {
 
         if (!transitionResult.valid) {
             throw new AppError(transitionResult.error || "Invalid state transition", 403);
+        }
+
+        // 3b. Rate limit: prevent mass actions
+        const rateLimit = await checkModerationRateLimit(moderatorId);
+        if (!rateLimit.allowed) {
+            throw new AppError("Too many moderation actions; please slow down", 429);
         }
 
         // 4. Acquire lock (except for ESCALATE which doesn't need exclusive access)

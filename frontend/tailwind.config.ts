@@ -64,6 +64,18 @@ const config = {
                     "4": "hsl(var(--chart-4))",
                     "5": "hsl(var(--chart-5))",
                 },
+                mod: {
+                    approved: "hsl(var(--mod-approved))",
+                    rejected: "hsl(var(--mod-rejected))",
+                    warning: "hsl(var(--mod-warning))",
+                    escalated: "hsl(var(--mod-escalated))",
+                    info: "hsl(var(--mod-info))",
+                    neutral: "hsl(var(--mod-neutral))",
+                },
+            },
+            spacing: {
+                "18": "4.5rem",
+                "22": "5.5rem",
             },
             borderRadius: {
                 lg: "var(--radius)",
@@ -78,6 +90,14 @@ const config = {
                 mono: ["var(--font-mono)", ...defaultTheme.fontFamily.mono],
             },
             keyframes: {
+                "slide-in-from-right": {
+                    "0%": { transform: "translateX(100%)" },
+                    "100%": { transform: "translateX(0)" },
+                },
+                "slide-out-to-right": {
+                    "0%": { transform: "translateX(0)" },
+                    "100%": { transform: "translateX(100%)" },
+                },
                 "accordion-down": {
                     from: { height: "0" },
                     to: { height: "var(--radix-accordion-content-height)" },
@@ -92,6 +112,8 @@ const config = {
                 },
             },
             animation: {
+                "slide-in-from-right": "slide-in-from-right 0.2s ease-out",
+                "slide-out-to-right": "slide-out-to-right 0.2s ease-out",
                 "accordion-down": "accordion-down 0.2s ease-out",
                 "accordion-up": "accordion-up 0.2s ease-out",
                 "caret-blink": "caret-blink 1.25s ease-out infinite",

@@ -10,9 +10,11 @@ import { router, adminProcedure } from "../trpc.js";
 import { z } from "zod";
 import { AdminService } from "../../modules/admin/admin.service.js";
 import { AuditService } from "../../modules/audit/audit.service.js";
+import { ArchiveService } from "../../modules/archive/archive.service.js";
 
 const service = new AdminService();
 const auditService = new AuditService();
+const archiveService = new ArchiveService();
 
 export const adminRouter = router({
 
@@ -155,6 +157,59 @@ export const adminRouter = router({
             }))
             .query(async ({ input }) => {
                 return await auditService.getActionDistribution(input.timeRangeHours);
+            }),
+    }),
+
+    // ─── Archive & Legal Hold ─────────────────────────────
+
+    archive: router({
+        createRecord: adminProcedure
+            .input(z.object({
+                resourceType: z.enum(["POST", "USER", "COMMENT"]),
+                resourceId: z.string().uuid(),
+                archivedById: z.string().uuid().optional(),
+                retentionUntil: z.string().datetime().optional(),
+                legalHoldId: z.string().uuid().optional(),
+                reason: z.string().optional(),
+            }))
+            .mutation(async ({ input, ctx }) => {
+                const data: Parameters<typeof archiveService.createArchiveRecord>[0] = {
+                    resourceType: input.resourceType,
+                    resourceId: input.resourceId,
+                    archivedById: input.archivedById ?? ctx.user.id,
+                    retentionUntil: input.retentionUntil ? new Date(input.retentionUntil) : null,
+                };
+                if (input.legalHoldId !== undefined) data.legalHoldId = input.legalHoldId;
+                if (input.reason !== undefined) data.reason = input.reason;
+                return await archiveService.createArchiveRecord(data);
+            }),
+
+        getRecord: adminProcedure
+            .input(z.object({
+                resourceType: z.enum(["POST", "USER", "COMMENT"]),
+                resourceId: z.string().uuid(),
+            }))
+            .query(async ({ input }) => {
+                return await archiveService.getArchiveRecord(input.resourceType, input.resourceId);
+            }),
+
+        createLegalHold: adminProcedure
+            .input(z.object({
+                resourceType: z.enum(["POST", "USER", "COMMENT"]),
+                resourceId: z.string().uuid(),
+                reason: z.string().min(1),
+            }))
+            .mutation(async ({ input, ctx }) => {
+                return await archiveService.createLegalHold({
+                    ...input,
+                    heldById: ctx.user.id,
+                });
+            }),
+
+        releaseLegalHold: adminProcedure
+            .input(z.object({ holdId: z.string().uuid() }))
+            .mutation(async ({ input }) => {
+                return await archiveService.releaseLegalHold(input.holdId);
             }),
     }),
 

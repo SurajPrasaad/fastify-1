@@ -22,6 +22,7 @@ import { settingsRoutes } from './modules/settings/settings.routes.js'
 import { exploreRoutes } from './modules/explore/explore.routes.js'
 import { moderationRoutes } from './modules/moderation/moderation.routes.js'
 import { adminRoutes } from './modules/admin/admin.routes.js'
+import { appealsRoutes } from './modules/appeals/appeals.routes.js'
 import fastifySocketIO from 'fastify-socket.io'
 import { chatGateway } from './modules/chat/chat.gateway.js'
 import { notificationGateway } from './modules/notification/notification.gateway.js'
@@ -89,6 +90,7 @@ app.register(exploreRoutes, { prefix: '/explore' })
 app.register(callRoutes, { prefix: '/call' })
 app.register(moderationRoutes, { prefix: '/moderation' })
 app.register(adminRoutes, { prefix: '/admin' })
+app.register(appealsRoutes, { prefix: '/appeals' })
 
 app.register(fastifyTRPCPlugin, {
   prefix: '/trpc',

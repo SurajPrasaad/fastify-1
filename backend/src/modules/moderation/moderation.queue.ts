@@ -10,6 +10,7 @@
  */
 
 import { redis } from "../../config/redis.js";
+import { setSlaDeadline } from "./moderation.sla.js";
 
 const QUEUE_KEY = "mod:queue:pending";
 const QUEUE_METADATA_PREFIX = "mod:queue:meta:";
@@ -92,16 +93,19 @@ export async function enqueue(
         86400 * 7 // 7 day TTL on metadata
     );
     await pipeline.exec();
+    await setSlaDeadline(postId).catch(() => {});
 }
 
 /**
  * Remove a post from the moderation queue.
  */
 export async function dequeue(postId: string): Promise<void> {
+    const { clearSlaDeadline } = await import("./moderation.sla.js");
     const pipeline = redis.pipeline();
     pipeline.zrem(QUEUE_KEY, postId);
     pipeline.del(`${QUEUE_METADATA_PREFIX}${postId}`);
     await pipeline.exec();
+    await clearSlaDeadline(postId).catch(() => {});
 }
 
 /**
@@ -114,7 +118,7 @@ export async function peek(count: number = 20): Promise<QueueItem[]> {
     const items: QueueItem[] = [];
     for (let i = 0; i < results.length; i += 2) {
         const postId = results[i]!;
-        const priority = parseFloat(results[i + 1]!);
+        const priority = Number.parseFloat(results[i + 1]!);
 
         // Fetch metadata
         const metaRaw = await redis.get(`${QUEUE_METADATA_PREFIX}${postId}`);

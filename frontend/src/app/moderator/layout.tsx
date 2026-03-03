@@ -4,385 +4,340 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-    LayoutDashboard,
-    AlertTriangle,
-    Menu,
-    Rocket,
-    LogOut,
-    ChevronDown,
+  LayoutDashboard,
+  AlertTriangle,
+  Menu,
+  Rocket,
+  LogOut,
+  ChevronDown,
+  ChevronLeft,
+  Inbox,
+  AlertCircle,
+  Scale,
+  Archive,
+  BarChart3,
+  FileText,
+  Bell,
+  User,
 } from "lucide-react";
 import { useCurrentUser } from "../../features/auth/hooks";
 import { useAuth } from "@/features/auth/components/AuthProvider";
+import { useModeratorRole } from "@/features/moderator/hooks/useModeratorRole";
+import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const SIDEBAR_SECTIONS = {
+  queue: { label: "Moderation Queue", icon: Inbox },
+  highRisk: { label: "High-Risk Content", icon: AlertCircle },
+  appeals: { label: "Appeals", icon: Scale },
+  archive: { label: "Archived Content", icon: Archive },
+  analytics: { label: "Analytics", icon: BarChart3 },
+  logs: { label: "Activity Logs", icon: FileText },
+} as const;
 
 export default function ModeratorLayout({ children }: { readonly children: React.ReactNode }) {
-    const { data: user, isLoading } = useCurrentUser();
-    const { logout, user: authUser } = useAuth();
-    const router = useRouter();
-    const pathname = usePathname();
-    const [isDarkMode, setIsDarkMode] = useState(true);
-    const [openSections, setOpenSections] = useState({
-        queue: false,
-        reports: false,
-        history: false,
-        risk: false,
-    });
+  const { data: user, isLoading } = useCurrentUser();
+  const { logout, user: authUser } = useAuth();
+  const { isAdmin } = useModeratorRole();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [openSections, setOpenSections] = useState({
+    queue: true,
+    reports: false,
+    history: false,
+    risk: false,
+    workspace: true,
+  });
 
-    const isModeratorLike =
-        user && (user.auth.role === "MODERATOR" || user.auth.role === "SUPER_ADMIN");
+  const appealsPending = trpc.appeals.getPendingCount.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const pendingCount = typeof appealsPending.data === "number" ? appealsPending.data : 0;
 
-    useEffect(() => {
-        if (!isLoading && !isModeratorLike) {
-            router.replace("/");
-        }
-    }, [isModeratorLike, isLoading, router]);
+  const isModeratorLike =
+    user && (user.auth.role === "MODERATOR" || user.auth.role === "SUPER_ADMIN");
 
-    if (isLoading) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-black">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FFD400]"></div>
-            </div>
-        );
+  useEffect(() => {
+    if (!isLoading && !isModeratorLike) {
+      router.replace("/");
     }
+  }, [isModeratorLike, isLoading, router]);
 
-    if (!isModeratorLike) {
-        return null;
-    }
-
+  if (isLoading) {
     return (
-        <div className="flex h-screen overflow-hidden bg-black text-[#E7E9EA] font-display">
-            <aside className="w-[260px] bg-black border-r border-[#2F3336] shrink-0 flex-col hidden md:flex transition-all">
-                <div className="px-6 py-5 flex items-center gap-3 mt-2">
-                    <div className="w-[30px] h-[30px] bg-[#FFD400] rounded-full flex items-center justify-center">
-                        <Rocket className="w-[16px] h-[16px] text-black fill-black" />
-                    </div>
-                    <span className="font-extrabold text-[20px] tracking-[-0.03em] text-[#E7E9EA]">
-                        Mod Console
-                    </span>
-                </div>
-
-                <nav className="flex-1 mt-6 space-y-4 px-3 text-[14px]">
-                    {/* Dashboard */}
-                    <div>
-                        <Link
-                            href="/moderator"
-                            className={`flex items-center px-4 py-3.5 rounded-full transition-colors ${
-                                pathname === "/moderator"
-                                    ? "bg-[#333639] text-[#E7E9EA] font-bold"
-                                    : "text-[#E7E9EA] hover:bg-[#16181C] font-semibold"
-                            }`}
-                        >
-                            <div className="flex items-center justify-center w-8 mr-1.5">
-                                <LayoutDashboard
-                                    className={`w-[20px] h-[20px] ${
-                                        pathname === "/moderator" ? "text-[#E7E9EA]" : "text-[#71767B]"
-                                    }`}
-                                    strokeWidth={pathname === "/moderator" ? 2.5 : 2}
-                                />
-                            </div>
-                            Dashboard
-                        </Link>
-                    </div>
-
-                    {/* Moderation Queue */}
-                    <div>
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setOpenSections((prev) => ({ ...prev, queue: !prev.queue }))
-                            }
-                            className="flex w-full items-center justify-between px-4 mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71767B] hover:text-[#E7E9EA]"
-                        >
-                            <span>Moderation Queue</span>
-                            <ChevronDown
-                                className={`w-3 h-3 transition-transform ${
-                                    openSections.queue ? "rotate-0" : "-rotate-90"
-                                }`}
-                            />
-                        </button>
-                        {openSections.queue && (
-                            <div className="space-y-1">
-                                <SidebarSubLink
-                                    href="/moderator/queue"
-                                    label="All Pending"
-                                    isActive={pathname === "/moderator/queue"}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/queue/high-risk"
-                                    label="High Risk"
-                                    isActive={pathname.startsWith("/moderator/queue/high-risk")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/queue/low-risk"
-                                    label="Low Risk"
-                                    isActive={pathname.startsWith("/moderator/queue/low-risk")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/queue/auto-flagged"
-                                    label="Auto-Flagged"
-                                    isActive={pathname.startsWith("/moderator/queue/auto-flagged")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/queue/user-reported"
-                                    label="User Reported"
-                                    isActive={pathname.startsWith("/moderator/queue/user-reported")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/queue/escalated"
-                                    label="Escalated Cases"
-                                    isActive={pathname.startsWith("/moderator/queue/escalated")}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Reports */}
-                    <div>
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setOpenSections((prev) => ({ ...prev, reports: !prev.reports }))
-                            }
-                            className="flex w-full items-center justify-between px-4 mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71767B] hover:text-[#E7E9EA]"
-                        >
-                            <span>Reports</span>
-                            <ChevronDown
-                                className={`w-3 h-3 transition-transform ${
-                                    openSections.reports ? "rotate-0" : "-rotate-90"
-                                }`}
-                            />
-                        </button>
-                        {openSections.reports && (
-                            <div className="space-y-1">
-                                <SidebarSubLink
-                                    href="/moderator/reports/spam"
-                                    label="Spam Reports"
-                                    isActive={pathname.startsWith("/moderator/reports/spam")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/reports/abuse"
-                                    label="Abuse Reports"
-                                    isActive={pathname.startsWith("/moderator/reports/abuse")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/reports/policy"
-                                    label="Policy Violations"
-                                    isActive={pathname.startsWith("/moderator/reports/policy")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/reports/community-flags"
-                                    label="Community Flags"
-                                    isActive={pathname.startsWith(
-                                        "/moderator/reports/community-flags"
-                                    )}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Review History */}
-                    <div>
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setOpenSections((prev) => ({ ...prev, history: !prev.history }))
-                            }
-                            className="flex w-full items-center justify-between px-4 mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71767B] hover:text-[#E7E9EA]"
-                        >
-                            <span>Review History</span>
-                            <ChevronDown
-                                className={`w-3 h-3 transition-transform ${
-                                    openSections.history ? "rotate-0" : "-rotate-90"
-                                }`}
-                            />
-                        </button>
-                        {openSections.history && (
-                            <div className="space-y-1">
-                                <SidebarSubLink
-                                    href="/moderator/history/approved"
-                                    label="Approved"
-                                    isActive={pathname.startsWith("/moderator/history/approved")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/history/rejected"
-                                    label="Rejected"
-                                    isActive={pathname.startsWith("/moderator/history/rejected")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/history/requested-changes"
-                                    label="Requested Changes"
-                                    isActive={pathname.startsWith(
-                                        "/moderator/history/requested-changes"
-                                    )}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/history"
-                                    label="My Activity Log"
-                                    isActive={pathname === "/moderator/history"}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Risk & Safety */}
-                    <div>
-                        <button
-                            type="button"
-                            onClick={() =>
-                                setOpenSections((prev) => ({ ...prev, risk: !prev.risk }))
-                            }
-                            className="flex w-full items-center justify-between px-4 mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71767B] hover:text-[#E7E9EA]"
-                        >
-                            <span>Risk &amp; Safety</span>
-                            <ChevronDown
-                                className={`w-3 h-3 transition-transform ${
-                                    openSections.risk ? "rotate-0" : "-rotate-90"
-                                }`}
-                            />
-                        </button>
-                        {openSections.risk && (
-                            <div className="space-y-1">
-                                <SidebarSubLink
-                                    href="/moderator/risk/ai-scores"
-                                    label="AI Risk Scores"
-                                    isActive={pathname.startsWith("/moderator/risk/ai-scores")}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/risk/sensitive-content"
-                                    label="Sensitive Content"
-                                    isActive={pathname.startsWith(
-                                        "/moderator/risk/sensitive-content"
-                                    )}
-                                />
-                                <SidebarSubLink
-                                    href="/moderator/risk/repeat-offenders"
-                                    label="Repeat Offenders"
-                                    isActive={pathname.startsWith(
-                                        "/moderator/risk/repeat-offenders"
-                                    )}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Notifications */}
-                    <div>
-                        <Link
-                            href="/moderator/notifications"
-                            className={`flex items-center px-4 py-3.5 rounded-full transition-colors ${
-                                pathname.startsWith("/moderator/notifications")
-                                    ? "bg-[#333639] text-[#E7E9EA] font-bold"
-                                    : "text-[#E7E9EA] hover:bg-[#16181C] font-semibold"
-                            }`}
-                        >
-                            <div className="flex items-center justify-center w-8 mr-1.5">
-                                <AlertTriangle
-                                    className={`w-[20px] h-[20px] ${
-                                        pathname.startsWith("/moderator/notifications")
-                                            ? "text-[#E7E9EA]"
-                                            : "text-[#71767B]"
-                                    }`}
-                                    strokeWidth={pathname.startsWith("/moderator/notifications") ? 2.5 : 2}
-                                />
-                            </div>
-                            Notifications
-                        </Link>
-                    </div>
-
-                    {/* Profile */}
-                    <div>
-                        <p className="px-4 mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71767B]">
-                            Profile
-                        </p>
-                        <div className="space-y-1">
-                            <SidebarSubLink
-                                href={`/${authUser?.username ?? ""}`}
-                                label="My Profile"
-                                isActive={pathname === `/${authUser?.username ?? ""}`}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => logout()}
-                                className="w-full flex items-center justify-between px-4 py-2 text-[13px] rounded-full text-[#F97070] hover:bg-[#2F3336] transition-colors"
-                            >
-                                <span>Logout</span>
-                                <LogOut className="w-[16px] h-[16px]" />
-                            </button>
-                        </div>
-                    </div>
-                </nav>
-
-                <div className="p-3 mb-4 space-y-2 relative">
-                    <button
-                        onClick={() => setIsDarkMode(!isDarkMode)}
-                        className="w-full flex items-center justify-between px-4 py-3.5 bg-[#16181C] hover:bg-[#2F3336] transition-colors rounded-full cursor-pointer outline-none"
-                    >
-                        <div className="flex items-center gap-1.5 text-[#E7E9EA]">
-                            <div className="flex items-center justify-center w-8 text-[#71767B]">
-                                <svg
-                                    className="w-[18px] h-[18px]"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2.5}
-                                        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-                                    />
-                                </svg>
-                            </div>
-                            <span className="text-[15px] font-bold text-[#E7E9EA]">
-                                Dark Mode
-                            </span>
-                        </div>
-                        <div
-                            className={`w-10 h-5 rounded-full relative transition-colors duration-200 ${
-                                isDarkMode ? "bg-[#FFD400]" : "bg-[#333639]"
-                            }`}
-                        >
-                            <div
-                                className={`absolute top-1 bg-white rounded-full w-3 h-3 transition-all duration-200 ${
-                                    isDarkMode ? "right-1" : "left-1"
-                                }`}
-                            ></div>
-                        </div>
-                    </button>
-                </div>
-            </aside>
-
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-black">
-                <header className="h-[60px] bg-black flex items-center justify-end px-6 shrink-0 lg:hidden">
-                    <button className="md:hidden p-2 text-[#E7E9EA]">
-                        <Menu className="w-6 h-6" />
-                    </button>
-                </header>
-
-                <main className="flex-1 overflow-auto p-0 border-l border-[#2F3336]">
-                    {children}
-                </main>
-            </div>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
     );
+  }
+
+  if (!isModeratorLike) {
+    return null;
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background text-foreground font-display">
+      <aside
+        className={cn(
+          "flex shrink-0 flex-col border-r border-border bg-card transition-all duration-200 md:flex",
+          sidebarCollapsed ? "w-[72px]" : "w-[260px]"
+        )}
+      >
+        <div className="flex h-14 items-center gap-2 border-b border-border px-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Rocket className="h-5 w-5" aria-hidden />
+          </div>
+          {!sidebarCollapsed && (
+            <span className="truncate text-lg font-semibold tracking-tight">Mod Console</span>
+          )}
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+          <Link
+            href="/moderator"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname === "/moderator"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            )}
+          >
+            <LayoutDashboard className="h-5 w-5 shrink-0" aria-hidden />
+            {!sidebarCollapsed && <span>Dashboard</span>}
+          </Link>
+
+          {/* Moderation Queue */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setOpenSections((p) => ({ ...p, queue: !p.queue }))}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              aria-expanded={openSections.queue}
+            >
+              {!sidebarCollapsed && <span>Moderation Queue</span>}
+              <ChevronDown
+                className={cn("h-4 w-4 shrink-0 transition-transform", openSections.queue && "rotate-180")}
+                aria-hidden
+              />
+            </button>
+            {openSections.queue && (
+              <div className="mt-1 space-y-0.5">
+                <SidebarSubLink href="/moderator/queue" label="All Pending" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/queue/high-risk" label="High Risk" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/queue/low-risk" label="Low Risk" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/queue/auto-flagged" label="Auto-Flagged" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/queue/user-reported" label="User Reported" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/queue/escalated" label="Escalated" pathname={pathname} collapsed={sidebarCollapsed} />
+              </div>
+            )}
+          </div>
+
+          {/* Appeals (with badge) */}
+          <Link
+            href="/moderator/appeals"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname.startsWith("/moderator/appeals")
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            )}
+          >
+            <span className="relative inline-flex shrink-0">
+              <Scale className="h-5 w-5" aria-hidden />
+              {pendingCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-mod-rejected px-1 text-[10px] font-bold text-white">
+                  {pendingCount > 99 ? "99+" : pendingCount}
+                </span>
+              )}
+            </span>
+            {!sidebarCollapsed && <span>Appeals</span>}
+          </Link>
+
+          {/* Archived Content (admin/moderator) */}
+          <SidebarSubLink href="/moderator/archive" label="Archived Content" pathname={pathname} collapsed={sidebarCollapsed} />
+
+          {/* Analytics */}
+          <SidebarSubLink href="/moderator/analytics" label="Analytics" pathname={pathname} collapsed={sidebarCollapsed} />
+
+          {/* Activity Logs (admin can see full logs) */}
+          {isAdmin && (
+            <SidebarSubLink href="/moderator/activity-logs" label="Activity Logs" pathname={pathname} collapsed={sidebarCollapsed} />
+          )}
+
+          {/* Reports */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setOpenSections((p) => ({ ...p, reports: !p.reports }))}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              aria-expanded={openSections.reports}
+            >
+              {!sidebarCollapsed && <span>Reports</span>}
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", openSections.reports && "rotate-180")} />
+            </button>
+            {openSections.reports && (
+              <div className="mt-1 space-y-0.5">
+                <SidebarSubLink href="/moderator/reports/spam" label="Spam" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/reports/abuse" label="Abuse" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/reports/policy" label="Policy" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/reports/community-flags" label="Community" pathname={pathname} collapsed={sidebarCollapsed} />
+              </div>
+            )}
+          </div>
+
+          {/* History */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setOpenSections((p) => ({ ...p, history: !p.history }))}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              aria-expanded={openSections.history}
+            >
+              {!sidebarCollapsed && <span>History</span>}
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", openSections.history && "rotate-180")} />
+            </button>
+            {openSections.history && (
+              <div className="mt-1 space-y-0.5">
+                <SidebarSubLink href="/moderator/history/approved" label="Approved" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/history/rejected" label="Rejected" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/history" label="My Activity" pathname={pathname} collapsed={sidebarCollapsed} />
+              </div>
+            )}
+          </div>
+
+          {/* Risk */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setOpenSections((p) => ({ ...p, risk: !p.risk }))}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              aria-expanded={openSections.risk}
+            >
+              {!sidebarCollapsed && <span>Risk & Safety</span>}
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", openSections.risk && "rotate-180")} />
+            </button>
+            {openSections.risk && (
+              <div className="mt-1 space-y-0.5">
+                <SidebarSubLink href="/moderator/risk/ai-scores" label="AI Scores" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/risk/sensitive-content" label="Sensitive" pathname={pathname} collapsed={sidebarCollapsed} />
+                <SidebarSubLink href="/moderator/risk/repeat-offenders" label="Repeat Offenders" pathname={pathname} collapsed={sidebarCollapsed} />
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/moderator/notifications"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              pathname.startsWith("/moderator/notifications")
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            )}
+          >
+            <Bell className="h-5 w-5 shrink-0" aria-hidden />
+            {!sidebarCollapsed && <span>Notifications</span>}
+          </Link>
+
+          <Link href="/moderator/guidelines" className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+            pathname === "/moderator/guidelines" && "bg-accent text-accent-foreground"
+          )}>
+            <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden />
+            {!sidebarCollapsed && <span>Guidelines</span>}
+          </Link>
+        </nav>
+
+        <div className="border-t border-border p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-center"
+            onClick={() => setSidebarCollapsed((c) => !c)}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <ChevronLeft className={cn("h-4 w-4", sidebarCollapsed && "rotate-180")} />
+            {!sidebarCollapsed && <span className="ml-2">Collapse</span>}
+          </Button>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+          <button type="button" className="md:hidden p-2 text-foreground" aria-label="Open menu">
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex-1" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-lg p-2 hover:bg-accent"
+                aria-label="Moderator profile menu"
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={authUser?.avatarUrl ?? undefined} alt="" />
+                  <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                    {(authUser?.name ?? authUser?.username ?? "M").slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="hidden text-sm font-medium md:inline-block truncate max-w-[120px]">
+                  {authUser?.name ?? authUser?.username ?? "Moderator"}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href={`/${authUser?.username ?? ""}`} className="flex items-center gap-2">
+                  <User className="h-4 w-4" /> Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => logout()} className="text-destructive focus:text-destructive">
+                <LogOut className="h-4 w-4" /> Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        <main className="flex-1 overflow-auto border-l border-border bg-background">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
 }
 
 function SidebarSubLink({
-    href,
-    label,
-    isActive,
+  href,
+  label,
+  pathname,
+  collapsed,
 }: {
-    readonly href: string;
-    readonly label: string;
-    readonly isActive: boolean;
+  readonly href: string;
+  readonly label: string;
+  readonly pathname: string;
+  readonly collapsed: boolean;
 }) {
-    return (
-        <Link
-            href={href}
-            className={`flex items-center justify-between px-4 py-2 rounded-full text-[13px] transition-colors ${
-                isActive ? "bg-[#333639] text-[#E7E9EA] font-semibold" : "text-[#9CA3AF] hover:bg-[#16181C]"
-            }`}
-        >
-            <span>{label}</span>
-        </Link>
-    );
+  const isActive = pathname === href || (href !== "/moderator" && pathname.startsWith(href));
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+        isActive ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+        collapsed && "justify-center px-2"
+      )}
+      title={collapsed ? label : undefined}
+    >
+      {collapsed ? <span className="text-xs font-medium w-6 text-center">{label.slice(0, 1)}</span> : <span>{label}</span>}
+    </Link>
+  );
 }

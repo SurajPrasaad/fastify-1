@@ -787,3 +787,92 @@ export const moderationQueueRelations = relations(moderationQueue, ({ one }) => 
         references: [users.id],
     }),
 }));
+
+// --- APPEALS (user-submitted enforcement review requests) ---
+
+export const appeals = pgTable(
+    "appeals",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+        resourceType: text("resource_type").$type<"POST" | "USER" | "COMMENT">().notNull(),
+        resourceId: uuid("resource_id").notNull(),
+        enforcementType: text("enforcement_type")
+            .$type<"CONTENT_REMOVAL" | "TEMPORARY_SUSPENSION" | "PERMANENT_BAN" | "ACCOUNT_RESTRICTION" | "OVERRIDE_DECISION">()
+            .notNull(),
+        originalModerationLogId: uuid("original_moderation_log_id").references(() => moderationLogs.id, { onDelete: "set null" }),
+        status: text("status").$type<"PENDING" | "APPROVED" | "REJECTED" | "MODIFIED">().default("PENDING").notNull(),
+        reviewerId: uuid("reviewer_id").references(() => users.id),
+        reviewedAt: timestamp("reviewed_at"),
+        userMessage: text("user_message").notNull(),
+        evidenceUrls: jsonb("evidence_urls").$type<string[]>().default([]),
+        justification: text("justification"), // Reviewer justification
+        policyReference: text("policy_reference"),
+        internalNote: text("internal_note"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (t) => ({
+        userStatusIdx: index("appeals_user_status_idx").on(t.userId, t.status),
+        resourceIdx: index("appeals_resource_idx").on(t.resourceType, t.resourceId),
+        statusCreatedIdx: index("appeals_status_created_idx").on(t.status, t.createdAt.desc()),
+    })
+);
+
+export const appealsRelations = relations(appeals, ({ one }) => ({
+    user: one(users, { fields: [appeals.userId], references: [users.id] }),
+    reviewer: one(users, { fields: [appeals.reviewerId], references: [users.id] }),
+    originalModerationLog: one(moderationLogs, {
+        fields: [appeals.originalModerationLogId],
+        references: [moderationLogs.id],
+    }),
+}));
+
+// --- ARCHIVE RECORDS (retention, legal hold) ---
+
+export const legalHolds = pgTable(
+    "legal_holds",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        resourceType: text("resource_type").$type<"POST" | "USER" | "COMMENT">().notNull(),
+        resourceId: uuid("resource_id").notNull(),
+        reason: text("reason").notNull(),
+        heldById: uuid("held_by_id").references(() => users.id).notNull(),
+        heldAt: timestamp("held_at").defaultNow().notNull(),
+        releasedAt: timestamp("released_at"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (t) => ({
+        resourceIdx: index("legal_holds_resource_idx").on(t.resourceType, t.resourceId),
+    })
+);
+
+export const archiveRecords = pgTable(
+    "archive_records",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        resourceType: text("resource_type").$type<"POST" | "USER" | "COMMENT">().notNull(),
+        resourceId: uuid("resource_id").notNull(),
+        archivedAt: timestamp("archived_at").defaultNow().notNull(),
+        archivedById: uuid("archived_by_id").references(() => users.id),
+        retentionUntil: timestamp("retention_until"), // null = retain per policy
+        legalHoldId: uuid("legal_hold_id").references(() => legalHolds.id, { onDelete: "set null" }),
+        reason: text("reason"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (t) => ({
+        resourceIdx: index("archive_records_resource_idx").on(t.resourceType, t.resourceId),
+        retentionIdx: index("archive_records_retention_idx").on(t.retentionUntil),
+        legalHoldIdx: index("archive_records_legal_hold_idx").on(t.legalHoldId),
+    })
+);
+
+export const archiveRecordsRelations = relations(archiveRecords, ({ one }) => ({
+    archivedBy: one(users, { fields: [archiveRecords.archivedById], references: [users.id] }),
+    legalHold: one(legalHolds, { fields: [archiveRecords.legalHoldId], references: [legalHolds.id] }),
+}));
+
+export const legalHoldsRelations = relations(legalHolds, ({ one, many }) => ({
+    heldBy: one(users, { fields: [legalHolds.heldById], references: [users.id] }),
+    archiveRecords: many(archiveRecords),
+}));

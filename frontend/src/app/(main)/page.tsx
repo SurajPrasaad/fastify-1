@@ -48,7 +48,9 @@ export default function FeedPage() {
                 const data = await res.json();
 
                 const mappedPosts = data.map(mapBackendPost);
-                setPosts(mappedPosts);
+                // Filter out any duplicates if the backend returns them
+                const uniquePosts: Post[] = Array.from(new Map(mappedPosts.map((p: any) => [p.id, p])).values()) as Post[];
+                setPosts(uniquePosts);
             } catch (error) {
                 console.error("Failed to fetch posts:", error);
             }
@@ -59,7 +61,10 @@ export default function FeedPage() {
 
     const handlePostSuccess = (newPost: any) => {
         const mapped = mapBackendPost(newPost);
-        setPosts(prev => [mapped, ...prev]);
+        setPosts(prev => {
+            if (prev.some(p => p.id === mapped.id)) return prev;
+            return [mapped, ...prev];
+        });
     };
 
     return (
