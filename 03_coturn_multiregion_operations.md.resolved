@@ -1,0 +1,335 @@
+# Part 3 — coturn, Multi-Region, Bandwidth & DDoS
+
+---
+
+## 7. coturn Global Deployment Model
+
+### 7.1 Regional Topology
+
+```
+┌─────────────────── US-EAST (Ashburn) ───────────────────┐
+│  ┌──────────────────────────────────────────────────┐   │
+│  │         coturn Cluster (K8s DaemonSet)           │   │
+│  │                                                    │   │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐│   │
+│  │  │ turn-01 │ │ turn-02 │ │ turn-03 │ │ turn-N  ││   │
+│  │  │UDP:3478 │ │UDP:3478 │ │UDP:3478 │ │UDP:3478 ││   │
+│  │  │TLS:5349 │ │TLS:5349 │ │TLS:5349 │ │TLS:5349 ││   │
+│  │  │ 10Gbps  │ │ 10Gbps  │ │ 10Gbps  │ │ 10Gbps  ││   │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘│   │
+│  │                                                    │   │
+│  │  Health Monitor ──▶ Prometheus metrics endpoint    │   │
+│  │  Allocation Tracker ──▶ Redis (turn:alloc:*)       │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                          │
+│  NLB (UDP:3478, TCP:5349) ──▶ coturn pod pool           │
+└──────────────────────────────────────────────────────────┘
+ × 4 regions (US-EAST, EU-WEST, AP-SOUTH, AP-EAST)
+```
+
+### 7.2 Sizing Per Region
+
+| Metric | Baseline | Peak |
+|--------|----------|------|
+| TURN nodes | 20 | 200 |
+| Concurrent relayed sessions | 75K | 750K |
+| Bandwidth per node | 5 Gbps avg | 10 Gbps cap |
+| Instance type | c6gn.2xlarge (8vCPU, 16GB, 25Gbps NW) | — |
+| Total regional bandwidth | 100 Gbps | 2 Tbps |
+
+**Why these numbers**: ~15-20% of WebRTC calls require TURN relay. With 3M concurrent calls globally, ~500K need TURN. Distributed across 4 regions = ~125K TURN sessions/region at peak.
+
+### 7.3 Ephemeral TURN Credential Issuance (JWT-bound)
+
+```typescript
+import crypto from 'crypto';
+
+const TURN_SECRET = process.env.COTURN_STATIC_AUTH_SECRET!;
+const TURN_CREDENTIAL_TTL = 86400; // 24 hours
+
+interface TurnCredentials {
+  urls: string[];
+  username: string;
+  credential: string;
+  ttl: number;
+}
+
+export function issueTurnCredentials(userId: string, region: string): TurnCredentials {
+  const timestamp = Math.floor(Date.now() / 1000) + TURN_CREDENTIAL_TTL;
+  const username = `${timestamp}:${userId}`;
+  const credential = crypto
+    .createHmac('sha1', TURN_SECRET)
+    .update(username)
+    .digest('base64');
+
+  const turnDomain = REGION_TURN_MAP[region]; // e.g., 'turn-us.platform.com'
+
+  return {
+    urls: [
+      `stun:${turnDomain}:3478`,
+      `turn:${turnDomain}:3478?transport=udp`,
+      `turn:${turnDomain}:3478?transport=tcp`,
+      `turns:${turnDomain}:5349?transport=tcp`,
+    ],
+    username,
+    credential,
+    ttl: TURN_CREDENTIAL_TTL,
+  };
+}
+```
+
+### 7.4 Geo-Based TURN Selection
+
+```typescript
+const REGION_TURN_MAP: Record<string, string> = {
+  'us-east': 'turn-use.platform.com',
+  'eu-west': 'turn-euw.platform.com',
+  'ap-south': 'turn-aps.platform.com',
+  'ap-east': 'turn-ape.platform.com',
+};
+
+async function selectTurnServer(callerRegion: string, calleeRegion: string): Promise<string> {
+  if (callerRegion === calleeRegion) {
+    return REGION_TURN_MAP[callerRegion]; // Same region — local TURN
+  }
+
+  // Cross-region: select the region with lower current TURN load
+  const callerLoad = await redis.get(`turn:load:${callerRegion}`);
+  const calleeLoad = await redis.get(`turn:load:${calleeRegion}`);
+
+  // If both are high, consider a neutral region
+  if (Number(callerLoad) > 80 && Number(calleeLoad) > 80) {
+    return selectLeastLoadedTurn();
+  }
+
+  return Number(callerLoad) <= Number(calleeLoad)
+    ? REGION_TURN_MAP[callerRegion]
+    : REGION_TURN_MAP[calleeRegion];
+}
+```
+
+### 7.5 TURN Overload Prevention
+
+| Mechanism | Implementation |
+|-----------|---------------|
+| Per-user bandwidth cap | `max-bps = 2000000` (2 Mbps per allocation) in turnserver.conf |
+| Total quota | `total-quota=1000` allocations per node |
+| Health-based routing | NLB health check on `/health` (custom HTTP listener); remove unhealthy nodes in <10s |
+| Autoscaling trigger | HPA: scale up when `active_allocations / max_allocations > 0.7` |
+| Circuit breaker | If all nodes in a region exceed 90% capacity, spill to adjacent region |
+| UDP-first optimization | Client ICE agent configured with `iceCandidatePoolSize: 10` and UDP candidates prioritized |
+
+### 7.6 turnserver.conf (Production)
+
+```ini
+listening-port=3478
+tls-listening-port=5349
+min-port=49152
+max-port=65535
+fingerprint
+lt-cred-mech
+use-auth-secret
+static-auth-secret=${COTURN_STATIC_AUTH_SECRET}
+realm=turn.platform.com
+total-quota=1000
+bps-capacity=0
+max-bps=2000000
+stale-nonce=600
+no-multicast-peers
+no-cli
+no-tcp-relay
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+cert=/etc/turn/certs/turn.pem
+pkey=/etc/turn/certs/turn.key
+cipher-list="ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+prometheus
+```
+
+---
+
+## 8. Multi-Region Active-Active Strategy
+
+### 8.1 Regional Architecture
+
+```
+     ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+     │   US-EAST   │  │   EU-WEST   │  │   AP-SOUTH  │  │   AP-EAST   │
+     │  (Primary)  │  │  (Primary)  │  │  (Primary)  │  │  (Primary)  │
+     │             │  │             │  │             │  │             │
+     │ WS Gateway  │  │ WS Gateway  │  │ WS Gateway  │  │ WS Gateway  │
+     │ Redis Clust │  │ Redis Clust │  │ Redis Clust │  │ Redis Clust │
+     │ PostgreSQL  │  │ PostgreSQL  │  │ PostgreSQL  │  │ PostgreSQL  │
+     │ Kafka       │  │ Kafka       │  │ Kafka       │  │ Kafka       │
+     │ coturn      │  │ coturn      │  │ coturn      │  │ coturn      │
+     └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+            │                │                │                │
+            └───────── Kafka MirrorMaker 2 (bidirectional) ────┘
+            └───────── CockroachDB / Citus (global SQL) ───────┘
+```
+
+### 8.2 Data Consistency Model
+
+| Data Type | Consistency | Replication | Rationale |
+|-----------|------------|-------------|-----------|
+| Presence (online/offline) | Eventual (200ms) | Kafka compacted topic | Tolerable staleness; high volume |
+| Call state machine | Strong (local) | Not replicated cross-region | Call lives in one region's Redis |
+| User profiles | Eventual (1s) | CockroachDB multi-region | Read-heavy, write-rare |
+| Call history | Eventual (5s) | Async Kafka → regional PG | Append-only, non-critical path |
+| Block list | Strong (local) | CockroachDB global table | Security-critical lookups |
+| TURN allocations | Local only | Not replicated | Ephemeral, node-bound |
+
+### 8.3 User-to-Region Affinity
+
+```typescript
+function determineHomeRegion(user: User): string {
+  // Priority: explicit setting > last-login geo > registration geo
+  if (user.regionAffinity) return user.regionAffinity;
+
+  const geoRegion = geoip.lookup(user.lastLoginIp)?.region;
+  return GEO_TO_REGION_MAP[geoRegion] || 'us-east'; // Default fallback
+}
+```
+
+---
+
+## 9. Global Failover Scenarios
+
+### 9.1 Scenario Matrix
+
+| Scenario | Detection | Response Time | Impact | Recovery |
+|----------|-----------|--------------|--------|----------|
+| Single WS Gateway pod crash | K8s liveness probe | 10s | Users on that pod reconnect to new pod | Automatic (K8s restart + Redis session intact) |
+| Redis shard failure | Sentinel failover | 5-15s | Presence data stale for affected shard | Replica promotion; clients retry |
+| Full region outage | Route 53 health check | 30-60s | All users in region disconnected | DNS failover to nearest healthy region |
+| TURN cluster overload | Custom metric threshold | 15s | New TURN allocations fail | Spill to adjacent region's TURN |
+| Kafka broker failure | ISR shrinkage alert | 10s | Cross-region sync delayed | Automatic broker replacement |
+| Network partition (split-brain) | Heartbeat failure detection | 30s | Calls split between partitions | Call auditor reconciliation |
+
+### 9.2 Region Failover: REGION_FAILOVER State
+
+When a full region outage is detected:
+
+```
+1. Route 53 marks region unhealthy (health check fails 3x)
+2. DNS TTL (30s) expires; traffic routes to nearest healthy region
+3. Clients reconnect to new region via WebSocket
+4. On reconnect, gateway checks Redis for active calls:
+   a. If user was in CONNECTED state → transition to REGION_FAILOVER
+   b. Notify peer: "partner's region failed, maintaining call via TURN"
+   c. ICE restart with new TURN credentials from healthy region
+   d. If ICE restart succeeds → back to CONNECTED
+   e. If fails within 30s → FAILED
+5. Presence keys expired from old region; rebuilt in new region
+```
+
+### 9.3 Sudden Spike: 1M Calls in <60 Seconds
+
+```
+Detection: Custom metric (call_initiations_per_second) exceeds 16K/s
+Response:
+  1. HPA triggers immediate scale-up of WS Gateway pods (target: 10x baseline)
+  2. TURN cluster HPA triggers (pre-configured to handle 5x baseline)
+  3. Redis Cluster: no scaling needed (pre-provisioned for 10x)
+  4. Circuit breaker activates at 20K calls/s per region:
+     - New call initiations are queued (not rejected)
+     - Queue drain rate: 5K/s per region
+     - Client receives CALL_QUEUED status with ETA
+  5. If sustained >5 minutes: alert on-call SRE
+```
+
+---
+
+## 10. Bandwidth Cost Optimization
+
+### 10.1 Cost Model
+
+| Path | Bandwidth Cost | % of Calls |
+|------|---------------|-----------|
+| P2P direct (STUN only) | $0 (client bandwidth) | ~50% |
+| P2P through NAT (STUN) | $0 (client bandwidth) | ~30% |
+| TURN relay (UDP) | $0.02/GB (cloud egress) | ~15% |
+| TURN relay (TCP/TLS) | $0.02/GB (cloud egress) | ~5% |
+
+### 10.2 Optimization Strategies
+
+| Strategy | Savings | Implementation |
+|----------|---------|----------------|
+| UDP-first ICE | 40% TURN cost reduction | Client-side `iceTransportPolicy: 'all'` with UDP candidates prioritized |
+| Adaptive bitrate | 30% bandwidth reduction | Sender-side bandwidth estimation via REMB/TWCC |
+| TURN allocation pooling | 15% cost reduction | Pre-warm TURN allocations; reuse across ICE restarts |
+| Regional TURN selection | 25% egress reduction | Route TURN traffic to same-region relay |
+| Audio-only fallback | 80% bandwidth reduction | Auto-switch to audio when bandwidth <200kbps |
+| Codec optimization | 20% bandwidth reduction | Prefer VP9/AV1 over VP8; Opus for audio |
+| Short-call optimization | 10% cost reduction | Skip TURN for calls <5s (missed/rejected) |
+
+### 10.3 Monthly Cost Projection at Scale
+
+| Component | Cost/Month |
+|-----------|-----------|
+| TURN bandwidth (500K concurrent × 500kbps avg × 30% TURN) | ~$180K |
+| coturn compute (800 c6gn.2xlarge across 4 regions) | ~$450K |
+| WS Gateway compute (2000 pods across 4 regions) | ~$300K |
+| Redis Cluster (24 r6g.2xlarge across 4 regions) | ~$85K |
+| Kafka (cross-region replication) | ~$60K |
+| PostgreSQL / CockroachDB | ~$40K |
+| Observability stack | ~$50K |
+| **Total infrastructure** | **~$1.17M/month** |
+
+---
+
+## 11. DDoS Protection Strategy
+
+### 11.1 Multi-Layer Defense
+
+```
+Layer 3/4 (Volumetric)
+  ├── AWS Shield Advanced / Cloud Armor (10 Tbps absorption)
+  ├── Anycast-distributed edge absorbs attack traffic locally
+  └── Auto-mitigation: <10s detection, <30s full mitigation
+
+Layer 7 (Application)
+  ├── WebSocket handshake rate limiting (100/s per IP)
+  ├── JWT validation at connection time (reject unauthenticated)
+  ├── Per-socket message rate limiting:
+  │     call:initiate → 1 per 5s per user
+  │     webrtc:offer → 1 per 10s per call
+  │     ice-candidate → 50 per 30s per call
+  │     heartbeat → 1 per 25s per socket
+  ├── Payload size limits (SDP: 10KB max, ICE: 1KB max)
+  └── IP reputation scoring (Redis sorted set, exponential decay)
+
+TURN Layer
+  ├── Authentication required (no anonymous allocations)
+  ├── Per-user allocation limits (max 2 concurrent)
+  ├── Bandwidth caps per allocation (2 Mbps)
+  ├── denied-peer-ip for private ranges (prevent SSRF)
+  └── Short credential TTL (24h) with rotation
+```
+
+### 11.2 IP Reputation Engine
+
+```typescript
+async function updateIpReputation(ip: string, event: 'CONNECT' | 'AUTH_FAIL' | 'RATE_LIMIT' | 'ABUSE') {
+  const penalties: Record<string, number> = {
+    CONNECT: 0,
+    AUTH_FAIL: 10,
+    RATE_LIMIT: 25,
+    ABUSE: 100,
+  };
+
+  const score = await redis.zincrby('ip:reputation', penalties[event], ip);
+  await redis.expire('ip:reputation', 86400); // 24h rolling window
+
+  if (Number(score) > 500) {
+    // Add to block list for 1 hour
+    await redis.set(`ip:blocked:${ip}`, '1', 'EX', 3600);
+    logger.warn({ ip, score }, 'IP blocked due to reputation score');
+  }
+}
+```
+
+---
+
+*Continued in [Part 4: Security, Autoscaling, Chaos Engineering & Production Readiness](./04_security_operations_readiness.md)*

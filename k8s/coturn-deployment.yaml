@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coturn
+  labels:
+    app: coturn
+    tier: media
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      app: coturn
+  template:
+    metadata:
+      labels:
+        app: coturn
+        tier: media
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9641"
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: coturn
+          image: coturn/coturn:latest
+          ports:
+            - containerPort: 3478
+              protocol: UDP
+              name: turn-udp
+            - containerPort: 3478
+              protocol: TCP
+              name: turn-tcp
+            - containerPort: 5349
+              protocol: TCP
+              name: turn-tls
+            - containerPort: 9641
+              protocol: TCP
+              name: metrics
+          env:
+            - name: COTURN_STATIC_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn-secrets
+                  key: static-auth-secret
+          volumeMounts:
+            - name: turnserver-config
+              mountPath: /etc/turnserver.conf
+              subPath: turnserver.conf
+            - name: turn-certs
+              mountPath: /etc/turn/certs
+              readOnly: true
+          resources:
+            requests:
+              cpu: "4000m"
+              memory: "8Gi"
+            limits:
+              cpu: "8000m"
+              memory: "16Gi"
+          readinessProbe:
+            tcpSocket:
+              port: 3478
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3478
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: turnserver-config
+          configMap:
+            name: coturn-config
+        - name: turn-certs
+          secret:
+            secretName: turn-tls-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coturn
+  labels:
+    app: coturn
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - port: 3478
+      targetPort: 3478
+      protocol: UDP
+      name: turn-udp
+    - port: 3478
+      targetPort: 3478
+      protocol: TCP
+      name: turn-tcp
+    - port: 5349
+      targetPort: 5349
+      protocol: TCP
+      name: turn-tls
+  selector:
+    app: coturn
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coturn-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coturn
+  minReplicas: 20
+  maxReplicas: 200
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: turn_active_allocations
+        target:
+          type: AverageValue
+          averageValue: "700"
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          targetAverageUtilization: 50

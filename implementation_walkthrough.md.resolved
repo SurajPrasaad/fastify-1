@@ -1,0 +1,147 @@
+# WebRTC Infrastructure — Implementation Walkthrough
+
+> ✅ **Build Status**: TypeScript compiles cleanly with zero errors (`tsc --noEmit` and `tsc` both pass)
+
+---
+
+## Overview
+
+This implementation translates the 4-part architecture specification into production-grade TypeScript code within the existing Fastify backend. Every component from the spec has been implemented as a separate, focused module.
+
+## Files Created / Modified
+
+### New Application Modules (12 files)
+
+| File | Purpose | Spec Section |
+|------|---------|-------------|
+| [region.ts](file:///d:/projects/social/backend/src/config/region.ts) | Region config, TURN domain map, geo-routing | §1, §7.4 |
+| [call.types.ts](file:///d:/projects/social/backend/src/modules/call/call.types.ts) | 16-state machine types, signal events, TTLs, transition map | §3.1, §3.2 |
+| [call.state-machine.ts](file:///d:/projects/social/backend/src/modules/call/call.state-machine.ts) | Redis Lua CAS transitions, double-accept prevention, Redlock | §3.2, §3.3 |
+| [call.coordinator.ts](file:///d:/projects/social/backend/src/modules/call/call.coordinator.ts) | Full call lifecycle orchestration (initiate→end) | §3, §4, §5 |
+| [call.authorization.ts](file:///d:/projects/social/backend/src/modules/call/call.authorization.ts) | Per-call security: blocks, privacy, spam scoring | §12.2 |
+| [call.auditor.ts](file:///d:/projects/social/backend/src/modules/call/call.auditor.ts) | CronJob for orphaned call cleanup (10s interval) | §3.3 |
+| [call.quality.ts](file:///d:/projects/social/backend/src/modules/call/call.quality.ts) | QoS telemetry ingestion to Kafka | §15.3 |
+| [turn.service.ts](file:///d:/projects/social/backend/src/modules/call/turn.service.ts) | HMAC-SHA1 TURN credentials, geo-selection, circuit breaker | §7.3, §7.4 |
+| [presence.service.ts](file:///d:/projects/social/backend/src/modules/presence/presence.service.ts) | Distributed presence with heartbeat + HyperLogLog | §6 |
+| [presence.federation.ts](file:///d:/projects/social/backend/src/modules/presence/presence.federation.ts) | Kafka-based cross-region presence sync | §6.1 |
+| [signal.publisher.ts](file:///d:/projects/social/backend/src/modules/signaling/signal.publisher.ts) | Redis pub/sub + Kafka cross-region routing | §2.3, §2.4 |
+| [signal.consumer.ts](file:///d:/projects/social/backend/src/modules/signaling/signal.consumer.ts) | Kafka consumer for cross-region signal delivery | §2.4 |
+
+### New Security Modules (3 files)
+
+| File | Purpose | Spec Section |
+|------|---------|-------------|
+| [ip-reputation.ts](file:///d:/projects/social/backend/src/modules/security/ip-reputation.ts) | IP reputation scoring, auto-blocking | §11.2 |
+| [rate-limiter.ts](file:///d:/projects/social/backend/src/modules/security/rate-limiter.ts) | Per-event signaling rate limits + payload size validation | §11.1 |
+| [replay-guard.ts](file:///d:/projects/social/backend/src/modules/security/replay-guard.ts) | Nonce-based replay attack prevention | §12.3 |
+
+### Modified Files (4 files)
+
+| File | Changes |
+|------|---------|
+| [call.gateway.ts](file:///d:/projects/social/backend/src/modules/call/call.gateway.ts) | **Full rewrite** — now uses coordinator, Redis pub/sub routing, IP reputation, presence, rate limiting |
+| [call.routes.ts](file:///d:/projects/social/backend/src/modules/call/call.routes.ts) | Added TURN credentials, call state, presence, active call endpoints |
+| [server.ts](file:///d:/projects/social/backend/src/server.ts) | Added graceful shutdown, call auditor, cross-region consumers |
+| [.env](file:///d:/projects/social/backend/.env) | Added REGION, TURN domain, and coturn secret variables |
+
+### Infrastructure Files (5 files)
+
+| File | Purpose |
+|------|---------|
+| [ws-gateway-deployment.yaml](file:///d:/projects/social/k8s/ws-gateway-deployment.yaml) | K8s deployment for WS gateway pods (50-500 replicas) |
+| [ws-gateway-hpa.yaml](file:///d:/projects/social/k8s/ws-gateway-hpa.yaml) | HPA targeting 15K conn/pod |
+| [coturn-deployment.yaml](file:///d:/projects/social/k8s/coturn-deployment.yaml) | coturn deployment + LoadBalancer + HPA (20-200 nodes) |
+| [coturn-configmap.conf](file:///d:/projects/social/k8s/coturn-configmap.conf) | Production coturn config with SSRF prevention |
+| [redis-cluster.yaml](file:///d:/projects/social/k8s/redis-cluster.yaml) | Redis Cluster StatefulSet (6 nodes, cross-AZ) |
+| [docker-compose.yml](file:///d:/projects/social/backend/docker-compose.yml) | Added coturn service for local development |
+
+---
+
+## Architecture Flow
+
+```mermaid
+sequenceDiagram
+    participant A as User A (Caller)
+    participant GW as WS Gateway
+    participant RED as Redis Cluster
+    participant KFK as Kafka
+    participant GW2 as WS Gateway (Pod Y)
+    participant B as User B (Callee)
+
+    A->>GW: call:initiate {targetUserId, callType}
+    GW->>RED: Rate limit check
+    GW->>RED: Check active calls (isUserInCall)
+    GW->>GW: Authorization (blocks, privacy, spam)
+    GW->>RED: Presence lookup (resolveUserLocation)
+    GW->>RED: Create call state (Lua: INITIATING)
+    GW->>RED: Transition INITIATING → SIGNALING
+    GW->>RED: PUBLISH signal:userB
+    RED-->>GW2: Signal delivered
+    GW2->>B: call:signal {CALL_INCOMING}
+    GW->>RED: Transition SIGNALING → RINGING
+    B->>GW2: call:accept {callId}
+    GW2->>RED: Lua CAS: RINGING → ACCEPTED
+    GW2->>RED: PUBLISH signal:userA
+    RED-->>GW: Signal delivered
+    GW->>A: call:signal {CALL_ACCEPTED}
+    A->>GW: webrtc:offer {sdp}
+    GW->>RED: PUBLISH signal:userB
+    RED-->>GW2: Signal delivered
+    GW2->>B: call:signal {WEBRTC_OFFER}
+    B->>GW2: webrtc:answer {sdp}
+    GW2->>RED: Transition CONNECTING → ICE_NEGOTIATION
+    GW2->>RED: Flush ICE buffer
+    GW2->>RED: PUBLISH signal:userA
+    RED-->>GW: Signal delivered
+    GW->>A: call:signal {WEBRTC_ANSWER}
+    Note over A,B: ICE candidates exchanged via same Redis pub/sub path
+    A->>GW: call:connected {callId}
+    GW->>RED: Transition ICE_NEGOTIATION → CONNECTED
+    Note over A,B: P2P media (DTLS-SRTP) or via TURN relay
+```
+
+---
+
+## Key Implementation Details
+
+### 1. Atomic State Machine (Lua Scripts)
+
+Three Redis Lua scripts handle all critical state transitions:
+- **`LUA_CREATE_CALL`** — atomic call creation + simultaneous-call lock
+- **`LUA_ACCEPT_CALL`** — CAS for double-accept prevention (RINGING→ACCEPTED only)
+- **`LUA_TRANSITION_STATE`** — generic CAS with version counter bump
+
+### 2. Cross-Region Signaling
+
+When User A is in `us-east` and User B is in `ap-south`:
+1. Gateway Pod → Kafka `signaling.cross-region` topic
+2. MirrorMaker 2 replicates to `ap-south` Kafka
+3. [SignalConsumer](file:///d:/projects/social/backend/src/modules/signaling/signal.consumer.ts#22-87) in `ap-south` picks it up
+4. Delivers to User B via local Redis pub/sub
+
+### 3. TURN Credentials
+
+- HMAC-SHA1 compatible with coturn's `use-auth-secret` mode
+- Per-user allocation limits (max 2 concurrent)
+- Load-aware geo-selection with circuit breaker fallback
+
+### 4. Graceful Shutdown
+
+On `SIGTERM`:
+1. Stop call auditor
+2. Emit `system:reconnect` with staggered delays (1-5s)
+3. Wait up to 15s for active calls to drain
+4. Force-disconnect remaining sockets
+5. Cleanup pod presence from Redis
+6. Close Fastify + Redis
+
+### 5. Rate Limiting
+
+| Event | Limit |
+|-------|-------|
+| `call:initiate` | 1 per 5s |
+| `webrtc:offer` | 1 per 10s |
+| `ice-candidate` | 50 per 30s |
+| [heartbeat](file:///d:/projects/social/backend/src/modules/call/call.state-machine.ts#241-248) | 1 per 25s |
+| SDP payload | max 10KB |
+| ICE payload | max 1KB |

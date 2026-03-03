@@ -1,0 +1,332 @@
+# Part 2 — Call Lifecycle, WebRTC Flow & Distributed Presence
+
+---
+
+## 3. Call Lifecycle State Machine
+
+### 3.1 State Diagram
+
+```
+                                    ┌─────────────┐
+                                    │    IDLE      │
+                                    └──────┬───────┘
+                                           │ call:initiate
+                                    ┌──────▼───────┐
+                              ┌─────│  INITIATING  │─────┐
+                              │     └──────┬───────┘     │
+                         auth_fail │       │ validated    │ target_offline
+                              │    ┌───────▼──────┐      │
+                              │    │  SIGNALING   │      │
+                              │    └───────┬──────┘      │
+                              │            │ delivered    │
+                              │    ┌───────▼──────┐      │
+                              │    │   RINGING    │──────┼──────┐
+                              │    └──┬────┬───┬──┘      │      │
+                              │  accept│ reject│ timeout │      │
+                              │    │   │    │   │        │      │
+                              │    │ ┌─▼──┐ │ ┌─▼────┐   │      │
+                              │    │ │REJD│ │ │TMOUT │   │      │
+                              │    │ └────┘ │ └──────┘   │      │
+                              ▼    │        │            ▼      │
+                         ┌────────┐│   ┌────▼─────┐  ┌──────┐  │
+                         │ FAILED ││   │ ACCEPTED │  │MISSED│  │
+                         └────────┘│   └────┬─────┘  └──────┘  │
+                                   │        │                   │
+                                   │  ┌─────▼──────┐           │
+                                   │  │ CONNECTING  │           │
+                                   │  └─────┬──────┘           │
+                                   │        │                   │
+                                   │  ┌─────▼────────────┐     │
+                                   │  │ ICE_NEGOTIATION  │     │
+                                   │  └─────┬─────┬──────┘     │
+                                   │   ok   │     │ ice_fail   │
+                                   │  ┌─────▼──┐  │            │
+                                   │  │CONNECTED│  │            │
+                                   │  └──┬──┬──┘  │            │
+                                   │     │  │     │            │
+                              degraded   │  │     │            │
+                              ┌──▼────┐  │  │     │            │
+                              │DEGRADD│  │  │     │            │
+                              └──┬────┘  │  │     │            │
+                              recover│   │  │     │            │
+                                   │  end│  │reconnect         │
+                                   │  ┌──▼──▼──────┐           │
+                                   │  │RECONNECTING│           │
+                                   │  └──┬─────┬───┘           │
+                                   │  ok │     │ fail          │
+                                   │     │     │               │
+                                   │     │  ┌──▼───┐           │
+                                   │     │  │FAILED│           │
+                                   │     │  └──────┘           │
+                                   │  ┌──▼──┐                  │
+                                   │  │ENDED│                  │
+                                   │  └─────┘                  │
+                                   │                           │
+                                   │  ┌────────────────┐       │
+                                   └──│REGION_FAILOVER │───────┘
+                                      └────────────────┘
+```
+
+### 3.2 State Definitions
+
+| State | Redis Key | TTL | Description |
+|-------|----------|-----|-------------|
+| `IDLE` | (no key) | — | User not in any call |
+| `INITIATING` | `call:{callId}` | 10s | Pre-flight checks (auth, block, rate limit) |
+| `SIGNALING` | `call:{callId}` | 15s | Routing `call:incoming` to target |
+| `RINGING` | `call:{callId}` | 30s | Target device is ringing |
+| `ACCEPTED` | `call:{callId}` | 15s | Target accepted, preparing WebRTC |
+| `REJECTED` | `call:{callId}` | 5s | Target declined (terminal) |
+| `TIMEOUT` | `call:{callId}` | 5s | Ring timeout exceeded (terminal) |
+| `CONNECTING` | `call:{callId}` | 20s | SDP offer/answer exchange |
+| `ICE_NEGOTIATION` | `call:{callId}` | 30s | ICE candidate gathering/exchange |
+| `CONNECTED` | `call:{callId}` | 7200s | Active P2P media flowing |
+| `DEGRADED` | `call:{callId}` | 7200s | Connected but quality below threshold |
+| `RECONNECTING` | `call:{callId}` | 30s | ICE restart in progress |
+| `FAILED` | `call:{callId}` | 10s | Unrecoverable failure (terminal) |
+| `ENDED` | `call:{callId}` | 10s | Normal termination (terminal) |
+| `MISSED` | `call:{callId}` | 5s | Caller hung up before answer (terminal) |
+| `REGION_FAILOVER` | `call:{callId}` | 60s | Region failure, migrating signaling |
+
+### 3.3 Race Condition Handling
+
+**Double-Accept Prevention:**
+```typescript
+async function handleAccept(callId: string, userId: string): Promise<boolean> {
+  // Atomic CAS via Redis Lua script
+  const script = `
+    local state = redis.call('HGET', KEYS[1], 'state')
+    if state == 'RINGING' then
+      redis.call('HMSET', KEYS[1], 'state', 'ACCEPTED', 'acceptedBy', ARGV[1], 'acceptedAt', ARGV[2])
+      return 1
+    end
+    return 0
+  `;
+  const result = await redis.eval(script, 1, `call:${callId}`, userId, Date.now().toString());
+  return result === 1; // false = already accepted/rejected by another device
+}
+```
+
+**Simultaneous Call Detection (A calls B while B calls A):**
+```typescript
+async function acquireCallLock(userA: string, userB: string): Promise<string | null> {
+  // Canonicalize lock key to prevent deadlocks
+  const [u1, u2] = [userA, userB].sort();
+  const lockKey = `lock:call:${u1}:${u2}`;
+  
+  // Redlock with 30s TTL
+  const lock = await redlock.acquire([lockKey], 30000);
+  return lock ? lock.value : null;
+}
+```
+
+**Split-Brain Detection:**
+- Each call state transition includes a monotonic `version` counter.
+- If two regions hold conflicting states for the same `callId`, the higher version wins.
+- A periodic `call-state-auditor` CronJob (every 10s) scans for orphaned calls:
+  - Calls stuck in `RINGING` > 45s → force to `TIMEOUT`
+  - Calls stuck in `CONNECTING` > 30s → force to `FAILED`
+  - Calls in `CONNECTED` with no heartbeat for 60s → force to `ENDED`
+
+---
+
+## 4. WebRTC Offer/Answer Sequence Diagram
+
+```
+  User A (Caller)         WS Gateway         Redis          WS Gateway         User B (Callee)
+       │                    (Pod X)          Cluster          (Pod Y)                │
+       │                      │                │                │                   │
+       │──call:initiate──────▶│                │                │                   │
+       │                      │──HSET call:id──▶│               │                   │
+       │                      │  state=INIT     │               │                   │
+       │                      │──GET sock:B────▶│               │                   │
+       │                      │◀──{podY,sockB}──│               │                   │
+       │                      │──PUB signal:B──▶│──────────────▶│                   │
+       │                      │                 │               │──call:incoming────▶│
+       │                      │                 │               │                   │
+       │                      │                 │               │◀──call:accept──────│
+       │                      │                 │◀──EVAL(CAS)───│                   │
+       │                      │                 │  RINGING→ACPT │                   │
+       │                      │◀──PUB signal:A──│               │                   │
+       │◀──call:accepted──────│                 │               │                   │
+       │                      │                 │               │                   │
+       │  [Create PeerConn]   │                 │               │                   │
+       │  [getUserMedia]      │                 │               │                   │
+       │  [createOffer]       │                 │               │                   │
+       │                      │                 │               │                   │
+       │──webrtc:offer───────▶│──PUB signal:B──▶│──────────────▶│                   │
+       │  {sdp: offer}        │                 │               │──webrtc:offer────▶│
+       │                      │                 │               │    {sdp: offer}    │
+       │                      │                 │               │                   │
+       │                      │                 │               │  [setRemoteDesc]  │
+       │                      │                 │               │  [createAnswer]   │
+       │                      │                 │               │                   │
+       │                      │                 │               │◀──webrtc:answer───│
+       │                      │◀──PUB signal:A──│◀──PUB────────│    {sdp: answer}   │
+       │◀──webrtc:answer──────│                 │               │                   │
+       │  {sdp: answer}       │                 │               │                   │
+       │                      │                 │               │                   │
+       │  [setRemoteDesc]     │                 │               │                   │
+       │                      │                 │               │                   │
+       │══════════════════ ICE CANDIDATE TRICKLE ══════════════════════════════════│
+       │                      │                 │               │                   │
+       │──ice-candidate──────▶│──PUB signal:B──▶│──────────────▶│──ice-candidate──▶│
+       │                      │                 │               │                   │
+       │◀──ice-candidate──────│◀──PUB signal:A──│◀─────────────│◀──ice-candidate──│
+       │                      │                 │               │                   │
+       │◄═══════════════ P2P MEDIA (DTLS-SRTP) ════════════════════════════════════▶│
+       │          (or via TURN relay if P2P fails)              │                   │
+```
+
+---
+
+## 5. ICE Candidate Exchange Flow
+
+```
+  User A                     Signaling                      User B
+    │                           │                              │
+    │  [RTCPeerConnection       │                              │
+    │   onicecandidate fires]   │                              │
+    │                           │                              │
+    │──ice-candidate {          │                              │
+    │   type: 'srflx',         │ ── relay via Redis pub/sub ─▶│
+    │   candidate: '...',      │                              │  [addIceCandidate]
+    │   sdpMLineIndex: 0       │                              │
+    │  }                       │                              │
+    │                           │                              │
+    │──ice-candidate {          │                              │
+    │   type: 'relay',         │ ── relay via Redis pub/sub ─▶│
+    │   candidate: '...',      │                              │  [addIceCandidate]
+    │   sdpMLineIndex: 0       │                              │
+    │  }                       │                              │
+    │                           │                              │
+    │                           │                              │──ice-candidate {
+    │  [addIceCandidate]       │◀── relay via Redis pub/sub ──│   type: 'host',
+    │                           │                              │   candidate: '...'
+    │                           │                              │  }
+    │                           │                              │
+    │  [ICE connectivity       │                              │  [ICE connectivity
+    │   checks: STUN binding   │                              │   checks complete]
+    │   requests between        │                              │
+    │   candidate pairs]        │                              │
+    │                           │                              │
+    │◄══════ Selected pair: srflx ←→ host (P2P direct) ══════▶│
+    │         OR                │                              │
+    │◄══════ Selected pair: relay ←→ relay (via TURN) ════════▶│
+```
+
+**ICE Candidate Buffering (for out-of-order arrivals):**
+```typescript
+// Buffer ICE candidates if remote description not yet set
+const iceBuffer = new Map<string, RTCIceCandidateInit[]>();
+
+async function handleRemoteIceCandidate(callId: string, candidate: RTCIceCandidateInit) {
+  const callState = await redis.hget(`call:${callId}`, 'state');
+  
+  if (callState === 'CONNECTING') {
+    // Remote description not yet applied — buffer in Redis
+    await redis.rpush(`ice:${callId}:buffer`, JSON.stringify(candidate));
+    await redis.expire(`ice:${callId}:buffer`, 60);
+    return;
+  }
+  
+  // Forward immediately
+  await publishSignal(targetUserId, {
+    type: 'ICE_CANDIDATE',
+    callId,
+    candidate,
+  });
+}
+
+// Flush buffer after remote description is set
+async function flushIceBuffer(callId: string, targetUserId: string) {
+  const buffered = await redis.lrange(`ice:${callId}:buffer`, 0, -1);
+  await redis.del(`ice:${callId}:buffer`);
+  
+  for (const raw of buffered) {
+    await publishSignal(targetUserId, {
+      type: 'ICE_CANDIDATE',
+      callId,
+      candidate: JSON.parse(raw),
+    });
+  }
+}
+```
+
+---
+
+## 6. Distributed Presence Strategy (10M Users)
+
+### 6.1 Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    PRESENCE SUBSYSTEM                     │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │              LOCAL PRESENCE (Redis)               │  │
+│  │                                                    │  │
+│  │  Key: presence:{userId}                           │  │
+│  │  Value: { region, podId, socketId, connectedAt,   │  │
+│  │           deviceType, lastHeartbeat }              │  │
+│  │  TTL: 120s (refreshed every 30s by heartbeat)     │  │
+│  │                                                    │  │
+│  │  Key: region:users:{region}                       │  │
+│  │  Type: HyperLogLog (cardinality estimation)       │  │
+│  └────────────────────────────────────────────────────┘  │
+│                         │                                │
+│                    Kafka sync                            │
+│                         ▼                                │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │           GLOBAL PRESENCE (Federation)            │  │
+│  │                                                    │  │
+│  │  Topic: presence.sync (compacted)                 │  │
+│  │  Key: userId                                      │  │
+│  │  Value: { region, status, timestamp }             │  │
+│  │  Replication: MirrorMaker 2 to all regions        │  │
+│  │                                                    │  │
+│  │  Each region maintains a local materialized view  │  │
+│  │  in Redis: gpresence:{userId} → {region, status}  │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Presence Lookup Algorithm
+
+```typescript
+async function resolveUserLocation(targetUserId: string): Promise<UserLocation | null> {
+  // Step 1: Check local Redis (fast path, <2ms)
+  const local = await redis.hgetall(`presence:${targetUserId}`);
+  if (local?.region === LOCAL_REGION) {
+    return { region: local.region, socketId: local.socketId, podId: local.podId };
+  }
+
+  // Step 2: Check global presence cache (federated, <5ms)
+  const global = await redis.hgetall(`gpresence:${targetUserId}`);
+  if (global?.region) {
+    return { region: global.region, socketId: null, podId: null }; // Cross-region
+  }
+
+  // Step 3: User is offline
+  return null;
+}
+```
+
+### 6.3 Heartbeat Protocol
+
+- Clients send a lightweight heartbeat every **30 seconds** via tRPC subscription ping.
+- The gateway pod refreshes `presence:{userId}` TTL to 120s on each heartbeat.
+- If 2 consecutive heartbeats are missed (60s), the presence key expires → user is considered offline.
+- On disconnect, the pod **immediately** deletes the presence key and publishes a `PRESENCE_OFFLINE` event.
+
+### 6.4 Multi-Device Presence
+
+- A user logged into multiple devices gets multiple presence entries:
+  - `presence:{userId}:web` → desktop connection info
+  - `presence:{userId}:mobile` → mobile connection info
+- Call routing priority: **mobile > web > tablet** (configurable per user).
+- On `call:accept` from one device, emit `call:handled_elsewhere` to all other device sockets.
+
+---
+
+*Continued in [Part 3: coturn, Multi-Region, Security & Operations](./03_coturn_multiregion_operations.md)*

@@ -1,0 +1,205 @@
+# Frontend Voice & Video Calling Architecture
+
+## ✅ Implementation Complete — 0 TypeScript errors in call feature
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    subgraph "UI Layer"
+        CM[CallModal.tsx]
+        CH[ChatHeader.tsx]
+    end
+    
+    subgraph "State Layer"
+        CS[call.store.ts<br/>Zustand 15-state machine]
+    end
+
+    subgraph "Engine Layer"
+        WE[webrtc.engine.ts<br/>RTCPeerConnection abstraction]
+    end
+
+    subgraph "Signaling Layer"
+        SA[signaling.adapter.ts<br/>WebSocket dispatch]
+        SS[socket.service.ts<br/>Socket.IO transport]
+    end
+
+    subgraph "API Layer"
+        CA[callApi.ts<br/>REST endpoints]
+    end
+
+    CH -->|initiateCall| CC
+    CM -->|read state| CS
+    CM -->|actions| CC
+    CC[CallContext.tsx<br/>Orchestrator] --> CS
+    CC --> WE
+    CC --> SA
+    SA --> SS
+    CA -->|TURN, history| Backend
+```
+
+---
+
+## Folder Structure
+
+```
+src/features/call/
+├── api/
+│   └── callApi.ts              # REST client (history, TURN, quality)
+├── components/
+│   └── CallModal.tsx           # Production UI (all states, controls)
+├── context/
+│   └── CallContext.tsx          # Lifecycle orchestrator (integrates all layers)
+├── engine/
+│   └── webrtc.engine.ts        # RTCPeerConnection abstraction
+├── signaling/
+│   └── signaling.adapter.ts    # WebSocket event dispatch
+└── store/
+    └── call.store.ts           # Zustand state machine
+```
+
+---
+
+## 15-State Call Machine (Frontend)
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> INITIATING: initiateCall()
+    IDLE --> INCOMING: call:signal CALL_INCOMING
+    
+    INITIATING --> RINGING: call:initiated
+    RINGING --> ACCEPTED: call:accepted
+    RINGING --> ENDED: cancel
+    
+    INCOMING --> ACCEPTED: acceptCall()
+    INCOMING --> REJECTED: rejectCall()
+    
+    ACCEPTED --> CONNECTING: media acquired
+    CONNECTING --> ICE_NEGOTIATION: SDP exchange
+    
+    ICE_NEGOTIATION --> AUDIO_CONNECTED: ICE succeeded (audio)
+    ICE_NEGOTIATION --> VIDEO_CONNECTED: ICE succeeded (video)
+    
+    AUDIO_CONNECTED --> VIDEO_UPGRADING: requestVideoUpgrade()
+    VIDEO_UPGRADING --> VIDEO_CONNECTED: upgrade complete
+    VIDEO_UPGRADING --> AUDIO_CONNECTED: upgrade rejected/timeout
+    
+    VIDEO_CONNECTED --> AUDIO_CONNECTED: downgradeToAudio()
+    
+    AUDIO_CONNECTED --> DEGRADED: quality drop
+    VIDEO_CONNECTED --> DEGRADED: quality drop
+    DEGRADED --> AUDIO_CONNECTED: quality restored
+    DEGRADED --> VIDEO_CONNECTED: quality restored
+    
+    AUDIO_CONNECTED --> RECONNECTING: ICE disconnected
+    VIDEO_CONNECTED --> RECONNECTING: ICE disconnected
+    RECONNECTING --> AUDIO_CONNECTED: ICE restarted
+    RECONNECTING --> FAILED: timeout
+    
+    AUDIO_CONNECTED --> ENDED: endCall()
+    VIDEO_CONNECTED --> ENDED: endCall()
+    FAILED --> IDLE: reset
+    ENDED --> IDLE: reset
+```
+
+---
+
+## Call Lifecycle Sequence
+
+### Outgoing Audio Call
+```
+Caller                    Server                    Receiver
+  |                         |                         |
+  |--- call:initiate ------>|                         |
+  |<-- call:initiated ------|                         |
+  |    (status: RINGING)    |--- call:signal -------->|
+  |                         |    CALL_INCOMING        |
+  |                         |                         |
+  |                         |<-- call:accept ---------|
+  |<-- call:accepted -------|                         |
+  |    (status: CONNECTING) |                         |
+  |                         |                         |
+  |--- webrtc:offer ------->|--- webrtc:offer ------->|
+  |    (createOffer)        |                         |
+  |                         |<-- webrtc:answer -------|
+  |<-- webrtc:answer -------|    (createAnswer)       |
+  |    (setRemoteDesc)      |                         |
+  |                         |                         |
+  |<========= ICE Candidates (trickle) =============>|
+  |                         |                         |
+  |    ICE: connected       |    ICE: connected       |
+  |    AUDIO_CONNECTED      |    AUDIO_CONNECTED      |
+  |--- call:connected ----->|                         |
+  |                         |                         |
+  |<===== P2P SRTP Audio (direct or via TURN) ======>|
+```
+
+### Mid-Call Voice → Video Upgrade
+```
+User A                     Server                    User B
+  |                          |                          |
+  |  AUDIO_CONNECTED         |         AUDIO_CONNECTED  |
+  |                          |                          |
+  |--- call:upgrade-request->|                          |
+  |    VIDEO_UPGRADING       |--- VIDEO_UPGRADE_REQ --->|
+  |                          |       VIDEO_UPGRADING    |
+  |                          |                          |
+  |                          |<-- call:upgrade-accept --|
+  |<-- VIDEO_UPGRADE_ACCEPT--|                          |
+  |                          |                          |
+  |  addVideoTrack()         |      addVideoTrack()     |
+  |  createOffer() (w/video) |                          |
+  |--- webrtc:offer -------->|--- webrtc:offer -------->|
+  |                          |<-- webrtc:answer --------|
+  |<-- webrtc:answer --------|                          |
+  |                          |                          |
+  |--- call:upgrade-complete>|                          |
+  |    VIDEO_CONNECTED       |       VIDEO_CONNECTED    |
+  |                          |                          |
+  |<=== P2P SRTP Audio + Video (direct or TURN) =====>|
+```
+
+---
+
+## Files Created/Modified
+
+### New Files (5)
+
+| File | Purpose |
+|------|---------|
+| [call.store.ts](file:///d:/projects/social/frontend/src/features/call/store/call.store.ts) | Zustand store with 15-state machine, validated transitions, media mode tracking, network quality metrics |
+| [webrtc.engine.ts](file:///d:/projects/social/frontend/src/features/call/engine/webrtc.engine.ts) | RTCPeerConnection abstraction — SDP negotiation, ICE buffering, track replacement, quality monitoring |
+| [signaling.adapter.ts](file:///d:/projects/social/frontend/src/features/call/signaling/signaling.adapter.ts) | WebSocket signaling dispatch with typed events and idempotent processing |
+
+### Modified Files (3)
+
+| File | Changes |
+|------|---------|
+| [CallContext.tsx](file:///d:/projects/social/frontend/src/features/call/context/CallContext.tsx) | Complete rewrite — integrates store + engine + signaling. Handles full lifecycle, upgrade/downgrade, reconnection, browser events |
+| [CallModal.tsx](file:///d:/projects/social/frontend/src/features/call/components/CallModal.tsx) | Production UI — memoized video, network indicator, call timer, upgrade modal, draggable PiP, glassmorphism controls |
+| [callApi.ts](file:///d:/projects/social/frontend/src/features/call/api/callApi.ts) | Added TURN credentials, call state, presence, quality analysis endpoints |
+
+---
+
+## Key Design Decisions
+
+### 1. Zustand over Context for state
+The call store uses `useCallStore` (Zustand) instead of React Context state to avoid re-rendering the entire component tree on every state change. Components subscribe to **individual selectors** (e.g., `useCallStore(s => s.isMuted)`) so only the relevant control button re-renders.
+
+### 2. MediaStream as refs, not state
+`localStreamRef` and `remoteStreamRef` are `useRef` values — setting a `MediaStream` into React state would trigger re-renders on every frame. Instead, we use `CustomEvent` dispatch to notify the memoized `VideoElement` component when streams change.
+
+### 3. Trickle ICE with buffering
+The WebRTC engine buffers ICE candidates received before [setRemoteDescription()](file:///d:/projects/social/frontend/src/features/call/engine/webrtc.engine.ts#251-266) is called, then flushes them automatically. This prevents the common race condition where candidates arrive before the remote SDP.
+
+### 4. Opus SDP preference
+The engine rewrites SDP to prefer Opus codec for audio, ensuring the best audio quality and lowest latency path.
+
+### 5. Separated upgrade renegotiation
+Video upgrade uses `addTrack()` + new [createOffer()](file:///d:/projects/social/frontend/src/features/call/engine/webrtc.engine.ts#213-234) rather than `replaceTrack()`, ensuring proper SDP renegotiation with the new video m-line. The state machine prevents concurrent upgrades.
+
+### 6. Browser event safety
+`beforeunload` listener calls [endCall()](file:///d:/projects/social/frontend/src/features/call/signaling/signaling.adapter.ts#114-117) if a call is active. `online`/`offline` events trigger reconnection. `visibilitychange` can be used to pause quality monitoring when backgrounded.

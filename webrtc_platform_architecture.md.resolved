@@ -1,0 +1,931 @@
+# Globally Distributed, Ultra-Scalable Voice & Video Calling Platform
+
+## WebRTC + coturn Architecture Specification for 100M+ Users
+
+> **Target Scale**: 100M+ registered users · 10M+ concurrent WebSocket connections · 3M+ concurrent active calls
+> **SLA**: 99.995% availability · <120ms average global call setup latency
+> **Stack**: Node.js · TypeScript · Fastify · Socket.io · Redis Cluster · PostgreSQL · Kafka · coturn · Kubernetes
+> **Regions**: US-EAST (Ashburn) · EU-WEST (Frankfurt) · AP-SOUTH (Mumbai) · AP-EAST (Tokyo)
+
+> [!IMPORTANT]
+> This document is the **definitive backend distributed systems specification**. No frontend UI/UX is included. Every decision is production-grade with explicit scalability reasoning and trade-off analysis.
+
+---
+
+## Table of Contents
+
+1. [Global Architecture Overview](#1-global-architecture-overview)
+2. [Layer 1 — Edge Layer](#2-layer-1--edge-layer)
+3. [Layer 2 — Signaling Layer](#3-layer-2--signaling-layer)
+4. [Layer 3 — Session Coordination Layer](#4-layer-3--session-coordination-layer)
+5. [Layer 4 — Media Layer (WebRTC)](#5-layer-4--media-layer-webrtc)
+6. [Layer 5 — TURN Layer (coturn)](#6-layer-5--turn-layer-coturn)
+7. [Layer 6 — Data & Analytics Layer](#7-layer-6--data--analytics-layer)
+8. [Layer 7 — Observability Layer](#8-layer-7--observability-layer)
+9. [Call Lifecycle State Machine (16 States)](#9-call-lifecycle-state-machine-16-states)
+10. [Voice Calling — Audio-Only Optimized Path](#10-voice-calling--audio-only-optimized-path)
+11. [Video Calling — Adaptive HD Streaming](#11-video-calling--adaptive-hd-streaming)
+12. [Dynamic Voice ↔ Video Upgrade](#12-dynamic-voice--video-upgrade)
+13. [WebRTC Offer/Answer Sequence](#13-webrtc-offeranswer-sequence)
+14. [ICE Candidate Negotiation at Global Scale](#14-ice-candidate-negotiation-at-global-scale)
+15. [Distributed Presence Strategy](#15-distributed-presence-strategy)
+16. [Multi-Region Active-Active Deployment](#16-multi-region-active-active-deployment)
+17. [Security & Encryption Model](#17-security--encryption-model)
+18. [Failure Scenarios & Recovery](#18-failure-scenarios--recovery)
+19. [Autoscaling & Capacity Planning](#19-autoscaling--capacity-planning)
+20. [Bandwidth Cost Optimization](#20-bandwidth-cost-optimization)
+21. [Production Readiness Checklist](#21-production-readiness-checklist)
+
+---
+
+## 1. Global Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                       GLOBAL ANYCAST DNS (Route 53 / Cloudflare)               │
+│                 ┌──────────┬──────────┬──────────┬──────────┐                   │
+│                 │ US-EAST  │ EU-WEST  │ AP-SOUTH │ AP-EAST  │                   │
+│                 │ Ashburn  │ Frankfurt│  Mumbai  │  Tokyo   │                   │
+│                 └────┬─────┴────┬─────┴────┬─────┴────┬─────┘                   │
+└──────────────────────┼──────────┼──────────┼──────────┼─────────────────────────┘
+                       │          │          │          │
+┌──────────────────────▼──────────▼──────────▼──────────▼─────────────────────────┐
+│                          EDGE LAYER (per region)                                │
+│  Cloud Armor / Shield ──▶ NLB ──▶ Envoy (L7, TLS 1.3) ──▶ WAF + Rate Limiter  │
+└────────────────────────────────────────┬───────────────────────────────────────-─┘
+                                         │
+┌────────────────────────────────────────▼───────────────────────────────────────-─┐
+│                      SIGNALING LAYER (per region)                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ← HPA: 50-500 pods      │
+│  │  WS Gateway  │  │  WS Gateway  │  │  WS Gateway  │    per region             │
+│  │  (Fastify +  │  │  (Fastify +  │  │  (Fastify +  │    20K conn/pod           │
+│  │   Socket.io) │  │   Socket.io) │  │   Socket.io) │                           │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                           │
+│         └─────────────────┼─────────────────┘                                    │
+│  ┌────────────────────────▼────────────────────────┐                             │
+│  │       Redis Cluster (6-node, 3 shards)          │                             │
+│  │   Presence │ Pub/Sub │ Session Map │ Locks      │                             │
+│  └────────────────────────┬────────────────────────┘                             │
+└───────────────────────────┼──────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────────────────────────┐
+│                  CROSS-REGION FEDERATION BUS                                     │
+│  Kafka Multi-Region (MirrorMaker 2)                                              │
+│  Topics: presence.sync │ signaling.cross-region │ call.events │ call.quality     │
+└───────────────────────────┬──────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────────────────────────┐
+│                       MEDIA LAYER (per region)                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ← HPA: 20-200 nodes     │
+│  │   coturn     │  │   coturn     │  │   coturn     │    per region             │
+│  │  STUN/TURN   │  │  STUN/TURN   │  │  STUN/TURN   │    UDP-first             │
+│  │  UDP:3478    │  │  UDP:3478    │  │  UDP:3478    │    c6gn.2xlarge           │
+│  └──────────────┘  └──────────────┘  └──────────────┘                           │
+└───────────────────────────┬──────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────────────────────────┐
+│                        DATA LAYER (per region)                                   │
+│  PostgreSQL (call logs) │ Redis (ephemeral state) │ Kafka (analytics stream)     │
+│  CockroachDB (global user profiles, block lists)                                 │
+└───────────────────────────┬──────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────────────────────────┐
+│                     OBSERVABILITY LAYER                                           │
+│  OpenTelemetry ──▶ Tempo (traces) │ Mimir (metrics) │ Loki (logs)               │
+│  Call Quality ──▶ ClickHouse │ Grafana Dashboards │ PagerDuty                    │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Guiding design principles:**
+- **Stateless everything** — Zero in-memory state on signaling pods. All state in Redis.
+- **STUN-first** — Minimize TURN usage to reduce bandwidth cost (80-85% of calls P2P).
+- **Audio-first** — Audio calls have a faster, leaner code path than video.
+- **Region-local** — Keep data gravity local; cross-region only when necessary.
+- **Fail-open for non-critical** — Quality telemetry failures never break calls.
+
+---
+
+## 2. Layer 1 — Edge Layer
+
+| Component | Technology | Purpose | Scale Target |
+|-----------|-----------|---------|-------------|
+| Global DNS | Route 53 / Cloudflare Anycast | Geo-routing to nearest region | <10ms DNS resolution |
+| DDoS Shield | AWS Shield Advanced / Cloud Armor | L3/L4 volumetric attack mitigation | 10Tbps+ absorption |
+| L7 Load Balancer | Envoy Proxy (K8s Ingress) | WSS termination, health-check routing | 2M conn/LB instance |
+| WAF | ModSecurity / Cloud WAF | OWASP top-10, WebSocket abuse | Inline, <1ms overhead |
+| Rate Limiter | Envoy ext_authz + Redis | Per-IP, per-user token bucket | 100K decisions/sec |
+
+**Design Decision — Envoy over Nginx:**
+Envoy provides native WebSocket support, gRPC-based xDS for dynamic config, circuit breaking, and native OpenTelemetry export. At 10M concurrent connections, Envoy's connection pooling and hot-restart capabilities give zero-downtime config updates — critical for 99.995% SLA.
+
+**Connection distribution math:**
+- 10M concurrent connections ÷ 4 regions = 2.5M per region
+- Each Envoy instance handles ~50K connections = **50 Envoy instances per region**
+- Behind a Network Load Balancer (NLB) for L4 TCP distribution
+
+**Existing implementation:** [docker-compose.yml](file:///d:/projects/social/backend/docker-compose.yml) (dev environment), [ws-gateway-deployment.yaml](file:///d:/projects/social/k8s/ws-gateway-deployment.yaml) (production K8s)
+
+---
+
+## 3. Layer 2 — Signaling Layer
+
+### 3.1 Stateless WebSocket Gateway Architecture
+
+```
+Client ──WSS──▶ Envoy LB ──▶ WS Gateway Pod (Fastify + Socket.io + Redis Adapter)
+                                    │
+                                    ├──▶ Redis Cluster (presence, pub/sub, locks)
+                                    ├──▶ Kafka (cross-region federation)
+                                    └──▶ PostgreSQL (call history persistence)
+```
+
+**Key design principles:**
+
+1. **Fully stateless pods** — Zero in-memory call state. All state lives in Redis.
+2. **No sticky sessions** — Any pod can serve any user. User→socket mapping in Redis.
+3. **Horizontal autoscaling** — HPA based on concurrent WebSocket count (custom metric).
+4. **Backpressure** — Per-socket message queue with bounded buffer (1024 messages). Oldest non-critical messages dropped on overflow.
+
+**Pod sizing (per region):**
+- Each pod handles ~20K concurrent WebSocket connections
+- 2.5M connections per region ÷ 20K = **125 pods baseline**
+- Autoscale to 500 pods during traffic spikes
+- CPU: 2 vCPU, Memory: 4GB per pod (`--max-old-space-size=3072`)
+
+**Existing implementation:** [call.gateway.ts](file:///d:/projects/social/backend/src/modules/call/call.gateway.ts) — Full WebSocket event handlers
+
+### 3.2 Redis Cluster Sharding Strategy
+
+**Topology per region:** 6 nodes (3 masters + 3 replicas), 16,384 hash slots, cross-AZ
+
+| Key Pattern | Shard Strategy | TTL | Purpose |
+|------------|---------------|-----|---------|
+| `presence:{userId}` | CRC16(userId) | 120s | Online/offline + region + device |
+| `sock:{userId}` | CRC16(userId) | 86400s | userId → {socketId, podId, region} |
+| `call:{callId}` | CRC16(callId) | varies by state | Active call state machine |
+| `lock:call:{u1}:{u2}` | CRC16 | 30s | Distributed lock (Redlock) |
+| `ratelimit:{event}:{userId}` | CRC16(userId) | 5-30s | Per-event rate limit |
+| `turn:alloc:{userId}` | CRC16(userId) | 300s | TURN allocation tracking |
+| `ice:{callId}:buffer` | CRC16(callId) | 60s | ICE candidate buffer |
+| `gpresence:{userId}` | CRC16(userId) | 300s | Cross-region presence cache |
+| `spam:call:{userId}` | CRC16(userId) | 3600s | Call spam scoring |
+| `ip:reputation` | single sorted set | 86400s | IP reputation scores |
+
+### 3.3 Pub/Sub Signal Delivery
+
+**Existing implementation:** [signal.publisher.ts](file:///d:/projects/social/backend/src/modules/signaling/signal.publisher.ts)
+
+```
+Same-region delivery:  Pod → Redis PUBLISH signal:{userId} → Subscribed Pod → Socket
+Cross-region delivery: Pod → Kafka signaling.cross-region → MirrorMaker → Remote Kafka
+                       → Remote Consumer → Redis PUBLISH → Remote Pod → Socket
+```
+
+**Cross-region latency budget:**
+
+| Step | Latency |
+|------|---------|
+| Client → Edge LB | 5-20ms |
+| LB → WS Gateway Pod | 1-2ms |
+| Pod → Redis (presence lookup) | 1-3ms |
+| Pod → Kafka produce | 2-5ms |
+| Kafka MirrorMaker replication | 40-80ms |
+| Remote consumer → Redis pub/sub | 1-3ms |
+| Redis → Remote pod → Client | 5-20ms |
+| **Total** | **55-133ms** ✅ |
+
+**Trade-off: Kafka vs gRPC mesh for cross-region signaling:**
+- Kafka: Higher latency (~80ms), but gives durability, replay on partition recovery, and message ordering guarantees.
+- gRPC mesh: Lower latency (~40ms), but requires custom service mesh and is harder to debug.
+- **Decision**: Kafka for standard flows; direct gRPC fallback for `REGION_FAILOVER` where latency budget is critical.
+
+---
+
+## 4. Layer 3 — Session Coordination Layer
+
+### 4.1 Global User-to-Socket Mapping
+
+Every connected user has two Redis entries maintained by [presence.service.ts](file:///d:/projects/social/backend/src/modules/presence/presence.service.ts):
+
+```
+presence:{userId} → { region, podId, socketId, connectedAt, deviceType, lastHeartbeat }  TTL: 120s
+sock:{userId}     → { socketId, podId, region }                                          TTL: 86400s
+```
+
+**Lookup algorithm** (3-tier cascade, <5ms total):
+1. **Local Redis** `presence:{userId}` — fast path for same-region users
+2. **Socket map** `sock:{userId}` — may contain cross-region routing info
+3. **Global presence cache** `gpresence:{userId}` — federated via Kafka
+
+### 4.2 Cross-Region Session Replication
+
+Call state is **NOT replicated cross-region**. A call lives exclusively in the region where it was initiated. This is a deliberate consistency trade-off:
+
+| Data Type | Consistency | Replication | Rationale |
+|-----------|------------|-------------|-----------|
+| Presence | Eventual (200ms) | Kafka compacted topic | Tolerable staleness; high volume |
+| Call state machine | Strong (local) | Not replicated | Call lives in one region's Redis |
+| User profiles | Eventual (1s) | CockroachDB multi-region | Read-heavy, write-rare |
+| Call history | Eventual (5s) | Async Kafka → regional PG | Append-only, non-critical |
+| Block list | Strong (local) | CockroachDB global table | Security-critical |
+| TURN allocations | Local only | Not replicated | Ephemeral, node-bound |
+
+### 4.3 Call State Machine Persistence
+
+**Existing implementation:** [call.state-machine.ts](file:///d:/projects/social/backend/src/modules/call/call.state-machine.ts)
+
+All state transitions use **Lua CAS scripts** for atomicity:
+- `LUA_CREATE_CALL` — Atomic call creation with simultaneous-call lock
+- `LUA_TRANSITION_STATE` — Compare-and-swap with monotonic version counter
+- `LUA_ACCEPT_CALL` — Double-accept prevention (only RINGING → ACCEPTED)
+
+### 4.4 Timeout Orchestration
+
+**Existing implementation:** [call.auditor.ts](file:///d:/projects/social/backend/src/modules/call/call.auditor.ts) — CronJob every 10s
+
+| Stuck State | Threshold | Action |
+|------------|-----------|--------|
+| INITIATING > 10s | Force delete | Clean up stale initiation |
+| RINGING > 45s | → TIMEOUT | Notify both parties, persist as TIMEOUT |
+| CONNECTING > 30s | → FAILED | Notify both, persist as FAILED |
+| ICE_NEGOTIATION > 30s | → FAILED | Notify both, persist as FAILED |
+| CONNECTED, no heartbeat 60s | → ENDED | Notify both, persist with duration |
+
+### 4.5 Split-Brain Prevention
+
+- Each state transition increments a monotonic `version` counter.
+- If two regions hold conflicting states for the same `callId`, the higher version wins.
+- The call auditor reconciles orphaned state.
+- Canonicalized lock keys (`lock:call:{sorted_u1}:{sorted_u2}`) prevent deadlocks.
+
+---
+
+## 5. Layer 4 — Media Layer (WebRTC)
+
+### 5.1 P2P Media Architecture
+
+```
+User A ◄══════════ DTLS-SRTP (P2P direct or via TURN relay) ═══════════► User B
+   │                                                                        │
+   │  ICE candidate gathering                              ICE gathering    │
+   │  ┌──────────────────┐                          ┌───────────────────┐   │
+   │  │ host candidates  │                          │ host candidates   │   │
+   │  │ srflx (STUN)     │  ◄── trickled via ──►   │ srflx (STUN)      │   │
+   │  │ relay (TURN)     │      signaling layer     │ relay (TURN)      │   │
+   │  └──────────────────┘                          └───────────────────┘   │
+   │                                                                        │
+   │  ICE connectivity checks:                                              │
+   │  1. host ↔ host        (LAN — fastest, ~1ms)                          │
+   │  2. srflx ↔ srflx      (STUN — P2P through NAT, ~20ms)               │
+   │  3. srflx ↔ host       (asymmetric NAT, ~25ms)                        │
+   │  4. relay ↔ relay      (TURN fallback — last resort, ~80ms)           │
+```
+
+### 5.2 ICE Strategy: STUN-First
+
+**Policy**: `iceTransportPolicy: 'all'` with UDP candidates prioritized.
+
+| ICE Path | Bandwidth Cost | % of Calls | Latency |
+|----------|---------------|------------|---------|
+| P2P direct (host/srflx) | $0 | ~50% | <20ms |
+| P2P through NAT (STUN) | $0 | ~30% | 20-50ms |
+| TURN relay (UDP) | $0.02/GB | ~15% | 50-100ms |
+| TURN relay (TCP/TLS) | $0.02/GB | ~5% | 80-150ms |
+
+### 5.3 Codec Negotiation Strategy
+
+**Audio (all calls):**
+
+| Codec | Bitrate | Use Case | Priority |
+|-------|---------|----------|----------|
+| Opus | 6-128 kbps | Primary codec — adaptive, low-latency | 1 (highest) |
+| Opus CBR 32kbps | 32 kbps | Low-bandwidth mode | Auto-selected |
+| Opus CBR 16kbps | 16 kbps | Ultra-low bandwidth fallback | Auto-selected |
+
+**Video (video calls only):**
+
+| Codec | Bitrate Range | Use Case | Priority |
+|-------|-------------|----------|----------|
+| VP9 | 150kbps - 2.5Mbps | Primary — better compression | 1 |
+| H.264 | 200kbps - 3Mbps | Fallback — hardware accel | 2 |
+| VP8 | 200kbps - 2Mbps | Legacy fallback | 3 |
+| AV1 | 100kbps - 2Mbps | Future — best compression | 4 (when available) |
+
+### 5.4 SRTP Encryption
+
+| Layer | Protocol | Key Exchange |
+|-------|----------|-------------|
+| Signaling transport | TLS 1.3 (WSS) | ECDHE |
+| DTLS handshake | DTLS 1.2+ | ECDHE |
+| Media encryption | SRTP (AES-128-CM) | Derived from DTLS |
+| TURN relay | DTLS over TURN | Same as P2P — TURN cannot decrypt |
+
+---
+
+## 6. Layer 5 — TURN Layer (coturn)
+
+### 6.1 Regional Topology
+
+**Existing implementation:** [coturn-deployment.yaml](file:///d:/projects/social/k8s/coturn-deployment.yaml), [turn.service.ts](file:///d:/projects/social/backend/src/modules/call/turn.service.ts)
+
+```
+┌─────────────────── Per Region ────────────────────┐
+│  NLB (UDP:3478, TCP:5349)                          │
+│       │                                            │
+│  ┌────▼──────┐ ┌──────────┐ ┌──────────┐          │
+│  │ coturn-01 │ │ coturn-02│ │ coturn-N │          │
+│  │ UDP:3478  │ │ UDP:3478 │ │ UDP:3478 │          │
+│  │ TLS:5349  │ │ TLS:5349 │ │ TLS:5349 │          │
+│  │ 10Gbps NW │ │ 10Gbps   │ │ 10Gbps   │          │
+│  └───────────┘ └──────────┘ └──────────┘          │
+│  HPA: 20 min → 200 max (turn_active_allocations)  │
+│  Instance: c6gn.2xlarge (8vCPU, 16GB, 25Gbps NW)  │
+└────────────────────────────────────────────────────┘
+ × 4 regions
+```
+
+### 6.2 Sizing Per Region
+
+| Metric | Baseline | Peak |
+|--------|----------|------|
+| TURN nodes | 20 | 200 |
+| Concurrent relayed sessions | 75K | 750K |
+| Bandwidth per node | 5 Gbps avg | 10 Gbps cap |
+| Total regional bandwidth | 100 Gbps | 2 Tbps |
+
+**Math**: ~15-20% of 3M concurrent calls require TURN = ~500K TURN sessions globally ÷ 4 regions = ~125K/region at peak.
+
+### 6.3 Ephemeral TURN Credentials (HMAC-SHA1)
+
+```typescript
+// From turn.service.ts — credentials compatible with coturn's use-auth-secret
+const timestamp = Math.floor(Date.now() / 1000) + 86400; // 24h TTL
+const username = `${timestamp}:${userId}`;
+const credential = crypto.createHmac('sha1', TURN_SECRET).update(username).digest('base64');
+
+return {
+  urls: [
+    `stun:${turnDomain}:3478`,
+    `turn:${turnDomain}:3478?transport=udp`,     // UDP first
+    `turn:${turnDomain}:3478?transport=tcp`,     // TCP fallback
+    `turns:${turnDomain}:5349?transport=tcp`,    // TLS last resort
+  ],
+  username, credential, ttl: 86400,
+};
+```
+
+### 6.4 Geo-Based TURN Selection
+
+```
+Same-region call:    Both users → local region's TURN
+Cross-region call:   Compare turn:load:{region} → select lower load
+Both overloaded:     selectLeastLoaded() across all 4 regions (circuit breaker)
+```
+
+### 6.5 TURN Overload Prevention
+
+| Mechanism | Implementation |
+|-----------|---------------|
+| Per-user bandwidth cap | `max-bps=2000000` (2 Mbps/allocation) |
+| Total quota per node | `total-quota=1000` allocations |
+| Per-user allocation limit | Max 2 concurrent (Redis `turn:alloc:{userId}`) |
+| Health-based routing | NLB removes unhealthy nodes in <10s |
+| Autoscaling trigger | HPA: scale up when `allocations/max > 0.7` |
+| Circuit breaker | If all nodes >90% → spill to adjacent region |
+| UDP-first optimization | `iceCandidatePoolSize: 10`, UDP candidates prioritized |
+
+---
+
+## 7. Layer 6 — Data & Analytics Layer
+
+| Store | Data | Consistency | Retention |
+|-------|------|------------|-----------|
+| **PostgreSQL** | call_history, users, blocks, follows, privacy | Strong (local) | Indefinite |
+| **CockroachDB** | Global user profiles, block lists | Eventual (1s) | Indefinite |
+| **Redis Cluster** | Presence, call state, locks, rate limits, TURN allocs | Strong (local) | TTL-based |
+| **Kafka** | call.events, presence.sync, signaling.cross-region, call.quality.telemetry | Ordered | 7 days |
+| **ClickHouse** | Call quality telemetry (jitter, loss, RTT, FPS, resolution) | Eventual | 90 days |
+
+**Existing schema:** [call.types.ts](file:///d:/projects/social/backend/src/modules/call/call.types.ts) — CallData, CallQualityReport, TurnCredentials
+
+---
+
+## 8. Layer 7 — Observability Layer
+
+### 8.1 Key Metrics & Alerting
+
+| Metric | Source | Alert Threshold | Severity |
+|--------|--------|----------------|----------|
+| `ws_active_connections` | Gateway | >18K per pod | P2 |
+| `call_setup_latency_p99` | OTel | >500ms | P1 |
+| `call_setup_latency_p50` | OTel | >120ms | P2 |
+| `call_failure_rate` | Derived | >2% over 5 min | P1 |
+| `turn_allocation_failure_rate` | coturn | >5% over 5 min | P1 |
+| `turn_active_allocations` | coturn | >900 per node | P2 |
+| `redis_memory_usage_pct` | Redis INFO | >80% | P1 |
+| `kafka_consumer_lag` | Kafka | >10K messages | P2 |
+| `ice_negotiation_failure_rate` | Client telemetry | >10% over 5 min | P1 |
+
+### 8.2 Distributed Tracing
+
+Every call lifecycle is traced end-to-end via OpenTelemetry with sub-spans for: `call.authorize`, `call.presence_lookup`, `call.signal_delivery`, `call.ice_negotiation`.
+
+### 8.3 Call Quality Telemetry Pipeline
+
+```
+Client (every 5s) → WS Gateway → Kafka (call.quality.telemetry) → ClickHouse
+                                                                    → Grafana
+                                                                    → Anomaly Detection (Flink)
+```
+
+**Existing implementation:** [call.quality.ts](file:///d:/projects/social/backend/src/modules/call/call.quality.ts)
+
+---
+
+## 9. Call Lifecycle State Machine (16 States)
+
+### 9.1 State Diagram
+
+```
+                                    ┌─────────────┐
+                                    │    IDLE      │
+                                    └──────┬───────┘
+                                           │ call:initiate
+                                    ┌──────▼───────┐
+                              ┌─────│  INITIATING  │─────┐
+                              │     └──────┬───────┘     │
+                         auth_fail │       │ validated    │ target_offline
+                              │    ┌───────▼──────┐      │
+                              │    │  SIGNALING   │      │
+                              │    └───────┬──────┘      │
+                              │            │ delivered    │
+                              │    ┌───────▼──────┐      │
+                              │    │   RINGING    │──────┼──────┐
+                              │    └──┬────┬───┬──┘      │      │
+                              │  accept│ reject│ timeout │      │
+                              ▼    │   │    │   │        ▼      │
+                         ┌────────┐│ ┌▼──┐ │ ┌▼────┐ ┌──────┐  │
+                         │ FAILED ││ │REJ│ │ │TOUT │ │MISSED│  │
+                         └────────┘│ └───┘ │ └─────┘ └──────┘  │
+                                   │       │                    │
+                             ┌─────▼───────▼──┐                │
+                             │   ACCEPTED      │                │
+                             └────────┬────────┘                │
+                                      │                         │
+                              ┌───────▼────────┐                │
+                              │  CONNECTING    │                │
+                              └───────┬────────┘                │
+                                      │                         │
+                              ┌───────▼────────────┐            │
+                              │ ICE_NEGOTIATION    │            │
+                              └───────┬─────┬──────┘            │
+                                 ok   │     │ ice_fail          │
+                     ┌────────────────▼─┐   │                   │
+                     │    CONNECTED     │   │                   │
+                     │ (AUDIO_ONLY or   │   │                   │
+                     │  VIDEO)          │   │                   │
+                     └──┬──┬──┬────────┘   │                   │
+                        │  │  │            │                    │
+                  degrade  │  upgrade      │                    │
+                  ┌──▼───┐ │ ┌▼────────────┐                   │
+                  │DEGRADED │ │VIDEO_UPGRADE│                   │
+                  └──┬───┘ │ └──┬──────────┘                   │
+                  recover  │ ok/fail                            │
+                     │  end│    │                               │
+                     │  ┌──▼────▼────┐                          │
+                     │  │RECONNECTING│                          │
+                     │  └──┬─────┬───┘                          │
+                     │  ok │     │ fail                         │
+                     │     │  ┌──▼───┐                          │
+                     │     │  │FAILED│                          │
+                     │     │  └──────┘                          │
+                     │  ┌──▼──┐                                 │
+                     │  │ENDED│                                 │
+                     │  └─────┘                                 │
+                     │                                          │
+                     │  ┌────────────────┐                      │
+                     └──│REGION_FAILOVER │──────────────────────┘
+                        └────────────────┘
+```
+
+### 9.2 State Definitions & TTLs
+
+| State | TTL | Description |
+|-------|-----|-------------|
+| `IDLE` | — | User not in any call |
+| `INITIATING` | 10s | Pre-flight checks (auth, block, rate limit, spam) |
+| `SIGNALING` | 15s | Routing `call:incoming` to target user |
+| `RINGING` | 30s | Target device is ringing |
+| `ACCEPTED` | 15s | Target accepted, preparing WebRTC |
+| `REJECTED` | 5s | Target declined (terminal) |
+| `TIMEOUT` | 5s | Ring timeout exceeded (terminal) |
+| `CONNECTING` | 20s | SDP offer/answer exchange |
+| `ICE_NEGOTIATION` | 30s | ICE candidate gathering/exchange |
+| `AUDIO_ONLY_CONNECTED` | 7200s | Active P2P audio media flowing |
+| `VIDEO_CONNECTED` | 7200s | Active P2P audio+video media flowing |
+| `VIDEO_UPGRADING` | 15s | Mid-call audio→video upgrade in progress |
+| `DEGRADED` | 7200s | Connected but quality below threshold |
+| `RECONNECTING` | 30s | ICE restart in progress |
+| `FAILED` | 10s | Unrecoverable failure (terminal) |
+| `ENDED` | 10s | Normal termination (terminal) |
+| `MISSED` | 5s | Caller hung up before answer (terminal) |
+| `REGION_FAILOVER` | 60s | Region failure, migrating signaling |
+
+### 9.3 Race Condition Handling
+
+**Double-Accept Prevention:** Lua CAS script — only transitions RINGING→ACCEPTED atomically.
+
+**Simultaneous Call Detection:** Canonicalized lock key `lock:call:{sorted_u1}:{sorted_u2}` with Redlock 30s TTL.
+
+**Concurrent Upgrade Conflict:** Only one `VIDEO_UPGRADING` transition allowed at a time per call. Second request returns `UPGRADE_IN_PROGRESS`.
+
+**Network Change Detection:** Client heartbeat every 30s. If 2 consecutive heartbeats missed (60s), call forced to ENDED by auditor.
+
+**Device Switching:** On `call:accept` from one device, emit `CALL_HANDLED_ELSEWHERE` to all other device sockets. Priority: mobile > web > tablet.
+
+**Existing implementation:** [call.state-machine.ts](file:///d:/projects/social/backend/src/modules/call/call.state-machine.ts), [call.coordinator.ts](file:///d:/projects/social/backend/src/modules/call/call.coordinator.ts)
+
+---
+
+## 10. Voice Calling — Audio-Only Optimized Path
+
+### 10.1 Audio-Only SDP Negotiation
+
+Audio-only calls use a leaner SDP with **no video m-line**, reducing SDP size by ~40% and eliminating unnecessary ICE candidate gathering for video.
+
+```
+SDP Offer (audio-only):
+  m=audio 9 UDP/TLS/RTP/SAVPF 111
+  a=rtpmap:111 opus/48000/2
+  a=fmtp:111 minptime=10;useinbandfec=1;stereo=0;cbr=0;maxaveragebitrate=32000
+  a=rtcp-fb:111 transport-cc
+  a=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level
+  a=extmap:2 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01
+```
+
+### 10.2 Opus Codec Optimization
+
+| Network Quality | Opus Mode | Bitrate | Packet Time | FEC |
+|----------------|-----------|---------|-------------|-----|
+| Excellent (>1Mbps, <50ms RTT) | VBR | 48-64 kbps | 20ms | Off |
+| Good (500kbps-1Mbps) | VBR | 32-48 kbps | 20ms | On |
+| Fair (200-500kbps) | CBR | 24-32 kbps | 40ms | On |
+| Poor (<200kbps) | CBR | 12-16 kbps | 60ms | On |
+| Critical (<100kbps) | CBR | 6-8 kbps | 60ms | On, DTX enabled |
+
+**Silence Detection (DTX):** When enabled, Opus transmits comfort noise during silence periods, reducing bandwidth by ~80% during pauses in conversation.
+
+### 10.3 Audio-Only Performance Advantages
+
+| Metric | Audio-Only | Video Call | Advantage |
+|--------|-----------|-----------|-----------|
+| SDP size | ~1.2KB | ~3.5KB | 66% smaller |
+| ICE candidates | 4-6 | 8-12 | 50% fewer |
+| Call setup latency | ~80ms | ~120ms | 33% faster |
+| TURN bandwidth | 40 kbps | 800 kbps | 95% less |
+| TURN cost per hour | $0.018 | $0.36 | 95% cheaper |
+| Battery drain | Low | High | Significant |
+
+### 10.4 Voice-First Failover Logic
+
+When a video call's bandwidth drops below 200kbps for >5 seconds:
+1. `CallQualityService.shouldFallbackToAudio()` returns `true`
+2. Coordinator emits `CALL_QUALITY_DEGRADED` with `shouldFallbackToAudio: true`
+3. Client disables video track, renegotiates SDP to audio-only
+4. State transitions: `VIDEO_CONNECTED` → `DEGRADED` → `AUDIO_ONLY_CONNECTED`
+
+---
+
+## 11. Video Calling — Adaptive HD Streaming
+
+### 11.1 Adaptive Bitrate (ABR) Strategy
+
+```
+Network estimation (TWCC/REMB)
+       │
+       ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Bandwidth        Resolution      Framerate    Bitrate       │
+│  ─────────────────────────────────────────────────────────── │
+│  >2.5 Mbps        1080p           30 fps       2.0-2.5 Mbps │
+│  1.5-2.5 Mbps     720p            30 fps       1.2-1.5 Mbps │
+│  800kbps-1.5Mbps  480p            30 fps       600-800 kbps │
+│  400-800 kbps     360p            24 fps       300-500 kbps │
+│  200-400 kbps     240p            15 fps       150-250 kbps │
+│  <200 kbps        Audio-only      —            Auto-switch  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 11.2 Packet Loss Recovery Strategy
+
+| Packet Loss | Strategy |
+|------------|---------|
+| 0-2% | No action (normal variance) |
+| 2-5% | Enable NACK (retransmission requests) |
+| 5-10% | Enable FEC (forward error correction), reduce resolution |
+| 10-20% | Aggressive resolution downgrade, increase keyframe frequency |
+| >20% | Fallback to audio-only |
+
+### 11.3 Seamless Camera Enable/Disable
+
+Mid-session camera toggle does **not** require SDP renegotiation:
+- **Disable**: `videoTrack.enabled = false` — stops sending video frames, RTP stream paused
+- **Enable**: `videoTrack.enabled = true` — resumes, receiver shows video within 1 keyframe interval (~2s)
+- If track was fully removed: requires `addTrack()` + SDP renegotiation (triggers `VIDEO_UPGRADING` state)
+
+---
+
+## 12. Dynamic Voice ↔ Video Upgrade
+
+### 12.1 Mid-Call Upgrade Sequence
+
+```
+User A (in audio call)          Signaling              User B (in audio call)
+      │                           │                          │
+      │──upgrade:request─────────▶│                          │
+      │  {callId, to: 'VIDEO'}   │──upgrade:request────────▶│
+      │                           │                          │
+      │                           │  State: VIDEO_UPGRADING  │
+      │                           │                          │
+      │                           │◀──upgrade:accept─────────│
+      │◀──upgrade:accepted────────│                          │
+      │                           │                          │
+      │  [addVideoTrack]          │                          │  [addVideoTrack]
+      │  [createOffer w/ video]   │                          │
+      │──webrtc:offer────────────▶│──────────────────────────▶│
+      │                           │                          │  [setRemoteDesc]
+      │                           │                          │  [createAnswer]
+      │◀──webrtc:answer──────────│◀──────────────────────────│
+      │                           │                          │
+      │  [setRemoteDesc]          │                          │
+      │                           │  State: VIDEO_CONNECTED  │
+      │◄═══════════ P2P VIDEO + AUDIO ══════════════════════►│
+```
+
+### 12.2 Conflict Resolution
+
+- If both users request upgrade simultaneously: first-writer-wins via Redis CAS.
+- If upgrade fails within 15s: revert to `AUDIO_ONLY_CONNECTED`, no call disruption.
+- During upgrade, audio stream continues uninterrupted on existing ICE connection.
+
+---
+
+## 13. WebRTC Offer/Answer Sequence
+
+```
+User A (Caller)        WS Gateway       Redis        WS Gateway       User B (Callee)
+     │                  (Pod X)         Cluster        (Pod Y)              │
+     │                    │               │              │                  │
+     │──call:initiate────▶│               │              │                  │
+     │                    │──HSET call:id─▶│              │                  │
+     │                    │──GET sock:B───▶│              │                  │
+     │                    │◀──{podY}───────│              │                  │
+     │                    │──PUB signal:B─▶│─────────────▶│                  │
+     │                    │               │              │──call:incoming──▶│
+     │                    │               │              │◀──call:accept────│
+     │                    │               │◀──EVAL(CAS)──│                  │
+     │                    │◀──PUB signal:A│              │                  │
+     │◀──call:accepted────│               │              │                  │
+     │  [createOffer]     │               │              │                  │
+     │──webrtc:offer─────▶│──PUB─────────▶│─────────────▶│──webrtc:offer──▶│
+     │                    │               │              │  [createAnswer]  │
+     │◀──webrtc:answer────│◀──PUB─────────│◀─────────────│◀─webrtc:answer──│
+     │  [setRemoteDesc]   │               │              │                  │
+     │════════════════ ICE TRICKLE (parallel) ═══════════════════════════════│
+     │◄═══════════════ DTLS-SRTP MEDIA ═════════════════════════════════════►│
+```
+
+---
+
+## 14. ICE Candidate Negotiation at Global Scale
+
+### 14.1 ICE Candidate Buffering
+
+When ICE candidates arrive before remote description is set (out-of-order), they are buffered in Redis:
+
+```
+call state == CONNECTING → buffer in Redis list ice:{callId}:buffer (TTL 60s)
+call state == ICE_NEGOTIATION → forward immediately via Redis pub/sub
+On SDP answer relay → flush buffer: LRANGE + DEL + publish each candidate
+```
+
+### 14.2 Global ICE Optimization
+
+| Scenario | ICE Strategy |
+|----------|-------------|
+| Same city | host candidates likely succeed; STUN not needed |
+| Same region, different ISP | srflx candidates via STUN; P2P ~80% success |
+| Cross-region | srflx may fail; TURN relay likely needed |
+| Symmetric NAT (mobile carrier) | TURN relay required (~20% of mobile calls) |
+
+**`iceCandidatePoolSize: 10`** — Pre-allocates ICE candidate gathering resources before `createOffer()`, reducing setup time by ~30ms.
+
+---
+
+## 15. Distributed Presence Strategy
+
+### 15.1 Architecture
+
+**Existing implementation:** [presence.service.ts](file:///d:/projects/social/backend/src/modules/presence/presence.service.ts), [presence.federation.ts](file:///d:/projects/social/backend/src/modules/presence/presence.federation.ts)
+
+```
+LOCAL: presence:{userId} → Redis hash (TTL 120s, heartbeat every 30s)
+GLOBAL: gpresence:{userId} → Kafka compacted topic → materialized in each region's Redis
+CARDINALITY: region:users:{region} → HyperLogLog
+```
+
+### 15.2 Multi-Device Presence
+
+- `presence:{userId}:web`, `presence:{userId}:mobile`
+- Call routing priority: **mobile > web > tablet** (user-configurable)
+- On accept from one device → `CALL_HANDLED_ELSEWHERE` to all others
+
+---
+
+## 16. Multi-Region Active-Active Deployment
+
+### 16.1 Per-Region Stack
+
+Each of the 4 regions runs independently:
+- WS Gateway pods (50-500)
+- Redis Cluster (6 nodes, 3 shards)
+- PostgreSQL (regional instance)
+- Kafka cluster (regional, MirrorMaker 2 for cross-region)
+- coturn cluster (20-200 nodes)
+
+### 16.2 User-to-Region Affinity
+
+```typescript
+// Priority: explicit setting > last-login geo > registration geo
+function determineHomeRegion(user): Region {
+  if (user.regionAffinity) return user.regionAffinity;
+  return GEO_TO_REGION_MAP[geoip.lookup(user.lastLoginIp)] || 'us-east';
+}
+```
+
+**Existing implementation:** [region.ts](file:///d:/projects/social/backend/src/config/region.ts)
+
+---
+
+## 17. Security & Encryption Model
+
+### 17.1 Authentication Chain
+
+```
+Client ──WSS──▶ Envoy (TLS 1.3) ──▶ Gateway Pod
+                                      │ 1. Verify JWT (RS256)
+                                      │ 2. Check exp, iat, nbf
+                                      │ 3. Verify tokenVersion vs DB
+                                      │ 4. Check user != SUSPENDED
+                                      │ 5. IP reputation check
+                                      │ 6. Rate limit check
+                                      │ FAIL → close(4401)
+                                      │ PASS → connection established
+```
+
+### 17.2 Per-Call Authorization
+
+**Existing implementation:** [call.authorization.ts](file:///d:/projects/social/backend/src/modules/call/call.authorization.ts)
+
+Parallel checks: `block status` ∥ `privacy settings` ∥ `follow status` ∥ `spam score`
+
+### 17.3 Additional Security
+
+- **Replay prevention:** Nonce + timestamp + HMAC-SHA256 — [replay-guard.ts](file:///d:/projects/social/backend/src/modules/security/replay-guard.ts)
+- **IP reputation:** Sorted set with exponential decay — [ip-reputation.ts](file:///d:/projects/social/backend/src/modules/security/ip-reputation.ts)
+- **Rate limiting:** Per-event sliding window — [rate-limiter.ts](file:///d:/projects/social/backend/src/modules/security/rate-limiter.ts)
+- **TURN security:** denied-peer-ip for RFC 1918 ranges, no anonymous allocations, 2 Mbps per-allocation cap
+- **Payload limits:** SDP 10KB, ICE 1KB max
+
+---
+
+## 18. Failure Scenarios & Recovery
+
+| Scenario | Detection | Response Time | Recovery |
+|----------|-----------|--------------|----------|
+| WS Gateway pod crash | K8s liveness probe | 10s | Auto-restart, Redis session intact, client reconnects |
+| Redis shard failure | Sentinel failover | 5-15s | Replica promotion, clients retry |
+| Full region outage | Route 53 health check | 30-60s | DNS failover → nearest healthy region |
+| TURN cluster overload | Custom metric >90% | 15s | Spill to adjacent region's TURN |
+| Kafka broker failure | ISR shrinkage | 10s | Auto broker replacement |
+| Network partition | Heartbeat failure | 30s | Call auditor reconciliation |
+| 1M+ call spike in <60s | `call_initiations/s > 16K` | Immediate | HPA 10x, circuit breaker queues at 20K/s |
+| ICE negotiation failure | 30s timeout | 30s | → FAILED state, notify both users |
+| Video upgrade conflict during reconnect | CAS conflict | Immediate | Reject upgrade, maintain audio |
+
+### 18.1 Thundering Herd Prevention
+
+Exponential backoff with full jitter: `delay = random() × min(base × 2^attempt, 30s)`
+
+Staggered reconnect on pod termination: each client gets `retryAfterMs: 1000 + random() * 4000`
+
+---
+
+## 19. Autoscaling & Capacity Planning
+
+### 19.1 Capacity Tiers
+
+| Tier | Concurrent Users | WS Pods | coturn Nodes | Redis Nodes | Total |
+|------|-----------------|---------|-------------|-------------|-------|
+| Launch | 100K | 20 | 8 | 6 | 34 |
+| Growth | 1M | 80 | 30 | 12 | 122 |
+| Scale | 5M | 300 | 100 | 18 | 418 |
+| Massive | 10M | 500 | 200 | 24 | 724 |
+
+### 19.2 Monthly Cost Projection (Tier 4)
+
+| Component | Cost/Month |
+|-----------|-----------|
+| TURN bandwidth | ~$180K |
+| coturn compute (800 instances) | ~$450K |
+| WS Gateway (2000 pods) | ~$300K |
+| Redis Cluster (24 nodes) | ~$85K |
+| Kafka (cross-region) | ~$60K |
+| PostgreSQL / CockroachDB | ~$40K |
+| Observability | ~$50K |
+| **Total** | **~$1.17M/month** |
+
+---
+
+## 20. Bandwidth Cost Optimization
+
+| Strategy | Savings | Implementation |
+|----------|---------|----------------|
+| UDP-first ICE | 40% TURN cost | Client `iceTransportPolicy: 'all'`, UDP prioritized |
+| Adaptive bitrate (TWCC/REMB) | 30% bandwidth | Sender-side bandwidth estimation |
+| TURN allocation pooling | 15% cost | Reuse across ICE restarts |
+| Regional TURN selection | 25% egress | Route to same-region relay |
+| Audio-only fallback | 80% bandwidth | Auto-switch when <200kbps |
+| Codec optimization | 20% bandwidth | Prefer VP9/AV1 + Opus |
+| Short-call optimization | 10% cost | Skip TURN for <5s calls |
+
+---
+
+## 21. Production Readiness Checklist
+
+### Infrastructure
+- [ ] Multi-region K8s clusters (US-EAST, EU-WEST, AP-SOUTH, AP-EAST)
+- [ ] Anycast DNS with health checks (30s TTL)
+- [ ] Envoy ingress with WSS + TLS 1.3
+- [ ] Redis Cluster per region (6 nodes, cross-AZ)
+- [ ] Kafka multi-region with MirrorMaker 2
+- [ ] coturn cluster per region with NLB
+
+### Security
+- [ ] JWT RS256 on WebSocket handshake
+- [ ] Per-call auth with block/privacy/spam checks
+- [ ] Ephemeral TURN credentials (HMAC-SHA1, 24h TTL)
+- [ ] IP reputation scoring and auto-blocking
+- [ ] Nonce-based replay prevention
+- [ ] Payload size limits (SDP 10KB, ICE 1KB)
+
+### Scalability
+- [ ] Stateless WS gateway pods (zero in-memory state)
+- [ ] HPA: WS pods (15K conn target), coturn (70% allocation target)
+- [ ] Graceful pod draining with staggered reconnect
+- [ ] Load tested: 1M concurrent connections per region
+- [ ] Load tested: 100K call initiations in 60 seconds
+
+### Observability
+- [ ] OpenTelemetry distributed tracing for full call lifecycle
+- [ ] Call quality telemetry pipeline: Kafka → ClickHouse → Grafana
+- [ ] PagerDuty integration for P1/P2 alerts
+- [ ] SLO dashboards: 99.995% availability, <120ms call setup
+
+### Reliability
+- [ ] Chaos experiments scheduled (Chaos Monkey, Litmus)
+- [ ] Region failover tested (DNS cutover <60s)
+- [ ] Call state auditor CronJob (orphan cleanup every 10s)
+- [ ] Circuit breakers on TURN and cross-region paths
+- [ ] Audio-only fallback on bandwidth constraint
+
+---
+
+## Codebase Cross-Reference
+
+All architecture layers have corresponding production implementations:
+
+| Layer | Implementation |
+|-------|---------------|
+| Signaling Gateway | [call.gateway.ts](file:///d:/projects/social/backend/src/modules/call/call.gateway.ts) |
+| Call Coordinator | [call.coordinator.ts](file:///d:/projects/social/backend/src/modules/call/call.coordinator.ts) |
+| State Machine | [call.state-machine.ts](file:///d:/projects/social/backend/src/modules/call/call.state-machine.ts) |
+| Type System | [call.types.ts](file:///d:/projects/social/backend/src/modules/call/call.types.ts) |
+| TURN Service | [turn.service.ts](file:///d:/projects/social/backend/src/modules/call/turn.service.ts) |
+| Call Authorization | [call.authorization.ts](file:///d:/projects/social/backend/src/modules/call/call.authorization.ts) |
+| Call Auditor | [call.auditor.ts](file:///d:/projects/social/backend/src/modules/call/call.auditor.ts) |
+| Call Quality | [call.quality.ts](file:///d:/projects/social/backend/src/modules/call/call.quality.ts) |
+| REST Routes | [call.routes.ts](file:///d:/projects/social/backend/src/modules/call/call.routes.ts) |
+| Signal Publisher | [signal.publisher.ts](file:///d:/projects/social/backend/src/modules/signaling/signal.publisher.ts) |
+| Signal Consumer | [signal.consumer.ts](file:///d:/projects/social/backend/src/modules/signaling/signal.consumer.ts) |
+| Presence Service | [presence.service.ts](file:///d:/projects/social/backend/src/modules/presence/presence.service.ts) |
+| Presence Federation | [presence.federation.ts](file:///d:/projects/social/backend/src/modules/presence/presence.federation.ts) |
+| Rate Limiter | [rate-limiter.ts](file:///d:/projects/social/backend/src/modules/security/rate-limiter.ts) |
+| Replay Guard | [replay-guard.ts](file:///d:/projects/social/backend/src/modules/security/replay-guard.ts) |
+| IP Reputation | [ip-reputation.ts](file:///d:/projects/social/backend/src/modules/security/ip-reputation.ts) |
+| Region Config | [region.ts](file:///d:/projects/social/backend/src/config/region.ts) |
+| K8s: WS Gateway | [ws-gateway-deployment.yaml](file:///d:/projects/social/k8s/ws-gateway-deployment.yaml) |
+| K8s: coturn | [coturn-deployment.yaml](file:///d:/projects/social/k8s/coturn-deployment.yaml) |
+| K8s: Redis Cluster | [redis-cluster.yaml](file:///d:/projects/social/k8s/redis-cluster.yaml) |
+| K8s: WS Gateway HPA | [ws-gateway-hpa.yaml](file:///d:/projects/social/k8s/ws-gateway-hpa.yaml) |
+| Docker Compose (dev) | [docker-compose.yml](file:///d:/projects/social/backend/docker-compose.yml) |

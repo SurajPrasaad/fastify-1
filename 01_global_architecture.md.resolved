@@ -1,0 +1,279 @@
+# Globally Distributed WebRTC Communication Platform — Part 1
+## Architecture Overview, Edge & Signaling Layers
+
+> **Target Scale**: 100M+ registered users · 10M+ concurrent WebSocket connections · 3M+ concurrent active calls
+> **SLA**: 99.995% availability · <120ms global call setup latency
+> **Stack**: Node.js · TypeScript · Fastify · tRPC · Redis Cluster · PostgreSQL · Kafka · Kubernetes
+
+---
+
+## 1. High-Level Global Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           GLOBAL ANYCAST DNS (Route 53 / Cloudflare)           │
+│                     ┌──────────┬──────────┬──────────┬──────────┐               │
+│                     │ US-EAST  │ EU-WEST  │ AP-SOUTH │ AP-EAST  │               │
+│                     │ Ashburn  │ Frankfurt│  Mumbai  │  Tokyo   │               │
+│                     └────┬─────┴────┬─────┴────┬─────┴────┬─────┘               │
+└──────────────────────────┼──────────┼──────────┼──────────┼─────────────────────┘
+                           │          │          │          │
+┌──────────────────────────▼──────────▼──────────▼──────────▼─────────────────────┐
+│                              EDGE LAYER (per region)                            │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │  Cloud Armor / AWS Shield ──▶ L7 LB (Envoy) ──▶ WAF + Rate Limiter   │    │
+│  │  DDoS Mitigation             TLS Termination     IP Reputation         │    │
+│  └─────────────────────────────────────┬───────────────────────────────────┘    │
+└────────────────────────────────────────┼───────────────────────────────────────┘
+                                         │
+┌────────────────────────────────────────▼───────────────────────────────────────┐
+│                          SIGNALING LAYER (per region)                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                         │
+│  │  WS Gateway  │  │  WS Gateway  │  │  WS Gateway  │  ← HPA: 50-500 pods   │
+│  │  Pod (tRPC)  │  │  Pod (tRPC)  │  │  Pod (tRPC)  │    per region          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘                         │
+│         └─────────────────┼─────────────────┘                                  │
+│                           │                                                     │
+│  ┌────────────────────────▼────────────────────────┐                           │
+│  │         Redis Cluster (6-node, 3 shards)        │                           │
+│  │   Presence │ Pub/Sub │ Session Map │ Locks      │                           │
+│  └────────────────────────┬────────────────────────┘                           │
+└───────────────────────────┼────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────────────────────────────┐
+│                    CROSS-REGION FEDERATION BUS                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │  Kafka Multi-Region (MirrorMaker 2)                                     │   │
+│  │  Topics: presence.sync │ signaling.cross-region │ call.events           │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────────────────────────────┐
+│                         MEDIA LAYER (per region)                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                         │
+│  │   coturn     │  │   coturn     │  │   coturn     │  ← HPA: 20-200 nodes  │
+│  │  STUN/TURN   │  │  STUN/TURN   │  │  STUN/TURN   │    per region          │
+│  │  UDP:3478    │  │  UDP:3478    │  │  UDP:3478    │    UDP-first           │
+│  └──────────────┘  └──────────────┘  └──────────────┘                         │
+└────────────────────────────────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────────────────────────────┐
+│                          DATA LAYER (per region)                               │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────────┐             │
+│  │  PostgreSQL    │  │  Redis Cluster │  │  Kafka               │             │
+│  │  (CockroachDB  │  │  (ephemeral    │  │  (event streaming,   │             │
+│  │   for global)  │  │   state)       │  │   analytics)         │             │
+│  └────────────────┘  └────────────────┘  └──────────────────────┘             │
+└────────────────────────────────────────────────────────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────────────────────────────┐
+│                       OBSERVABILITY LAYER                                      │
+│  OpenTelemetry Collector ──▶ Tempo (traces) │ Mimir (metrics) │ Loki (logs)  │
+│  Call Quality Telemetry  ──▶ ClickHouse (QoS analytics)                       │
+│  Grafana Dashboards      ──▶ Real-time alerting (PagerDuty)                   │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Detailed Component Breakdown
+
+### 2.1 Edge Layer
+
+| Component | Technology | Purpose | Scale Target |
+|-----------|-----------|---------|-------------|
+| Global DNS | Route 53 / Cloudflare Anycast | Geo-routing to nearest region | <10ms DNS resolution |
+| DDoS Shield | AWS Shield Advanced / Cloud Armor | L3/L4 volumetric attack mitigation | 10Tbps+ absorption |
+| L7 Load Balancer | Envoy Proxy (K8s Ingress) | WSS termination, health-check routing | 2M conn/LB instance |
+| WAF | ModSecurity / Cloud WAF | OWASP top-10, WebSocket abuse | Inline, <1ms overhead |
+| Rate Limiter | Envoy ext_authz + Redis | Per-IP, per-user token bucket | 100K decisions/sec |
+
+**Design Decision — Envoy over Nginx:**
+Envoy provides native WebSocket support, gRPC-based xDS for dynamic config, circuit breaking, and richer observability (native OpenTelemetry export). At 10M concurrent connections, Envoy's connection pooling and hot-restart capabilities give zero-downtime config updates — critical for a 99.995% SLA.
+
+**Connection distribution math:**
+- 10M concurrent connections ÷ 4 regions = 2.5M per region
+- Each Envoy instance handles ~50K connections = 50 Envoy instances per region
+- Behind a Network Load Balancer (NLB) for L4 TCP distribution
+
+### 2.2 Signaling Layer — Stateless WebSocket Gateway
+
+> **Critical constraint**: tRPC over WebSocket (no REST). All signaling is bidirectional via tRPC subscriptions.
+
+**Architecture:**
+
+```
+Client ──WSS──▶ Envoy LB ──▶ WS Gateway Pod (Fastify + tRPC + ws adapter)
+                                    │
+                                    ├──▶ Redis Cluster (presence, pub/sub, locks)
+                                    ├──▶ Kafka (cross-region federation)
+                                    └──▶ PostgreSQL (call history persistence)
+```
+
+**Key design principles:**
+
+1. **Fully stateless pods** — Zero in-memory call state. All state lives in Redis.
+2. **No sticky sessions** — Any pod can serve any user. User→socket mapping in Redis.
+3. **Horizontal autoscaling** — HPA based on concurrent WebSocket count (custom metric).
+4. **Backpressure** — Per-socket message queue with bounded buffer (1024 messages). If a client can't keep up, the oldest non-critical messages are dropped.
+
+**Pod sizing (per region):**
+- Each pod handles ~20K concurrent WebSocket connections
+- 2.5M connections per region ÷ 20K = **125 pods baseline**
+- Autoscale to 500 pods during traffic spikes
+- CPU: 2 vCPU, Memory: 4GB per pod (Node.js with `--max-old-space-size=3072`)
+
+**tRPC WebSocket Subscription Model:**
+
+```typescript
+// Signaling router (tRPC)
+export const signalingRouter = router({
+  // Bidirectional signaling subscription
+  onSignal: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .subscription(async function* ({ input, signal }) {
+      const userId = await verifyJWT(input.token);
+      const channel = `signal:${userId}`;
+      
+      // Subscribe to Redis pub/sub for this user
+      for await (const message of redisSubscribe(channel, signal)) {
+        yield message; // Typed signaling events
+      }
+    }),
+
+  // Call initiation
+  initiateCall: protectedProcedure
+    .input(z.object({
+      targetUserId: z.string().uuid(),
+      callType: z.enum(['AUDIO', 'VIDEO']),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return callCoordinator.initiate(ctx.userId, input);
+    }),
+
+  // SDP offer/answer relay
+  relayOffer: protectedProcedure
+    .input(z.object({
+      callId: z.string(),
+      targetUserId: z.string().uuid(),
+      sdp: z.any(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return callCoordinator.relayOffer(ctx.userId, input);
+    }),
+
+  // ICE candidate relay
+  relayIceCandidate: protectedProcedure
+    .input(z.object({
+      callId: z.string(),
+      targetUserId: z.string().uuid(),
+      candidate: z.any(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return callCoordinator.relayCandidate(ctx.userId, input);
+    }),
+
+  // TURN credential issuance
+  getTurnCredentials: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      return turnCredentialService.issue(ctx.userId);
+    }),
+});
+```
+
+### 2.3 Redis Cluster Sharding Strategy
+
+**Topology per region:**
+- 6 nodes: 3 masters + 3 replicas
+- 16,384 hash slots distributed across 3 masters
+- Cross-AZ deployment for fault tolerance
+
+**Key namespaces and sharding:**
+
+| Key Pattern | Shard Strategy | TTL | Purpose |
+|------------|---------------|-----|---------|
+| `presence:{userId}` | CRC16(userId) | 120s (heartbeat refresh) | Online/offline + region |
+| `sock:{userId}` | CRC16(userId) | 86400s | userId → {socketId, podId, region} |
+| `call:{callId}` | CRC16(callId) | 3600s | Active call state machine |
+| `lock:call:{userA}:{userB}` | CRC16 | 30s | Distributed lock (Redlock) |
+| `ratelimit:{userId}:call` | CRC16(userId) | 5s | Call initiation rate limit |
+| `turn:alloc:{userId}` | CRC16(userId) | 300s | TURN allocation tracking |
+| `ice:{callId}:buffer` | CRC16(callId) | 60s | ICE candidate buffer |
+
+**Cross-region presence federation:**
+- Each region's Redis holds **authoritative** presence for users whose home region is local.
+- Cross-region lookups use Kafka `presence.sync` topic (eventual consistency, <200ms lag).
+- A user's "home region" is determined by `users.regionAffinity` column.
+- If a user connects from a non-home region, the foreign region publishes a `PRESENCE_FOREIGN_LOGIN` event.
+
+**Pub/Sub for signaling delivery:**
+
+```typescript
+// Publishing a signal to a user (works across pods)
+async function publishSignal(targetUserId: string, event: SignalEvent) {
+  const userLocation = await redis.hgetall(`sock:${targetUserId}`);
+  
+  if (!userLocation.socketId) {
+    // User offline — check cross-region
+    const foreignRegion = await checkForeignPresence(targetUserId);
+    if (foreignRegion) {
+      await kafka.send('signaling.cross-region', {
+        targetRegion: foreignRegion,
+        targetUserId,
+        event,
+      });
+      return;
+    }
+    throw new UserOfflineError(targetUserId);
+  }
+
+  if (userLocation.region === LOCAL_REGION) {
+    // Same region — use Redis pub/sub
+    await redis.publish(`signal:${targetUserId}`, JSON.stringify(event));
+  } else {
+    // Cross-region — use Kafka
+    await kafka.send('signaling.cross-region', {
+      targetRegion: userLocation.region,
+      targetUserId,
+      event,
+    });
+  }
+}
+```
+
+### 2.4 Cross-Region Signaling Federation
+
+**Problem:** User A in US-EAST calls User B in AP-SOUTH. The signaling must cross regions with <50ms overhead.
+
+**Solution: Kafka-based federation bus with regional consumers.**
+
+```
+US-EAST Pod ──▶ Kafka (signaling.cross-region) ──MirrorMaker2──▶ AP-SOUTH Kafka
+                                                                       │
+                                                              AP-SOUTH Consumer
+                                                                       │
+                                                              Redis pub/sub
+                                                                       │
+                                                              AP-SOUTH Pod ──▶ User B
+```
+
+**Latency breakdown for cross-region call setup:**
+| Step | Latency |
+|------|---------|
+| Client → Edge LB | 5-20ms |
+| LB → WS Gateway Pod | 1-2ms |
+| Pod → Redis (presence lookup) | 1-3ms |
+| Pod → Kafka produce (cross-region) | 2-5ms |
+| Kafka MirrorMaker replication | 40-80ms (inter-region) |
+| Remote consumer → Redis pub/sub | 1-3ms |
+| Redis → Remote pod → Client | 5-20ms |
+| **Total** | **55-133ms** ✅ |
+
+**Trade-off: Kafka vs dedicated gRPC mesh for cross-region signaling.**
+- Kafka: Higher latency (~80ms cross-region), but gives durability and replay on partition recovery.
+- gRPC mesh: Lower latency (~40ms), but requires custom service mesh, harder to debug.
+- **Decision**: Kafka for standard flows; fall back to direct gRPC for REGION_FAILOVER scenarios where latency budget is critical.
+
+---
+
+*Continued in [Part 2: Call State Machine, WebRTC Flow, Presence Strategy](./02_call_lifecycle_presence.md)*

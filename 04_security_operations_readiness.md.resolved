@@ -1,0 +1,439 @@
+# Part 4 — Security, Autoscaling, Chaos Engineering & Production Readiness
+
+---
+
+## 12. Security & Encryption Model
+
+### 12.1 Authentication Chain
+
+```
+Client ──WSS──▶ Envoy (TLS 1.3 termination)
+                    │
+                    ▼
+              WS Handshake
+              ┌─────────────────────────────────┐
+              │ Authorization: Bearer <JWT>     │
+              │ X-Device-Id: <device-uuid>      │
+              │ X-Client-Version: <semver>       │
+              └─────────────────────────────────┘
+                    │
+                    ▼
+              Gateway Pod: JWT Verification
+              ┌─────────────────────────────────┐
+              │ 1. Verify signature (RS256)     │
+              │ 2. Check exp, iat, nbf          │
+              │ 3. Verify tokenVersion vs DB    │
+              │ 4. Check user status ≠ SUSPENDED│
+              │ 5. Extract userId, role         │
+              │ 6. Rate limit check             │
+              └─────────────────────────────────┘
+                    │ FAIL → close(4401, 'Unauthorized')
+                    │ PASS ↓
+              Connection Established
+```
+
+### 12.2 Per-Call Authorization
+
+```typescript
+async function authorizeCall(callerId: string, targetId: string): Promise<AuthResult> {
+  // Parallel checks for speed
+  const [blockStatus, privacySettings, followStatus, callSpamScore] = await Promise.all([
+    checkBidirectionalBlock(callerId, targetId),
+    getUserPrivacy(targetId),
+    getFollowStatus(callerId, targetId),
+    getCallSpamScore(callerId),
+  ]);
+
+  if (blockStatus.blocked) return { allowed: false, reason: 'BLOCKED' };
+  if (callSpamScore > 50) return { allowed: false, reason: 'SPAM_DETECTED' };
+
+  // Privacy-based call permissions
+  switch (privacySettings.callPermission) {
+    case 'EVERYONE': return { allowed: true };
+    case 'FOLLOWERS': return { allowed: followStatus.isFollowing, reason: 'NOT_FOLLOWING' };
+    case 'MUTUAL': return { allowed: followStatus.isMutual, reason: 'NOT_MUTUAL' };
+    case 'NOBODY': return { allowed: false, reason: 'CALLS_DISABLED' };
+  }
+}
+```
+
+### 12.3 Replay Attack Prevention
+
+```typescript
+// Each signaling message includes a nonce + timestamp
+interface SignalEnvelope {
+  nonce: string;       // crypto.randomUUID()
+  timestamp: number;   // Date.now()
+  payload: SignalEvent;
+  signature: string;   // HMAC-SHA256(nonce + timestamp + payload, sessionSecret)
+}
+
+async function validateSignalEnvelope(envelope: SignalEnvelope): Promise<boolean> {
+  // 1. Check timestamp is within 30s window
+  if (Math.abs(Date.now() - envelope.timestamp) > 30_000) return false;
+
+  // 2. Check nonce hasn't been used (Redis SET with NX + 60s TTL)
+  const isNew = await redis.set(`nonce:${envelope.nonce}`, '1', 'EX', 60, 'NX');
+  if (!isNew) return false; // Replay detected
+
+  // 3. Verify HMAC signature
+  return verifyHmac(envelope);
+}
+```
+
+### 12.4 Media Encryption
+
+| Layer | Protocol | Key Exchange | Notes |
+|-------|----------|-------------|-------|
+| Signaling transport | TLS 1.3 (WSS) | ECDHE | All signaling encrypted in transit |
+| DTLS handshake | DTLS 1.2+ | ECDHE | WebRTC mandatory; authenticates media channel |
+| Media encryption | SRTP (AES-128-CM) | Derived from DTLS | All audio/video encrypted |
+| TURN relay | DTLS over TURN | Same as P2P | TURN server cannot decrypt media |
+| ICE candidates | Encrypted in signaling | Via WSS channel | No plaintext candidate exposure |
+
+---
+
+## 13. Autoscaling & Capacity Planning
+
+### 13.1 HPA Configurations
+
+**WS Gateway Pods:**
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ws-gateway-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ws-gateway
+  minReplicas: 50
+  maxReplicas: 500
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 50     # Scale up 50% at a time
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10     # Scale down 10% at a time
+          periodSeconds: 60
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: ws_active_connections
+        target:
+          type: AverageValue
+          averageValue: "15000"    # Target 15K conn/pod (75% of 20K capacity)
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          targetAverageUtilization: 60
+    - type: Pods
+      pods:
+        metric:
+          name: network_rx_bytes_per_second
+        target:
+          type: AverageValue
+          averageValue: "50000000"  # 50 MB/s
+```
+
+**coturn Pods:**
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coturn-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coturn
+  minReplicas: 20
+  maxReplicas: 200
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: turn_active_allocations
+        target:
+          type: AverageValue
+          averageValue: "700"       # Target 70% of 1000 quota
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          targetAverageUtilization: 50
+```
+
+### 13.2 Graceful Pod Draining
+
+```typescript
+// On SIGTERM (K8s pod termination)
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, starting graceful shutdown');
+
+  // 1. Stop accepting new connections
+  server.close();
+
+  // 2. Notify all connected clients to reconnect
+  for (const socket of activeSockets.values()) {
+    socket.emit('system:reconnect', {
+      reason: 'MAINTENANCE',
+      retryAfterMs: 1000 + Math.random() * 4000, // Staggered 1-5s
+    });
+  }
+
+  // 3. Wait for active calls to drain (max 30s)
+  const drainDeadline = Date.now() + 30_000;
+  while (activeCallCount > 0 && Date.now() < drainDeadline) {
+    await sleep(1000);
+  }
+
+  // 4. Force-close remaining connections
+  for (const socket of activeSockets.values()) {
+    socket.disconnect(true);
+  }
+
+  // 5. Cleanup Redis entries for this pod
+  await cleanupPodPresence(POD_ID);
+
+  process.exit(0);
+});
+```
+
+### 13.3 Capacity Planning Table
+
+| Scale Tier | Concurrent Users | WS Pods | coturn Nodes | Redis Nodes | Total Compute |
+|-----------|-----------------|---------|-------------|-------------|--------------|
+| Tier 1 (Launch) | 100K | 20 | 8 | 6 | 34 instances |
+| Tier 2 (Growth) | 1M | 80 | 30 | 12 | 122 instances |
+| Tier 3 (Scale) | 5M | 300 | 100 | 18 | 418 instances |
+| Tier 4 (Massive) | 10M | 500 | 200 | 24 | 724 instances |
+
+---
+
+## 14. Chaos Engineering & Disaster Recovery
+
+### 14.1 Chaos Experiments
+
+| Experiment | Tool | Frequency | Expected Outcome |
+|-----------|------|-----------|------------------|
+| Kill random WS pod | Chaos Monkey | Hourly (staging) | Users reconnect <5s, zero dropped calls |
+| Redis shard failure | Litmus | Weekly | Sentinel failover <15s, presence rebuilt |
+| Region network partition | AWS FIS | Monthly | Cross-region calls degrade; same-region unaffected |
+| TURN cluster overload | Custom load gen | Weekly | Auto-spill to adjacent region |
+| DNS failover | Route 53 failover test | Monthly | Traffic shifts <60s |
+| Mass disconnect (50K) | Custom | Monthly | Staggered reconnect, no thundering herd |
+| Kafka broker kill | Litmus | Weekly | ISR shrinks, auto-replacement, no data loss |
+
+### 14.2 Thundering Herd Prevention
+
+```typescript
+function calculateReconnectDelay(attempt: number, baseMs: number = 1000): number {
+  // Exponential backoff with full jitter
+  const exponentialDelay = Math.min(baseMs * Math.pow(2, attempt), 30_000);
+  return Math.random() * exponentialDelay;
+}
+
+// Client-side reconnect logic
+async function reconnectWithBackoff() {
+  let attempt = 0;
+  while (attempt < MAX_RECONNECT_ATTEMPTS) {
+    const delay = calculateReconnectDelay(attempt);
+    await sleep(delay);
+    try {
+      await connectWebSocket();
+      return; // Success
+    } catch {
+      attempt++;
+    }
+  }
+  // All attempts failed — show "connection lost" UI
+}
+```
+
+### 14.3 Disaster Recovery — RPO/RTO
+
+| Component | RPO | RTO | Strategy |
+|-----------|-----|-----|----------|
+| Active calls | 0 (in-flight) | 10s (reconnect) | Client ICE restart |
+| Presence data | 0 | 5s | Rebuilt on reconnect |
+| Call history | <5s | <60s | Kafka → PG async replication |
+| User data | 0 | <30s | CockroachDB multi-region |
+| TURN allocations | N/A | Immediate | New allocation on reconnect |
+
+---
+
+## 15. Monitoring & Alerting Blueprint
+
+### 15.1 Key Metrics
+
+| Metric | Source | Alert Threshold | Severity |
+|--------|--------|----------------|----------|
+| `ws_active_connections` | Gateway custom metric | >18K per pod | P2 |
+| `call_setup_latency_p99` | OpenTelemetry | >500ms | P1 |
+| `call_setup_latency_p50` | OpenTelemetry | >120ms | P2 |
+| `call_failure_rate` | Derived | >2% over 5 min | P1 |
+| `turn_allocation_failure_rate` | coturn metrics | >5% over 5 min | P1 |
+| `turn_active_allocations` | coturn metrics | >900 per node | P2 |
+| `redis_connected_clients` | Redis INFO | >8000 per shard | P2 |
+| `redis_memory_usage_pct` | Redis INFO | >80% | P1 |
+| `kafka_consumer_lag` | Kafka metrics | >10K messages | P2 |
+| `ice_negotiation_failure_rate` | Client telemetry | >10% over 5 min | P1 |
+| `presence_sync_latency_p99` | Custom | >500ms | P3 |
+| `pod_restart_rate` | Kubernetes | >3 restarts in 5 min | P2 |
+
+### 15.2 Distributed Tracing
+
+```typescript
+// OpenTelemetry instrumentation for call lifecycle
+import { trace, SpanKind } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('call-signaling');
+
+async function initiateCall(callerId: string, input: CallInput) {
+  return tracer.startActiveSpan('call.initiate', {
+    kind: SpanKind.SERVER,
+    attributes: {
+      'call.caller_id': callerId,
+      'call.target_id': input.targetUserId,
+      'call.type': input.callType,
+      'call.region': LOCAL_REGION,
+    },
+  }, async (span) => {
+    try {
+      const callId = generateCallId();
+      span.setAttribute('call.id', callId);
+
+      // Authorization sub-span
+      const authResult = await tracer.startActiveSpan('call.authorize', async (authSpan) => {
+        const result = await authorizeCall(callerId, input.targetUserId);
+        authSpan.setAttribute('call.auth.allowed', result.allowed);
+        authSpan.end();
+        return result;
+      });
+
+      // Presence lookup sub-span
+      const location = await tracer.startActiveSpan('call.presence_lookup', async (presSpan) => {
+        const loc = await resolveUserLocation(input.targetUserId);
+        presSpan.setAttribute('call.target.region', loc?.region || 'offline');
+        presSpan.end();
+        return loc;
+      });
+
+      span.setStatus({ code: 0 }); // OK
+      return { callId, status: 'SIGNALING' };
+    } catch (error) {
+      span.setStatus({ code: 2, message: (error as Error).message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+### 15.3 Call Quality Telemetry Pipeline
+
+```
+Client (every 5s during call)
+    │
+    │  { callId, timestamp, 
+    │    audio: { jitter, packetLoss, roundTripTime, codec },
+    │    video: { frameRate, resolution, bandwidth, codec },
+    │    ice:   { candidateType, localType, remoteType },
+    │    network: { connectionType, effectiveType } }
+    │
+    ▼
+WS Gateway ──▶ Kafka (topic: call.quality.telemetry)
+                    │
+                    ▼
+              ClickHouse (columnar storage)
+                    │
+                    ├──▶ Grafana Dashboards (real-time QoS)
+                    ├──▶ Anomaly Detection (statistical, Flink)
+                    └──▶ Monthly QoS Reports
+```
+
+---
+
+## 16. Production Readiness Checklist
+
+### Infrastructure
+
+- [ ] Multi-region K8s clusters deployed (US-EAST, EU-WEST, AP-SOUTH, AP-EAST)
+- [ ] Global Anycast DNS configured with health checks (30s TTL)
+- [ ] Envoy ingress with WSS termination and TLS 1.3
+- [ ] Redis Cluster per region (6 nodes, 3 shards, cross-AZ)
+- [ ] Kafka multi-region with MirrorMaker 2
+- [ ] CockroachDB / PostgreSQL with cross-region replication
+- [ ] coturn cluster per region with NLB (UDP + TCP)
+- [ ] Network policies restricting inter-pod communication
+
+### Security
+
+- [ ] JWT authentication on WebSocket handshake (RS256)
+- [ ] Per-call authorization with block/privacy checks
+- [ ] TURN credentials: ephemeral, HMAC-SHA1, 24h TTL
+- [ ] IP reputation scoring and auto-blocking
+- [ ] Rate limiting at Envoy (L7) and application layers
+- [ ] DDoS protection (Shield Advanced / Cloud Armor)
+- [ ] SRTP media encryption verified
+- [ ] SDP/ICE payload size limits enforced
+- [ ] Nonce-based replay attack prevention
+- [ ] coturn: denied-peer-ip for private ranges
+- [ ] TURN secret rotation schedule (90-day)
+- [ ] Penetration test completed
+
+### Scalability
+
+- [ ] Stateless WS gateway pods (zero in-memory state)
+- [ ] HPA configured: WS pods (15K conn target), coturn (70% allocation target)
+- [ ] Graceful pod draining with staggered client reconnect
+- [ ] Redis sharding verified for 10M concurrent users
+- [ ] Cross-region signaling latency <133ms verified
+- [ ] Load tested: 1M concurrent connections per region
+- [ ] Load tested: 100K call initiations in 60 seconds
+
+### Observability
+
+- [ ] OpenTelemetry collector deployed per region
+- [ ] Distributed tracing for full call lifecycle
+- [ ] Metrics: Prometheus → Mimir (long-term storage)
+- [ ] Logs: structured JSON → Loki
+- [ ] Call quality telemetry pipeline: Kafka → ClickHouse
+- [ ] Grafana dashboards: connections, call rate, latency, error rate, TURN usage
+- [ ] Alerting: PagerDuty integration for P1/P2 alerts
+- [ ] SLO dashboards: 99.995% availability, <120ms call setup
+
+### Reliability
+
+- [ ] Chaos experiments scheduled and passing
+- [ ] Redis Sentinel/Cluster failover tested
+- [ ] Region failover tested (DNS cutover <60s)
+- [ ] Thundering herd prevention (exponential backoff + jitter)
+- [ ] Call state auditor CronJob running (orphan cleanup)
+- [ ] Split-brain detection and reconciliation
+- [ ] Graceful degradation: audio-only fallback on bandwidth constraint
+- [ ] Circuit breakers on TURN and cross-region paths
+
+### Operations
+
+- [ ] Runbooks for all P1 alert scenarios
+- [ ] On-call rotation established
+- [ ] Deployment: blue-green with canary (5% → 25% → 100%)
+- [ ] Feature flags for call features (LaunchDarkly / custom)
+- [ ] TURN secret rotation automated
+- [ ] Certificate rotation automated (Let's Encrypt / ACM)
+- [ ] Cost monitoring dashboards with anomaly alerts
+- [ ] Capacity review scheduled (monthly)
