@@ -12,7 +12,7 @@ export function useChatMessages(roomId: string) {
             if (pageParam) searchParams.append('before', pageParam);
 
             try {
-                const data = await api.get<ChatMessage[]>(`/rooms/${roomId}/messages?${searchParams.toString()}`);
+                const data = await api.get<ChatMessage[]>(`/chat/rooms/${roomId}/messages?${searchParams.toString()}`);
                 const messages = Array.isArray(data) ? data : [];
 
                 // Persistence: FAANG-level background synchronization

@@ -109,11 +109,12 @@ class SocketService {
     }
 
     public send(type: string, payload: any) {
-        if (this.socket?.connected) {
-            this.socket.emit(type, payload);
-        } else {
-            console.warn("SocketService: Cannot send message, socket not connected.");
+        // Drop silently if there is no active socket connection.
+        // Callers are responsible for checking connectivity and/or retrying.
+        if (!this.socket || !this.socket.connected) {
+            return;
         }
+        this.socket.emit(type, payload);
     }
 
     public on(event: string, callback: SocketListener) {

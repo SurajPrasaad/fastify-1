@@ -92,7 +92,11 @@ export class ChatRepository {
         return await ParticipantState.findOneAndUpdate(
             { userId, roomId: new mongoose.Types.ObjectId(roomId) },
             update,
-            { upsert: true, new: true }
+            {
+                upsert: true,
+                // `new` is deprecated in newer Mongoose — use returnDocument instead
+                returnDocument: "after",
+            } as any
         );
     }
 

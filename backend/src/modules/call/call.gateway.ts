@@ -54,7 +54,12 @@ export async function callGateway(app: FastifyInstance) {
             }
 
             const session = (socket.request as any).session;
-            const userId = session?.userId;
+            // Prefer HTTP session userId when present, but fall back to JWT-authenticated userId
+            // that was attached by the global Socket.IO auth middleware (chatGateway).
+            let userId: string | undefined = session?.userId;
+            if (!userId && (socket.data as any)?.userId) {
+                userId = (socket.data as any).userId as string;
+            }
             const ip = socket.handshake.address;
 
             // ── Security: IP Reputation Check ──

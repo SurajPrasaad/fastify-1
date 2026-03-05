@@ -74,11 +74,17 @@ export function useChatSocket({ roomId, onMessage }: UseChatSocketProps = {}) {
                     (old: any) => {
                         if (!old) return { pages: [{ data: [newMessage] }], pageParams: [] };
 
-                        // Deduplication: Remove the optimistic placeholder if it matches the content
+                        // Deduplication:
+                        // - Remove the optimistic placeholder (status SENDING with same content)
+                        // - Remove any existing message with the same _id or tempId
                         const cleanPages = old.pages.map((page: any, index: number) => {
                             if (index === 0) {
                                 const filteredData = page.data.filter((m: ChatMessage) =>
-                                    !(m.status === 'SENDING' && m.content === newMessage.content)
+                                    !(
+                                        (m.status === 'SENDING' && m.content === newMessage.content) ||
+                                        (m._id && m._id === newMessage._id) ||
+                                        (m.tempId && newMessage.tempId && m.tempId === newMessage.tempId)
+                                    )
                                 );
                                 return { ...page, data: [newMessage, ...filteredData] };
                             }
