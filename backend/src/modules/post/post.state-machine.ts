@@ -34,6 +34,7 @@ export type ModerationAction =
     | "ARCHIVE"          // User archives
     | "UNARCHIVE"        // User un-archives
     | "RESUBMIT"         // User resubmits after revision/rejection
+    | "FLAG"             // Moderator manually flags
     | "ESCALATE";        // Moderator escalates to admin
 
 // ─── Transition Definition ───────────────────────────────
@@ -59,6 +60,7 @@ const TRANSITIONS: Transition[] = [
     { from: "PENDING_REVIEW", to: "REJECTED", action: "REJECT", allowedRoles: ["MODERATOR", "ADMIN", "SUPER_ADMIN"] },
     { from: "PENDING_REVIEW", to: "NEEDS_REVISION", action: "REQUEST_REVISION", allowedRoles: ["MODERATOR", "ADMIN", "SUPER_ADMIN"] },
     { from: "PENDING_REVIEW", to: "PENDING_REVIEW", action: "ESCALATE", allowedRoles: ["MODERATOR", "ADMIN", "SUPER_ADMIN"] },
+    { from: "PENDING_REVIEW", to: "PENDING_REVIEW", action: "FLAG", allowedRoles: ["MODERATOR", "ADMIN", "SUPER_ADMIN"] },
     { from: "PUBLISHED", to: "REMOVED", action: "REMOVE", allowedRoles: ["MODERATOR", "ADMIN", "SUPER_ADMIN"] },
 
     // System actions

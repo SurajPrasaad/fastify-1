@@ -46,8 +46,26 @@ export class ModerationRepository {
      * Get posts pending moderation, ordered by risk_score (descending) + created_at (ascending = FIFO).
      * This is the primary moderation queue query.
      */
-    async getPendingPosts(limit: number = 20) {
+    async getPendingPosts(limit: number = 20, variant?: string) {
         try {
+            const conditions = [eq(posts.status, "PENDING_REVIEW")];
+
+            // Map frontend variants to backend SQL conditions
+            if (variant === "HIGH_RISK") {
+                conditions.push(gte(posts.riskScore, 60));
+            } else if (variant === "LOW_RISK") {
+                conditions.push(lte(posts.riskScore, 39.99));
+            } else if (variant === "AUTO_FLAGGED") {
+                // Traditionally AI models trigger higher flags
+                conditions.push(gte(posts.riskScore, 70));
+            } else if (variant === "USER_REPORTED") {
+                conditions.push(sql`(SELECT count(*) FROM moderation_reports WHERE post_id = ${posts.id} AND status = 'PENDING') > 0`);
+            } else if (variant === "ESCALATED") {
+                // High risk + community reports
+                conditions.push(gte(posts.riskScore, 80));
+                conditions.push(sql`(SELECT count(*) FROM moderation_reports WHERE post_id = ${posts.id} AND status = 'PENDING') >= 2`);
+            }
+
             const results = await db
                 .select({
                     id: posts.id,
@@ -68,7 +86,7 @@ export class ModerationRepository {
                 })
                 .from(posts)
                 .innerJoin(users, eq(posts.userId, users.id))
-                .where(eq(posts.status, "PENDING_REVIEW"))
+                .where(and(...conditions))
                 .orderBy(desc(posts.riskScore), asc(posts.createdAt))
                 .limit(limit);
 
@@ -82,9 +100,12 @@ export class ModerationRepository {
     /**
      * Get legacy report-based queue items (for backward compatibility).
      */
-    async getReportQueue(limit: number, moderatorId?: string) {
+    async getReportQueue(limit: number, moderatorId?: string, category?: string) {
         try {
             const conditions = [eq(moderationReports.status, 'PENDING')];
+            if (category) {
+                conditions.push(eq(moderationReports.category, category as any));
+            }
 
             const results = await db
                 .select({
@@ -242,6 +263,32 @@ export class ModerationRepository {
     // ─── Moderation Log Queries ──────────────────────────
 
     /**
+     * Get pending reports for a specific post.
+     */
+    async getPostReports(postId: string) {
+        return db
+            .select({
+                id: moderationReports.id,
+                category: moderationReports.category,
+                reason: moderationReports.reason,
+                createdAt: moderationReports.createdAt,
+                reporter: {
+                    id: users.id,
+                    username: users.username,
+                }
+            })
+            .from(moderationReports)
+            .leftJoin(users, eq(moderationReports.reporterId, users.id))
+            .where(
+                and(
+                    eq(moderationReports.postId, postId),
+                    eq(moderationReports.status, "PENDING")
+                )
+            )
+            .orderBy(desc(moderationReports.createdAt));
+    }
+
+    /**
      * Get moderation history for a specific post.
      */
     async getPostModerationHistory(postId: string) {
@@ -287,6 +334,46 @@ export class ModerationRepository {
             .groupBy(moderationLogs.action);
 
         return results;
+    }
+
+    /**
+     * Get recent actions by a moderator with filtering and pagination.
+     */
+    async getRecentActions(moderatorId: string, limit: number = 5, offset: number = 0, action?: string) {
+        try {
+            const conditions = [eq(moderationLogs.moderatorId, moderatorId)];
+            if (action && action !== "ALL") {
+                conditions.push(eq(moderationLogs.action, action as any));
+            }
+
+            const results = await db
+                .select({
+                    id: moderationLogs.id,
+                    action: moderationLogs.action,
+                    reason: moderationLogs.reason,
+                    createdAt: moderationLogs.createdAt,
+                    post: {
+                        id: posts.id,
+                        content: posts.content,
+                    },
+                    author: {
+                        id: users.id,
+                        username: users.username,
+                    }
+                })
+                .from(moderationLogs)
+                .leftJoin(posts, eq(moderationLogs.postId, posts.id))
+                .leftJoin(users, eq(posts.userId, users.id))
+                .where(and(...conditions))
+                .orderBy(desc(moderationLogs.createdAt))
+                .limit(limit)
+                .offset(offset);
+
+            return results;
+        } catch (error) {
+            console.error("GET_RECENT_ACTIONS_ERROR:", error);
+            throw error;
+        }
     }
 
     /**

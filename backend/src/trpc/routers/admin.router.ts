@@ -113,6 +113,15 @@ export const adminRouter = router({
             .mutation(async ({ input, ctx }) => {
                 return await service.assignRole(input.userId, input.role, ctx.user.id, input.reason);
             }),
+
+        ban: adminProcedure
+            .input(z.object({
+                userId: z.string().uuid(),
+                reason: z.string().min(1),
+            }))
+            .mutation(async ({ input, ctx }) => {
+                return await service.banUser(input.userId, ctx.user.id, input.reason);
+            }),
     }),
 
     // ─── Audit Logs ──────────────────────────────────────
@@ -216,7 +225,10 @@ export const adminRouter = router({
     // ─── Dashboard Analytics ─────────────────────────────
 
     getStats: adminProcedure
-        .query(async () => {
-            return await service.getDashboardStats();
+        .input(z.object({
+            timeRangeHours: z.number().min(1).max(24 * 90).optional(),
+        }).optional())
+        .query(async ({ input }) => {
+            return await service.getDashboardStats(input?.timeRangeHours);
         }),
 });

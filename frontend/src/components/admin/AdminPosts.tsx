@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
     Search, Filter, Download, MoreVertical, ShieldAlert,
     Ban, CheckCircle, X, Image as ImageIcon, Video, FileText,
@@ -8,13 +8,15 @@ import {
     Flag, RotateCcw, AlertCircle, TrendingUp
 } from "lucide-react";
 import DataTable, { TableColumn, TableStyles } from "react-data-table-component";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 // ==========================================
-// 1. TYPES & MOCK DATA
+// 1. TYPES
 // ==========================================
 
-type PostType = 'Text' | 'Image' | 'Video';
-type PostStatus = 'PUBLISHED' | 'FLAGGED' | 'UNDER_REVIEW' | 'RESTRICTED' | 'DELETED' | 'DRAFT' | 'ARCHIVED';
+type PostType = "Text" | "Image" | "Video";
+type PostStatus = "PUBLISHED" | "FLAGGED" | "UNDER_REVIEW" | "RESTRICTED" | "DELETED" | "DRAFT" | "ARCHIVED";
 type Visibility = 'PUBLIC' | 'PRIVATE' | 'FOLLOWERS' | 'GEO_RESTRICTED';
 type RiskLevel = 'Low' | 'Medium' | 'High';
 
@@ -35,84 +37,6 @@ interface PostData {
     reports: number;
     createdAt: string;
 }
-
-const generateMockPosts = (count: number): PostData[] => {
-    const types: PostType[] = ['Text', 'Image', 'Video', 'Image'];
-    const statuses: PostStatus[] = ['PUBLISHED', 'PUBLISHED', 'FLAGGED', 'DELETED', 'PUBLISHED'];
-    const risks: RiskLevel[] = ['Low', 'Low', 'Medium', 'High', 'Low'];
-
-    return Array.from({ length: count }).map((_, i) => ({
-        id: `POST-${8000 + i}`,
-        authorName: `User ${i + 1}`,
-        authorHandle: `@user_${i + 1}`,
-        authorAvatar: `https://i.pravatar.cc/150?u=${8000 + i}`,
-        content: `This is a sample post content #${i} that might contain some interesting information or maybe just spam. Let's see how the moderation queue handles it!`,
-        thumbnail: Math.random() > 0.5 ? `https://picsum.photos/seed/${i}/200` : undefined,
-        type: types[Math.floor(Math.random() * types.length)],
-        status: statuses[Math.floor(Math.random() * statuses.length)],
-        visibility: 'PUBLIC',
-        risk: risks[Math.floor(Math.random() * risks.length)],
-        likes: Math.floor(Math.random() * 50000),
-        comments: Math.floor(Math.random() * 5000),
-        shares: Math.floor(Math.random() * 1000),
-        reports: Math.floor(Math.random() * 20),
-        createdAt: new Date(Date.now() - Math.random() * 10000000000).toLocaleDateString(),
-    }));
-};
-
-const mockData: PostData[] = [
-    {
-        id: "POST-9284",
-        authorName: "Marcus Thorne",
-        authorHandle: "@marcus_t",
-        authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuA0LxeD-ZKa4YlHhTJqESa2l8Cd-2RPFU82nrqlak9raNiKaZVcU_zmST9byI2jAcw30SDd5K56kwjDtvk4IpRKPUrmemlZ-qXOrZtXQAU4csRBLLiFo3zUSExkcYLYXIvQ8PqCsjltW6shHrDn0mtZgvmE33kAgfwUe7Qjp8JpdMsZsXRf-GGeWKoL_MpKYUENYFKqEj2jo7FuenupaYduSQYee4WBX8eOdc7f8fSWM837n_QQEd-HfxEJN4a5HczDpX4pWrW_GoI",
-        content: "Just landed in Tokyo! The neon lights are absolutely stunning at night and the food here is incredible. Check out my latest vlog!",
-        thumbnail: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=200&h=200&fit=crop",
-        type: "Video",
-        status: "PUBLISHED",
-        visibility: "PUBLIC",
-        risk: "Low",
-        likes: 12400,
-        comments: 428,
-        shares: 112,
-        reports: 0,
-        createdAt: "Oct 24, 2023",
-    },
-    {
-        id: "POST-9102",
-        authorName: "Sarah Jenkins",
-        authorHandle: "@sarah_j",
-        authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDTlWk2CLbpGq0lTK4-ruOtqZnYZ9uGOSvzCQYlITqCRNIe8Q4lyBCyKkFqk8D5RJAn9GG4I6SAW3Rq-IqKnc0NdEFQ-dyJq7DvuMRTsvoouLjBLGghPXiixW9nBnWcg1evkgxtfUshNyBXYGR0__agpmJaA_sFs52-VrKLh5_Kou2SwJBdZOOxtxpzC_7ooQGxRaXpbbhvZShaLgT5Cm9STidBJDT6FfT7BEA2X7FKE0Ci0cOhnJljHz0_yXkiXHA2LZKw6hGY1qM",
-        content: "Exclusive: New leaked photos of the upcoming electric hypercar. The specs are insane, claim link in bio!",
-        thumbnail: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=200&h=200&fit=crop",
-        type: "Image",
-        status: "FLAGGED",
-        visibility: "PUBLIC",
-        risk: "High",
-        likes: 8400,
-        comments: 2100,
-        shares: 540,
-        reports: 142,
-        createdAt: "Oct 23, 2023",
-    },
-    {
-        id: "POST-8851",
-        authorName: "Liam O'Conner",
-        authorHandle: "@liam_oc",
-        authorAvatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuC2VwIFomgVsiVCK9TfyqUPeuuj7uSYX3mDew6s0xAuCN6i1kGuY-5elwZ-scQwO6rO8v0ltVjGthQYugrQSrDbQ7cGqkdkPj6lYXtrd0L8jYuvfp1x7EZyDKLV9aGjlWHJCHPO_ZRKdDLTuDZ1SUqsE_rvFKuEoeqSkjNRZhH9Y9kTLxL9TIa6yPhBLimPvbl1cgYhVN6uv_eQcmCPj-xHWkUrCxB3TApZP5iFzGgsZGDfPY9ia2P6RaypJDItFd5M487o14ROaj8",
-        content: "[Content removed for policy violation by automated filters]",
-        type: "Text",
-        status: "DELETED",
-        visibility: "PUBLIC",
-        risk: "High",
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        reports: 45,
-        createdAt: "Oct 22, 2023",
-    },
-    ...generateMockPosts(47)
-];
 
 // ==========================================
 // 2. DESIGN TOKENS & STYLES (DevAtlas Dark)
@@ -219,6 +143,46 @@ const formatNumber = (num: number) => {
     return num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num.toString();
 };
 
+const mapBackendPostToRow = (post: any): PostData => {
+    const statusMap: Record<string, PostStatus> = {
+        PUBLISHED: "PUBLISHED",
+        FLAGGED: "FLAGGED",
+        UNDER_REVIEW: "UNDER_REVIEW",
+        RESTRICTED: "RESTRICTED",
+        DELETED: "DELETED",
+        DRAFT: "DRAFT",
+        ARCHIVED: "ARCHIVED",
+        PENDING_REVIEW: "UNDER_REVIEW",
+        REJECTED: "DELETED",
+        NEEDS_REVISION: "UNDER_REVIEW",
+        REMOVED: "DELETED",
+    };
+
+    const rawStatus = (post.status as string) || "PUBLISHED";
+    const status = statusMap[rawStatus] ?? "PUBLISHED";
+
+    const priority = Number(post.priorityScore ?? 0);
+    const risk: RiskLevel = priority >= 80 ? "High" : priority >= 40 ? "Medium" : "Low";
+
+    return {
+        id: post.id,
+        authorName: post.author?.name ?? "Unknown",
+        authorHandle: post.author?.username ? `@${post.author.username}` : "@unknown",
+        authorAvatar: post.author?.avatarUrl ?? "/avatar-placeholder.png",
+        content: post.content ?? "",
+        thumbnail: undefined,
+        type: "Text",
+        status,
+        visibility: "PUBLIC",
+        risk,
+        likes: Number(post.likes ?? 0),
+        comments: Number(post.comments ?? 0),
+        shares: Number(post.shares ?? 0),
+        reports: Number(post.reportsCount ?? 0),
+        createdAt: post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "",
+    };
+};
+
 // ==========================================
 // 3. BADGE COMPONENTS
 // ==========================================
@@ -271,7 +235,19 @@ const RiskBadge = ({ risk, reports }: { risk: RiskLevel, reports: number }) => {
 // 4. DRAWER COMPONENT
 // ==========================================
 
-const PostDrawer = ({ post, onClose }: { post: PostData | null, onClose: () => void }) => {
+const PostDrawer = ({
+    post,
+    onClose,
+    onDelete,
+    onRestore,
+    onEscalate,
+}: {
+    post: PostData | null;
+    onClose: () => void;
+    onDelete: (post: PostData) => void;
+    onRestore: (post: PostData) => void;
+    onEscalate: (post: PostData) => void;
+}) => {
     const [activeTab, setActiveTab] = useState<'Overview' | 'Engagement' | 'Moderation'>('Overview');
 
     if (!post) return null;
@@ -467,16 +443,25 @@ const PostDrawer = ({ post, onClose }: { post: PostData | null, onClose: () => v
 
                 {/* Footer Actions */}
                 <div className="p-4 border-t border-[#2F3336] bg-[#000000] shrink-0 grid grid-cols-2 gap-3">
-                    {post.status === 'DELETED' ? (
-                        <button className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#00BA7C]/10 text-[#00BA7C] border border-[#2F3336] hover:border-[#00BA7C]/50 rounded-xl text-[13px] font-bold transition-colors">
+                    {post.status === "DELETED" ? (
+                        <button
+                            className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#00BA7C]/10 text-[#00BA7C] border border-[#2F3336] hover:border-[#00BA7C]/50 rounded-xl text-[13px] font-bold transition-colors"
+                            onClick={() => onRestore(post)}
+                        >
                             <RotateCcw className="w-4 h-4" /> Restore Content
                         </button>
                     ) : (
-                        <button className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#F91880]/10 text-[#F91880] border border-[#2F3336] hover:border-[#F91880]/50 rounded-xl text-[13px] font-bold transition-colors">
+                        <button
+                            className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#F91880]/10 text-[#F91880] border border-[#2F3336] hover:border-[#F91880]/50 rounded-xl text-[13px] font-bold transition-colors"
+                            onClick={() => onDelete(post)}
+                        >
                             <Ban className="w-4 h-4" /> Remove Post
                         </button>
                     )}
-                    <button className="flex items-center justify-center gap-2 py-2.5 bg-[#1D9BF0] hover:bg-[#1D9BF0]/80 text-white rounded-xl text-[13px] font-bold transition-colors shadow-sm">
+                    <button
+                        className="flex items-center justify-center gap-2 py-2.5 bg-[#1D9BF0] hover:bg-[#1D9BF0]/80 text-white rounded-xl text-[13px] font-bold transition-colors shadow-sm"
+                        onClick={() => onEscalate(post)}
+                    >
                         <AlertCircle className="w-4 h-4" /> Escalate to Tier 2
                     </button>
                 </div>
@@ -495,9 +480,19 @@ export default function PostsManagementPage() {
     const [selectedPost, setSelectedPost] = useState<PostData | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>("All Status");
     const [filterType, setFilterType] = useState<string>("All Types");
+    const [posts, setPosts] = useState<PostData[]>([]);
+
+    const listQuery = trpc.admin.posts.list.useQuery({ limit: 200, offset: 0 });
+
+    useEffect(() => {
+        if (listQuery.data) {
+            const items = (listQuery.data as any[]).map(mapBackendPostToRow);
+            setPosts(items);
+        }
+    }, [listQuery.data]);
 
     const filteredData = useMemo(() => {
-        return mockData.filter(item => {
+        return posts.filter(item => {
             const matchesSearch =
                 item.authorName.toLowerCase().includes(filterText.toLowerCase()) ||
                 item.authorHandle.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -509,10 +504,75 @@ export default function PostsManagementPage() {
 
             return matchesSearch && matchesStatus && matchesType;
         });
-    }, [filterText, filterStatus, filterType]);
+    }, [filterText, filterStatus, filterType, posts]);
 
     const handleRowSelected = ({ selectedRows }: { selectedRows: PostData[] }) => {
         setSelectedRows(selectedRows);
+    };
+
+    const moderateMutation = trpc.admin.posts.moderate.useMutation();
+    const bulkModerateMutation = trpc.admin.posts.bulkModerate.useMutation();
+
+    const updateStatusLocally = (ids: string[], status: PostStatus) => {
+        setPosts(prev =>
+            prev.map(p => (ids.includes(p.id) ? { ...p, status } : p)),
+        );
+    };
+
+    const handleDelete = (post: PostData) => {
+        moderateMutation.mutate({
+            postId: post.id,
+            action: "DELETE",
+            reason: "Removed from admin dashboard",
+        });
+        toast.success("Post removed");
+        updateStatusLocally([post.id], "DELETED");
+    };
+
+    const handleRestore = (post: PostData) => {
+        moderateMutation.mutate({
+            postId: post.id,
+            action: "RESTORE",
+            reason: "Restored from admin dashboard",
+        });
+        toast.success("Post restored");
+        updateStatusLocally([post.id], "PUBLISHED");
+    };
+
+    const handleEscalate = (post: PostData) => {
+        moderateMutation.mutate({
+            postId: post.id,
+            action: "ESCALATE",
+            reason: "Escalated from admin dashboard",
+        });
+        toast.success("Post escalated to Tier 2");
+        updateStatusLocally([post.id], "UNDER_REVIEW");
+    };
+
+    const handleBulkApprove = () => {
+        const ids = selectedRows.map(r => r.id);
+        if (!ids.length) return;
+        bulkModerateMutation.mutate({
+            postIds: ids,
+            action: "APPROVE",
+            reason: "Bulk approve from admin dashboard",
+        });
+        toast.success("Posts approved");
+        updateStatusLocally(ids, "PUBLISHED");
+        setSelectedRows([]);
+    };
+
+    const handleBulkRemove = () => {
+        const ids = selectedRows.map(r => r.id);
+        if (!ids.length) return;
+        bulkModerateMutation.mutate({
+            postIds: ids,
+            action: "DELETE",
+            reason: "Bulk remove from admin dashboard",
+        });
+        toast.success("Posts removed");
+        updateStatusLocally(ids, "DELETED");
+        setSelectedRows([]);
     };
 
     const columns: TableColumn<PostData>[] = [
@@ -684,6 +744,7 @@ export default function PostsManagementPage() {
                     <DataTable
                         columns={columns}
                         data={filteredData}
+                        progressPending={listQuery.isLoading}
                         pagination
                         paginationPerPage={15}
                         paginationRowsPerPageOptions={[15, 30, 50, 100]}
@@ -712,10 +773,16 @@ export default function PostsManagementPage() {
                         </div>
                         <div className="h-5 w-[1px] bg-[#2F3336]"></div>
                         <div className="flex items-center gap-2">
-                            <button className="px-4 py-1.5 hover:bg-[#00BA7C]/10 text-[#71767B] hover:text-[#00BA7C] rounded-full text-[13px] font-bold transition-colors">
+                            <button
+                                className="px-4 py-1.5 hover:bg-[#00BA7C]/10 text-[#71767B] hover:text-[#00BA7C] rounded-full text-[13px] font-bold transition-colors"
+                                onClick={handleBulkApprove}
+                            >
                                 Approve All
                             </button>
-                            <button className="px-4 py-1.5 hover:bg-[#F91880]/10 text-[#71767B] hover:text-[#F91880] rounded-full text-[13px] font-bold transition-colors">
+                            <button
+                                className="px-4 py-1.5 hover:bg-[#F91880]/10 text-[#71767B] hover:text-[#F91880] rounded-full text-[13px] font-bold transition-colors"
+                                onClick={handleBulkRemove}
+                            >
                                 Remove All
                             </button>
                             <button className="px-4 py-1.5 bg-[#E7E9EA] text-black hover:bg-white rounded-full text-[13px] font-bold transition-colors ml-2 shadow-sm">
@@ -727,7 +794,13 @@ export default function PostsManagementPage() {
             </div>
 
             {/* Slide-over Post Detail Drawer */}
-            <PostDrawer post={selectedPost} onClose={() => setSelectedPost(null)} />
+            <PostDrawer
+                post={selectedPost}
+                onClose={() => setSelectedPost(null)}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                onEscalate={handleEscalate}
+            />
         </div>
     );
 }

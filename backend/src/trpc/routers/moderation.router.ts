@@ -9,7 +9,7 @@
 
 import { router, protectedProcedure, moderatorProcedure, adminProcedure } from "../trpc.js";
 import { z } from "zod";
-import { createReportSchema, moderatePostSchema } from "../../modules/moderation/moderation.schema.js";
+import { createReportSchema, moderatePostSchema, resolveReportSchema } from "../../modules/moderation/moderation.schema.js";
 import { ModerationService } from "../../modules/moderation/moderation.service.js";
 import type { UserRole } from "../../middleware/rbac.js";
 
@@ -29,9 +29,12 @@ export const moderationRouter = router({
 
     // Pre-moderation queue (posts pending review)
     getQueue: moderatorProcedure
-        .input(z.object({ limit: z.number().min(1).max(100).optional().default(20) }))
+        .input(z.object({
+            limit: z.number().min(1).max(100).optional().default(20),
+            variant: z.string().optional()
+        }))
         .query(async ({ input }) => {
-            return await service.getModerationQueue(input.limit);
+            return await service.getModerationQueue(input.limit, input.variant);
         }),
 
     // Moderate a post (state machine validated)
@@ -47,6 +50,31 @@ export const moderationRouter = router({
                     userAgent: ctx.req.headers['user-agent'] as string,
                 }
             );
+        }),
+
+    // Bulk moderate multiple posts
+    bulkModerate: moderatorProcedure
+        .input(z.object({
+            postIds: z.array(z.string().uuid()),
+            action: z.enum(["APPROVE", "REJECT", "REQUEST_REVISION", "ESCALATE"]),
+            reason: z.string().optional()
+        }))
+        .mutation(async ({ input, ctx }) => {
+            const results = [];
+            for (const postId of input.postIds) {
+                try {
+                    const res = await service.moderatePost(
+                        { postId, action: input.action, reason: input.reason || `Bulk ${input.action.toLowerCase()}`, moderatorId: ctx.user.id },
+                        (ctx.user.role || "MODERATOR") as UserRole,
+                        false,
+                        { ipAddress: ctx.req.ip, userAgent: ctx.req.headers['user-agent'] as string }
+                    );
+                    results.push({ postId, success: true, result: res });
+                } catch (error) {
+                    results.push({ postId, success: false, error: (error as Error).message });
+                }
+            }
+            return results;
         }),
 
     // Lock a post for exclusive review
@@ -77,6 +105,13 @@ export const moderationRouter = router({
             return await service.getPostModerationHistory(input.postId);
         }),
 
+    // Get reports for a specific post
+    getPostReports: moderatorProcedure
+        .input(z.object({ postId: z.string().uuid() }))
+        .query(async ({ input }) => {
+            return await service.getPostReports(input.postId);
+        }),
+
     // Queue statistics
     getQueueStats: moderatorProcedure
         .query(async () => {
@@ -87,6 +122,17 @@ export const moderationRouter = router({
     getQueueDepth: moderatorProcedure
         .query(async () => {
             return await service.getQueueDepthByPriority();
+        }),
+
+    // Get personal moderation history
+    getModeratorHistory: moderatorProcedure
+        .input(z.object({
+            limit: z.number().min(1).max(100).optional().default(20),
+            offset: z.number().optional().default(0),
+            action: z.string().optional(),
+        }))
+        .query(async ({ input, ctx }) => {
+            return await service.getRecentActions(ctx.user.id, input.limit, input.offset, input.action);
         }),
 
     // ─── Admin-Only Routes ───────────────────────────────
@@ -126,14 +172,31 @@ export const moderationRouter = router({
     // ─── Legacy Routes (backward compatibility) ──────────
 
     getReportQueue: moderatorProcedure
-        .input(z.object({ limit: z.number().optional() }))
+        .input(z.object({
+            limit: z.number().optional(),
+            category: z.string().optional()
+        }))
         .query(async ({ input, ctx }) => {
-            return await service.getReportQueue(input.limit || 20, ctx.user.id);
+            return await service.getReportQueue(input.limit || 20, ctx.user.id, input.category);
         }),
 
     assignTask: moderatorProcedure
         .input(z.object({ queueId: z.string() }))
         .mutation(async ({ input, ctx }) => {
             return await service.assignTask(input.queueId, ctx.user.id);
+        }),
+
+    resolveReport: moderatorProcedure
+        .input(resolveReportSchema)
+        .mutation(async ({ input, ctx }) => {
+            return await service.resolveReport(
+                { ...input, resolvedById: ctx.user.id },
+                {
+                    previousState: undefined,
+                    newState: undefined,
+                    ipAddress: ctx.req.ip,
+                    userAgent: ctx.req.headers["user-agent"] as string,
+                },
+            );
         }),
 });

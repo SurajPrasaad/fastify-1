@@ -1,25 +1,49 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import {
-    Search, Filter, Download, MoreVertical, Shield, ShieldAlert,
-    Ban, CheckCircle, X, Mail, Calendar, MapPin, Smartphone,
-    AlertTriangle, Activity, Lock, UserX, UserCheck, RefreshCw, ChevronRight,
-    TrendingUp, MessageSquare, Flag
+    Search,
+    Filter,
+    Download,
+    MoreVertical,
+    Shield,
+    ShieldAlert,
+    Ban,
+    CheckCircle,
+    X,
+    Mail,
+    Calendar,
+    MapPin,
+    Smartphone,
+    AlertTriangle,
+    Activity,
+    Lock,
+    UserX,
+    UserCheck,
+    RefreshCw,
+    ChevronRight,
+    TrendingUp,
+    MessageSquare,
+    Flag,
 } from "lucide-react";
 import DataTable, { TableColumn, TableStyles } from "react-data-table-component";
+import { AdminApi, type AdminUserListItem } from "@/features/admin/api";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import Image from "next/image";
 
 // ==========================================
 // 1. TYPES & MOCK DATA
 // ==========================================
 
-type UserRole = 'Super Admin' | 'Admin' | 'Moderator' | 'Support' | 'User';
-type UserStatus = 'Active' | 'Suspended' | 'Banned';
+type UserRole = "Super Admin" | "Admin" | "Moderator" | "Support" | "User";
+type UserStatus = "Active" | "Suspended" | "Banned";
 type RiskLevel = 'Low' | 'Medium' | 'High';
 
 interface UserData {
     id: string;
-    avatar: string;
+    avatar: string | null;
     name: string;
     handle: string;
     email: string;
@@ -37,54 +61,43 @@ interface UserData {
     warnings: number;
 }
 
-const generateMockUsers = (count: number): UserData[] => {
-    const roles: UserRole[] = ['Super Admin', 'Admin', 'Moderator', 'Support', 'User', 'User', 'User', 'User'];
-    const statuses: UserStatus[] = ['Active', 'Active', 'Active', 'Suspended', 'Banned'];
-    const risks: RiskLevel[] = ['Low', 'Low', 'Low', 'Medium', 'High'];
+const mapBackendUserToRow = (user: AdminUserListItem): UserData => {
+    const roleMap: Record<AdminUserListItem["role"], UserRole> = {
+        SUPER_ADMIN: "Super Admin",
+        ADMIN: "Admin",
+        MODERATOR: "Moderator",
+        RISK_ANALYST: "Support",
+        VIEWER: "Support",
+        USER: "User",
+    };
 
-    return Array.from({ length: count }).map((_, i) => ({
-        id: `USR-${1000 + i}`,
-        avatar: `https://i.pravatar.cc/150?u=${i}`,
-        name: `User ${i + 1}`,
-        handle: `@user_${i + 1}`,
-        email: `user${i + 1}@example.com`,
-        role: roles[Math.floor(Math.random() * roles.length)],
-        status: statuses[Math.floor(Math.random() * statuses.length)],
-        verified: Math.random() > 0.8,
-        followers: Math.floor(Math.random() * 50000),
-        posts: Math.floor(Math.random() * 2000),
-        risk: risks[Math.floor(Math.random() * risks.length)],
-        joined: new Date(Date.now() - Math.random() * 100000000000).toLocaleDateString(),
-        lastActive: new Date(Date.now() - Math.random() * 86400000).toLocaleTimeString(),
-        region: 'US-East',
-        device: Math.random() > 0.5 ? 'iOS' : 'Android',
-        reports: Math.floor(Math.random() * 10),
-        warnings: Math.floor(Math.random() * 3),
-    }));
-};
+    const statusMap: Record<AdminUserListItem["status"], UserStatus> = {
+        ACTIVE: "Active",
+        DEACTIVATED: "Suspended",
+        SUSPENDED: "Suspended",
+        DELETED: "Banned",
+    };
 
-const mockData: UserData[] = [
-    {
-        id: "USR-0001",
-        avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuADJHZRir9EWJdLob5-cV_VV5PuXxsg6-Qa7-GSx9jVSL0dyh5AOMbjyBeEH8K2QAXddwMytH2rI6Jm1ZP3i6_uLZbI5uEoUZklZqxq0rgQBOlsHV7-sOkFbTsIzh8GVCTb71OhuKL2drXYPkaASj1THD7lzoVfGHqbjlzGdYZnK9T4xVWOJ3ZUy0EZbiyNqe_KwGtz_XQ4nK75BHB2oZ__qjWcTHrpx5rAmpTtzvLsgDWTDBCxuqYamT30ozinkL_rNkdZgZJRLOY",
-        name: "Alex Morgan",
-        handle: "@amorgan_official",
-        verified: true,
-        email: "alex.m@company.com",
-        role: "Moderator",
-        status: "Active",
-        followers: 24500,
-        posts: 1200,
+    return {
+        id: user.id,
+        avatar: null,
+        name: user.name,
+        handle: `@${user.username}`,
+        email: user.email,
+        role: roleMap[user.role],
+        status: statusMap[user.status],
+        verified: false,
+        followers: user.followersCount ?? 0,
+        posts: user.postsCount ?? 0,
         risk: "Low",
-        joined: "Oct 12, 2022",
-        lastActive: "Just now",
-        region: "US-West",
-        device: "iOS Desktop",
+        joined: new Date(user.createdAt).toLocaleDateString(),
+        lastActive: "–",
+        region: user.regionAffinity || "Unknown",
+        device: "Unknown",
         reports: 0,
-        warnings: 0
-    },
-    ...generateMockUsers(45)
-];
+        warnings: 0,
+    };
+};
 
 // ==========================================
 // 2. DESIGN TOKENS & STYLES (DevAtlas Dark)
@@ -239,7 +252,19 @@ const RiskIndicator = ({ risk }: { risk: RiskLevel }) => {
 // 4. DRAWER COMPONENT
 // ==========================================
 
-const UserDrawer = ({ user, onClose }: { user: UserData | null, onClose: () => void }) => {
+const UserDrawer = ({
+    user,
+    onClose,
+    onSuspend,
+    onReactivate,
+    onBan,
+}: {
+    user: UserData | null;
+    onClose: () => void;
+    onSuspend: (user: UserData) => void;
+    onReactivate: (user: UserData) => void;
+    onBan: (user: UserData) => void;
+}) => {
     const [activeTab, setActiveTab] = useState<'Overview' | 'Activity' | 'Moderation' | 'Security'>('Overview');
 
     if (!user) return null;
@@ -268,7 +293,7 @@ const UserDrawer = ({ user, onClose }: { user: UserData | null, onClose: () => v
                 <div className="px-6 py-6 border-b border-[#2F3336] bg-[#16181C]/30 shrink-0">
                     <div className="flex items-start gap-4">
                         <div className="relative">
-                            <img src={user.avatar} alt={user.name} className="w-16 h-16 rounded-2xl border border-[#2F3336] object-cover" />
+                            <Image src={user.avatar || "/avatar-placeholder.png"} alt={user.name} width={64} height={64} className="w-16 h-16 rounded-2xl border border-[#2F3336] object-cover" />
                             {user.verified && (
                                 <div className="absolute -bottom-1.5 -right-1.5 bg-[#1D9BF0] rounded-full p-0.5 border-[2px] border-black">
                                     <CheckCircle className="w-4 h-4 text-white" strokeWidth={3} />
@@ -391,16 +416,25 @@ const UserDrawer = ({ user, onClose }: { user: UserData | null, onClose: () => v
 
                 {/* Footer Actions */}
                 <div className="p-4 border-t border-[#2F3336] bg-[#000000] shrink-0 grid grid-cols-2 gap-3">
-                    {user.status === 'Active' ? (
-                        <button className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#FFD400]/10 text-[#FFD400] border border-[#2F3336] hover:border-[#FFD400]/50 rounded-xl text-[13px] font-bold transition-colors">
+                    {user.status === "Active" ? (
+                        <button
+                            onClick={() => onSuspend(user)}
+                            className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#FFD400]/10 text-[#FFD400] border border-[#2F3336] hover:border-[#FFD400]/50 rounded-xl text-[13px] font-bold transition-colors"
+                        >
                             <UserX className="w-4 h-4" /> Suspend
                         </button>
                     ) : (
-                        <button className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#00BA7C]/10 text-[#00BA7C] border border-[#2F3336] hover:border-[#00BA7C]/50 rounded-xl text-[13px] font-bold transition-colors">
+                        <button
+                            onClick={() => onReactivate(user)}
+                            className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#00BA7C]/10 text-[#00BA7C] border border-[#2F3336] hover:border-[#00BA7C]/50 rounded-xl text-[13px] font-bold transition-colors"
+                        >
                             <UserCheck className="w-4 h-4" /> Reactivate
                         </button>
                     )}
-                    <button className="flex items-center justify-center gap-2 py-2.5 bg-[#F91880] hover:bg-[#F91880]/80 text-white rounded-xl text-[13px] font-bold transition-colors shadow-[0_0_15px_rgba(249,24,128,0.3)]">
+                    <button
+                        className="flex items-center justify-center gap-2 py-2.5 bg-[#F91880] hover:bg-[#F91880]/80 text-white rounded-xl text-[13px] font-bold transition-colors shadow-[0_0_15px_rgba(249,24,128,0.3)]"
+                        onClick={() => onBan(user)}
+                    >
                         <Ban className="w-4 h-4" /> Ban Account
                     </button>
                 </div>
@@ -418,19 +452,65 @@ export default function UsersManagementPage() {
     const [selectedRows, setSelectedRows] = useState<UserData[]>([]);
     const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
     const [roleFilter, setRoleFilter] = useState<string>("All Roles");
+    const [users, setUsers] = useState<UserData[]>([]);
+    const [isFetching, setIsFetching] = useState(false);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                setIsFetching(true);
+                const items = await AdminApi.listUsers();
+                setUsers(items.map(mapBackendUserToRow));
+            } catch {
+                toast.error("Failed to load users");
+            } finally {
+                setIsFetching(false);
+            }
+        };
+        load();
+    }, []);
 
     const filteredData = useMemo(() => {
-        return mockData.filter(item => {
-            const matchesSearch = item.name.toLowerCase().includes(filterText.toLowerCase()) ||
+        return users.filter((item) => {
+            const matchesSearch =
+                item.name.toLowerCase().includes(filterText.toLowerCase()) ||
                 item.email.toLowerCase().includes(filterText.toLowerCase()) ||
                 item.handle.toLowerCase().includes(filterText.toLowerCase());
             const matchesRole = roleFilter === "All Roles" || item.role === roleFilter;
             return matchesSearch && matchesRole;
         });
-    }, [filterText, roleFilter]);
+    }, [filterText, roleFilter, users]);
 
     const handleRowSelected = ({ selectedRows }: { selectedRows: UserData[] }) => {
         setSelectedRows(selectedRows);
+    };
+
+    const suspendMutation = trpc.admin.users.suspend.useMutation();
+    const unsuspendMutation = trpc.admin.users.unsuspend.useMutation();
+    const banMutation = trpc.admin.users.ban.useMutation();
+
+    const handleSuspend = (user: UserData) => {
+        suspendMutation.mutate({ userId: user.id, reason: "Suspended from admin dashboard" });
+        toast.success("User suspended");
+        setUsers((prev) =>
+            prev.map((u) => (u.id === user.id ? { ...u, status: "Suspended" as UserStatus } : u)),
+        );
+    };
+
+    const handleReactivate = (user: UserData) => {
+        unsuspendMutation.mutate({ userId: user.id, reason: "Reactivated from admin dashboard" });
+        toast.success("User reactivated");
+        setUsers((prev) =>
+            prev.map((u) => (u.id === user.id ? { ...u, status: "Active" as UserStatus } : u)),
+        );
+    };
+
+    const handleBan = (user: UserData) => {
+        banMutation.mutate({ userId: user.id, reason: "Banned from admin dashboard" });
+        toast.success("User banned");
+        setUsers((prev) =>
+            prev.map((u) => (u.id === user.id ? { ...u, status: "Banned" as UserStatus } : u)),
+        );
     };
 
     const columns: TableColumn<UserData>[] = [
@@ -441,7 +521,7 @@ export default function UsersManagementPage() {
             cell: row => (
                 <div className="flex items-center gap-3 py-2 w-full truncate">
                     <div className="relative shrink-0">
-                        <img className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[#2F3336] object-cover" src={row.avatar} alt={row.name} />
+                        <img className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[#2F3336] object-cover" src={row.avatar || "/avatar-placeholder.png"} alt={row.name} />
                         {row.verified && (
                             <div className="absolute -bottom-1 -right-1 bg-[#1D9BF0] rounded-full p-[1px] border-[2px] border-black">
                                 <CheckCircle className="w-2.5 h-2.5 text-white" strokeWidth={3} />
@@ -599,6 +679,7 @@ export default function UsersManagementPage() {
                     <DataTable
                         columns={columns}
                         data={filteredData}
+                        progressPending={isFetching}
                         pagination
                         paginationPerPage={15}
                         paginationRowsPerPageOptions={[15, 30, 50, 100]}
@@ -642,7 +723,13 @@ export default function UsersManagementPage() {
             </div>
 
             {/* Slide-over Profile Drawer */}
-            <UserDrawer user={selectedUser} onClose={() => setSelectedUser(null)} />
+            <UserDrawer
+                user={selectedUser}
+                onClose={() => setSelectedUser(null)}
+                onSuspend={handleSuspend}
+                onReactivate={handleReactivate}
+                onBan={handleBan}
+            />
         </div>
     );
 }

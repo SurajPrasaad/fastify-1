@@ -2,6 +2,7 @@
 
 import React from "react";
 import { AlertTriangle, Flag, Shield, Users } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 type ReportsVariant = "SPAM" | "ABUSE" | "POLICY" | "COMMUNITY";
 
@@ -83,20 +84,20 @@ function ReportsView({ variant }: { readonly variant: ReportsVariant }) {
     const meta = VARIANT_META[variant];
     const Icon = meta.icon;
 
-    const filtered = MOCK_REPORTS.filter((row) => {
-        switch (variant) {
-            case "SPAM":
-                return row.type === "Spam";
-            case "ABUSE":
-                return row.type === "Abuse";
-            case "POLICY":
-                return row.type === "Policy";
-            case "COMMUNITY":
-                return row.type === "Community";
-            default:
-                return true;
-        }
+    // Map frontend variants to backend schema categories
+    const categoryMap: Record<ReportsVariant, string> = {
+        SPAM: "SPAM",
+        ABUSE: "HARASSMENT",
+        POLICY: "INAPPROPRIATE",
+        COMMUNITY: "OTHER",
+    };
+
+    const reportsQuery = trpc.moderation.getReportQueue.useQuery({
+        limit: 50,
+        category: categoryMap[variant],
     });
+
+    const reports = reportsQuery.data ?? [];
 
     return (
         <div className="flex-1 flex flex-col bg-black text-[#E7E9EA] h-screen font-display overflow-hidden">
@@ -108,9 +109,12 @@ function ReportsView({ variant }: { readonly variant: ReportsVariant }) {
                     </div>
                     <p className="text-[13px] text-[#71767B] mt-0.5">{meta.subtitle}</p>
                 </div>
-                <span className="text-[12px] text-[#71767B]">
-                    {filtered.length} open items · mock data
-                </span>
+                <div className="flex items-center gap-4">
+                    {reportsQuery.isFetching && <span className="text-[12px] text-primary animate-pulse">Updating...</span>}
+                    <span className="text-[12px] text-[#71767B]">
+                        {reports.length} open items
+                    </span>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -118,22 +122,29 @@ function ReportsView({ variant }: { readonly variant: ReportsVariant }) {
                     <div className="grid grid-cols-12 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6B7280] border-b border-[#2F3336]">
                         <span className="col-span-5">Post</span>
                         <span className="col-span-2">Type</span>
-                        <span className="col-span-2">Reports</span>
+                        <span className="col-span-2">Priority</span>
                         <span className="col-span-2">Status</span>
-                        <span className="col-span-1 text-right">Reporter</span>
+                        <span className="col-span-1 text-right">Author</span>
                     </div>
                     <div className="divide-y divide-[#1F2937]">
-                        {filtered.map((row) => (
+                        {reportsQuery.isLoading ? (
+                            [1, 2, 3].map((i) => (
+                                <div key={i} className="px-4 py-6 border-b border-[#2F3336] animate-pulse">
+                                    <div className="h-4 bg-gray-700/50 rounded w-3/4 mb-2"></div>
+                                    <div className="h-3 bg-gray-700/50 rounded w-1/4"></div>
+                                </div>
+                            ))
+                        ) : reports.map((row: any) => (
                             <div
                                 key={row.id}
-                                className="grid grid-cols-12 px-4 py-3 text-[13px] hover:bg-[#111827]/80 transition-colors"
+                                className="grid grid-cols-12 px-4 py-3 text-[13px] hover:bg-[#111827]/80 transition-colors cursor-pointer group"
                             >
-                                <div className="col-span-5 pr-4 text-[#E5E7EB] truncate">
-                                    {row.postPreview}
+                                <div className="col-span-5 pr-4 text-[#E5E7EB] truncate group-hover:text-primary transition-colors">
+                                    {row.content || "No content preview"}
                                 </div>
-                                <div className="col-span-2 text-[#9CA3AF]">{row.type}</div>
+                                <div className="col-span-2 text-[#9CA3AF]">{row.category}</div>
                                 <div className="col-span-2 text-[#FBBF24] font-semibold">
-                                    {row.reportsCount} reports
+                                    P{row.priority}
                                 </div>
                                 <div className="col-span-2">
                                     {(() => {
@@ -155,14 +166,15 @@ function ReportsView({ variant }: { readonly variant: ReportsVariant }) {
                                         );
                                     })()}
                                 </div>
-                                <div className="col-span-1 text-right text-[#9CA3AF]">
-                                    {row.reporter}
+                                <div className="col-span-1 text-right text-[#9CA3AF] truncate">
+                                    @{row.authorName || "system"}
                                 </div>
                             </div>
                         ))}
-                        {filtered.length === 0 && (
-                            <div className="px-4 py-8 text-center text-[#6B7280] text-[13px]">
-                                No mock data for this category yet.
+                        {!reportsQuery.isLoading && reports.length === 0 && (
+                            <div className="px-4 py-12 text-center text-[#6B7280]">
+                                <Icon className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                                <p className="text-[13px] font-medium">Clear queue! No {meta.title.toLowerCase()} found.</p>
                             </div>
                         )}
                     </div>

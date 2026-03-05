@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
     Search, Filter, Download, MoreVertical, ShieldAlert,
     AlertTriangle, CheckCircle, X, Clock, MessageSquare, AlertCircle,
     UserX, Shield, Flag, User, FileText, ArrowUpRight, Activity, XCircle
 } from "lucide-react";
 import DataTable, { TableColumn, TableStyles } from "react-data-table-component";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 // ==========================================
-// 1. TYPES & MOCK DATA
+// 1. TYPES & SOURCE DATA
 // ==========================================
 
 type Severity = 'Low' | 'Medium' | 'High' | 'Critical';
@@ -18,7 +20,9 @@ type ContentType = 'User' | 'Post' | 'Comment';
 type Category = 'Spam' | 'Harassment' | 'Hate' | 'Violence' | 'NSFW' | 'Fraud' | 'Other';
 
 interface ReportData {
-    id: string;
+    id: string; // human-readable report id
+    reportId: string; // backend moderation_reports.id
+    queueId: string; // moderation_queue.id
     severity: Severity;
     contentType: ContentType;
     reportedEntityId: string;
@@ -32,64 +36,6 @@ interface ReportData {
     description: string;
     linkedContentStr: string;
 }
-
-const generateMockReports = (count: number): ReportData[] => {
-    const severities: Severity[] = ['Low', 'Low', 'Medium', 'High', 'Critical'];
-    const statuses: ReportStatus[] = ['Pending', 'Under Review', 'Resolved', 'Rejected'];
-    const types: ContentType[] = ['User', 'Post', 'Comment'];
-    const categories: Category[] = ['Spam', 'Harassment', 'Hate', 'Violence', 'NSFW', 'Fraud', 'Other'];
-    const assignees = ['Unassigned', 'Admin 1', 'Auto-System', 'Moderator A'];
-
-    return Array.from({ length: count }).map((_, i) => ({
-        id: `REP-${5000 + i}`,
-        severity: severities[Math.floor(Math.random() * severities.length)],
-        contentType: types[Math.floor(Math.random() * types.length)],
-        reportedEntityId: `ENT-${Math.floor(Math.random() * 10000)}`,
-        reportedEntityName: Math.random() > 0.5 ? `@user_${i}` : `Post snippet #${i}...`,
-        reporterCount: Math.floor(Math.random() * 100) + 1,
-        category: categories[Math.floor(Math.random() * categories.length)],
-        createdAt: new Date(Date.now() - Math.random() * 1000000000).toLocaleString(),
-        assignedTo: assignees[Math.floor(Math.random() * assignees.length)],
-        status: statuses[Math.floor(Math.random() * statuses.length)],
-        sla: `${Math.floor(Math.random() * 48) + 1}h ago`,
-        description: "User repeatedly bypassed word filters to attack other users in the thread. History of similar offenses.",
-        linkedContentStr: "https://example.com/posts/" + i
-    }));
-};
-
-const mockData: ReportData[] = [
-    {
-        id: "REP-9921",
-        severity: "Critical",
-        contentType: "Post",
-        reportedEntityId: "POST-1029",
-        reportedEntityName: "Coordinated Scam Campaign Link...",
-        reporterCount: 420,
-        category: "Fraud",
-        createdAt: "10 mins ago",
-        assignedTo: "Unassigned",
-        status: "Pending",
-        sla: "0.2h ago",
-        description: "Massive influx of spam reports indicating a phishing link targeting vulnerable users.",
-        linkedContentStr: "https://example.com/posts/1029"
-    },
-    {
-        id: "REP-9810",
-        severity: "High",
-        contentType: "User",
-        reportedEntityId: "USR-0045",
-        reportedEntityName: "@cryptoking123",
-        reporterCount: 15,
-        category: "Spam",
-        createdAt: "2 hours ago",
-        assignedTo: "Moderator A",
-        status: "Under Review",
-        sla: "2h ago",
-        description: "Bot-like behavior engaging in aggressive follow churn and irrelevant token shilling.",
-        linkedContentStr: "https://example.com/users/0045"
-    },
-    ...generateMockReports(58)
-];
 
 // ==========================================
 // 2. DESIGN TOKENS & STYLES (DevAtlas Dark)
@@ -240,11 +186,121 @@ const ContentTypeIcon = ({ type }: { type: ContentType }) => {
     );
 };
 
+// Map backend report category enum to UI label
+const mapBackendCategoryToUi = (category: string): Category => {
+    switch (category) {
+        case "SPAM":
+            return "Spam";
+        case "HARASSMENT":
+            return "Harassment";
+        case "HATE_SPEECH":
+            return "Hate";
+        case "INAPPROPRIATE":
+        case "CHILD_SAFETY":
+            return "NSFW";
+        default:
+            return "Other";
+    }
+};
+
+// Map UI category filter to backend enum
+const mapFilterCategoryToBackend = (category: string): string | undefined => {
+    switch (category) {
+        case "Spam":
+            return "SPAM";
+        case "Fraud":
+            return "OTHER";
+        case "Hate":
+            return "HATE_SPEECH";
+        case "Harassment":
+            return "HARASSMENT";
+        case "NSFW":
+            // NSFW groups multiple backend categories (INAPPROPRIATE, CHILD_SAFETY),
+            // so we fetch all categories from the backend and filter client-side.
+            return "INAPPROPRIATE, CHILD_SAFETY";
+        default:
+            return undefined;
+    }
+};
+
+// Derive severity from priority / reports count
+const computeSeverity = (priority: number, reports: number): Severity => {
+    const score = Math.max(priority || 0, reports || 0);
+    if (score >= 80) return "Critical";
+    if (score >= 60) return "High";
+    if (score >= 30) return "Medium";
+    return "Low";
+};
+
+const mapQueueItemToReport = (row: any): ReportData => {
+    const category = mapBackendCategoryToUi(row.category);
+    const severity = computeSeverity(row.priority ?? 0, row.reports ?? 0);
+    const reporterCount = row.reports ?? 1;
+    const createdAt = row.createdAt ? new Date(row.createdAt).toLocaleString() : "";
+    const sla = row.createdAt
+        ? (() => {
+              const diffMs = Date.now() - new Date(row.createdAt).getTime();
+              const diffH = Math.max(0, Math.round(diffMs / (1000 * 60 * 60)));
+              return `${diffH}h ago`;
+          })()
+        : "-";
+
+    const status: ReportStatus = row.status === "PENDING"
+        ? row.assignedToId
+            ? "Under Review"
+            : "Pending"
+        : row.status === "RESOLVED"
+        ? "Resolved"
+        : "Rejected";
+
+    const contentType: ContentType = row.postId
+        ? "Post"
+        : row.commentId
+        ? "Comment"
+        : "User";
+
+    const reportedEntityId = row.postId || row.commentId || row.targetUserId || row.reportId;
+    const reportedEntityName =
+        row.authorName ||
+        row.content?.slice(0, 40) ||
+        (contentType === "User" ? "@user" : "Reported content");
+
+    return {
+        id: row.reportId ?? row.id,
+        reportId: row.reportId ?? row.id,
+        queueId: row.id,
+        severity,
+        contentType,
+        reportedEntityId,
+        reportedEntityName,
+        reporterCount,
+        category,
+        createdAt,
+        assignedTo: row.assignedToId ?? "Unassigned",
+        status,
+        sla,
+        description: row.reason ?? "",
+        linkedContentStr: row.content || "",
+    };
+};
+
 // ==========================================
 // 4. DRAWER COMPONENT
 // ==========================================
 
-const InvestigationDrawer = ({ report, onClose }: { report: ReportData | null, onClose: () => void }) => {
+const InvestigationDrawer = ({
+    report,
+    onClose,
+    onReject,
+    onResolve,
+    onMarkUnderReview,
+}: {
+    report: ReportData | null;
+    onClose: () => void;
+    onReject: (report: ReportData) => void;
+    onResolve: (report: ReportData) => void;
+    onMarkUnderReview: (report: ReportData) => void;
+}) => {
     const [activeTab, setActiveTab] = useState<'Overview' | 'Content' | 'Insights' | 'History'>('Overview');
 
     if (!report) return null;
@@ -375,14 +431,23 @@ const InvestigationDrawer = ({ report, onClose }: { report: ReportData | null, o
 
                 {/* Footer Actions */}
                 <div className="p-4 border-t border-[#2F3336] bg-[#000000] shrink-0 grid grid-cols-2 gap-3">
-                    <button className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#333639] text-[#E7E9EA] border border-[#2F3336] rounded-xl text-[13px] font-bold transition-colors">
+                    <button
+                        className="flex items-center justify-center gap-2 py-2.5 bg-[#16181C] hover:bg-[#333639] text-[#E7E9EA] border border-[#2F3336] rounded-xl text-[13px] font-bold transition-colors"
+                        onClick={() => onReject(report)}
+                    >
                         <XCircle className="w-4 h-4" /> Reject Report
                     </button>
-                    <button className="flex items-center justify-center gap-2 py-2.5 bg-[#F91880] hover:bg-[#F91880]/80 text-white rounded-xl text-[13px] font-bold transition-colors shadow-[0_0_15px_rgba(249,24,128,0.3)]">
+                    <button
+                        className="flex items-center justify-center gap-2 py-2.5 bg-[#F91880] hover:bg-[#F91880]/80 text-white rounded-xl text-[13px] font-bold transition-colors shadow-[0_0_15px_rgba(249,24,128,0.3)]"
+                        onClick={() => onResolve(report)}
+                    >
                         <UserX className="w-4 h-4" /> Resolve & Remove
                     </button>
-                    {report.status !== 'Under Review' && (
-                        <button className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-[#1D9BF0]/10 hover:bg-[#1D9BF0]/20 text-[#1D9BF0] border border-[#1D9BF0]/30 rounded-xl text-[13px] font-bold transition-colors mt-1">
+                    {report.status !== "Under Review" && (
+                        <button
+                            className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-[#1D9BF0]/10 hover:bg-[#1D9BF0]/20 text-[#1D9BF0] border border-[#1D9BF0]/30 rounded-xl text-[13px] font-bold transition-colors mt-1"
+                            onClick={() => onMarkUnderReview(report)}
+                        >
                             <Clock className="w-4 h-4" /> Mark Under Review
                         </button>
                     )}
@@ -402,9 +467,35 @@ export default function ReportsManagementPage() {
     const [selectedReport, setSelectedReport] = useState<ReportData | null>(null);
     const [filterSeverity, setFilterSeverity] = useState<string>("All Severities");
     const [filterCategory, setFilterCategory] = useState<string>("All Categories");
+    const [reports, setReports] = useState<ReportData[]>([]);
+
+    const backendCategory = useMemo(
+        () => mapFilterCategoryToBackend(filterCategory),
+        [filterCategory],
+    );
+
+    const queueQuery = trpc.moderation.getReportQueue.useQuery(
+        {
+            limit: 60,
+            category: backendCategory,
+        },
+        {
+            refetchInterval: 60_000,
+        },
+    );
+
+    const resolveMutation = trpc.moderation.resolveReport.useMutation();
+    const assignTaskMutation = trpc.moderation.assignTask.useMutation();
+
+    useEffect(() => {
+        if (queueQuery.data) {
+            const mapped = (queueQuery.data as any[]).map(mapQueueItemToReport);
+            setReports(mapped);
+        }
+    }, [queueQuery.data]);
 
     const filteredData = useMemo(() => {
-        return mockData.filter(item => {
+        return reports.filter(item => {
             const matchesSearch =
                 item.id.toLowerCase().includes(filterText.toLowerCase()) ||
                 item.reportedEntityName.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -415,10 +506,114 @@ export default function ReportsManagementPage() {
 
             return matchesSearch && matchesSeverity && matchesCategory;
         });
-    }, [filterText, filterSeverity, filterCategory]);
+    }, [filterText, filterSeverity, filterCategory, reports]);
 
     const handleRowSelected = ({ selectedRows }: { selectedRows: ReportData[] }) => {
         setSelectedRows(selectedRows);
+    };
+
+    const handleReject = (report: ReportData) => {
+        resolveMutation.mutate(
+            {
+                reportId: report.reportId,
+                action: "APPROVE",
+                resolution: "Report rejected as not actionable from admin panel",
+            },
+            {
+                onSuccess: () => {
+                    toast.success("Report rejected");
+                    queueQuery.refetch();
+                    setSelectedReport(null);
+                },
+                onError: (err: any) => {
+                    toast.error(err?.message ?? "Failed to reject report");
+                },
+            },
+        );
+    };
+
+    const handleResolve = (report: ReportData) => {
+        resolveMutation.mutate(
+            {
+                reportId: report.reportId,
+                action: "SOFT_DELETE",
+                resolution: "Resolved and content removed from admin panel",
+            },
+            {
+                onSuccess: () => {
+                    toast.success("Report resolved and content removed");
+                    queueQuery.refetch();
+                    setSelectedReport(null);
+                },
+                onError: (err: any) => {
+                    toast.error(err?.message ?? "Failed to resolve report");
+                },
+            },
+        );
+    };
+
+    const handleMarkUnderReview = (report: ReportData) => {
+        assignTaskMutation.mutate(
+            { queueId: report.queueId },
+            {
+                onSuccess: () => {
+                    toast.success("Report marked as under review");
+                    queueQuery.refetch();
+                    setSelectedReport((prev) =>
+                        prev && prev.id === report.id ? { ...prev, status: "Under Review" } : prev,
+                    );
+                },
+                onError: (err: any) => {
+                    toast.error(err?.message ?? "Failed to mark report under review");
+                },
+            },
+        );
+    };
+
+    const exportCsv = () => {
+        const rows = filteredData;
+        if (!rows.length) {
+            toast.error("No reports to export");
+            return;
+        }
+        const headers = [
+            "id",
+            "severity",
+            "category",
+            "status",
+            "contentType",
+            "reportedEntityId",
+            "reportedEntityName",
+            "reporterCount",
+            "assignedTo",
+            "createdAt",
+            "sla",
+        ];
+        const csvRows = rows.map((r) =>
+            [
+                r.id,
+                r.severity,
+                r.category,
+                r.status,
+                r.contentType,
+                r.reportedEntityId,
+                r.reportedEntityName,
+                r.reporterCount,
+                r.assignedTo ?? "",
+                r.createdAt,
+                r.sla,
+            ]
+                .map((c) => `"${String(c).replaceAll('"', '""')}"`)
+                .join(","),
+        );
+        const csv = [headers.join(","), ...csvRows].join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `reports-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     const columns: TableColumn<ReportData>[] = [
@@ -538,7 +733,20 @@ export default function ReportsManagementPage() {
                         <ShieldAlert className="w-5 h-5 text-[#F91880]" />
                         Reports Triage Queue
                     </h1>
-                    <p className="text-[13px] text-[#71767B] mt-0.5">Prioritize, investigate, and resolve user-generated incident reports.</p>
+                    <p className="text-[13px] text-[#71767B] mt-0.5">
+                        Prioritize, investigate, and resolve user-generated incident reports.
+                    </p>
+                </div>
+                <div className="flex items-center gap-3">
+                    {queueQuery.isFetching && (
+                        <span className="text-[12px] text-[#1D9BF0] animate-pulse">Updating…</span>
+                    )}
+                    <button
+                        className="flex items-center gap-2 px-3 py-2 bg-[#16181C] border border-[#2F3336] rounded-full text-[13px] font-bold text-[#E7E9EA] hover:bg-[#2F3336] transition-colors"
+                        onClick={exportCsv}
+                    >
+                        <Download className="w-4 h-4 text-[#71767B]" /> Export CSV
+                    </button>
                 </div>
             </div>
 
@@ -601,6 +809,7 @@ export default function ReportsManagementPage() {
                     <DataTable
                         columns={columns}
                         data={filteredData}
+                        progressPending={queueQuery.isLoading}
                         pagination
                         paginationPerPage={15}
                         paginationRowsPerPageOptions={[15, 30, 50, 100]}
@@ -644,7 +853,13 @@ export default function ReportsManagementPage() {
             </div>
 
             {/* Slide-over Investigation Drawer */}
-            <InvestigationDrawer report={selectedReport} onClose={() => setSelectedReport(null)} />
+            <InvestigationDrawer
+                report={selectedReport}
+                onClose={() => setSelectedReport(null)}
+                onReject={handleReject}
+                onResolve={handleResolve}
+                onMarkUnderReview={handleMarkUnderReview}
+            />
         </div>
     );
 }

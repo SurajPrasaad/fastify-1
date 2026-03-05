@@ -51,6 +51,15 @@ export async function moderationRoutes(app: FastifyInstance) {
         // Queue statistics
         modRoutes.get('/stats', (req, res) => controller.getQueueStats(req as any, res));
 
+        // Priority distribution
+        modRoutes.get('/priority-distribution', (req, res) => controller.getPriorityDistribution(req as any, res));
+
+        // Recent Actions
+        modRoutes.get('/recent-actions', (req, res) => controller.getRecentActions(req as any, res));
+
+        // Moderator metrics
+        modRoutes.get('/metrics', (req, res) => controller.getModeratorMetrics(req as any, res));
+
         // Legacy report queue
         modRoutes.get('/reports/queue', (req, res) => controller.getQueue(req as any, res));
 
