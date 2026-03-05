@@ -71,6 +71,18 @@ export const moderationService = {
         return api.get("/moderation/stats");
     },
 
+    async getPriorityDistribution(): Promise<any> {
+        return api.get("/moderation/priority-distribution");
+    },
+
+    async getRecentActions(limit: number = 5): Promise<any> {
+        return api.get(`/moderation/recent-actions?limit=${limit}`);
+    },
+
+    async getModeratorMetrics(timeRangeHours: number = 24): Promise<any> {
+        return api.get(`/moderation/metrics?timeRangeHours=${timeRangeHours}`);
+    },
+
     // Actions
     async moderatePost(data: ModerationAction): Promise<any> {
         return api.post("/moderation/moderate", data);

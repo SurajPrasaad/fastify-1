@@ -99,6 +99,32 @@ export class ModerationController {
         return reply.send(stats);
     }
 
+    async getPriorityDistribution(
+        request: FastifyRequest,
+        reply: FastifyReply
+    ) {
+        const distribution = await this.service.getQueueDepthByPriority();
+        return reply.send(distribution);
+    }
+
+    async getRecentActions(
+        request: FastifyRequest<{ Querystring: { limit?: number } }>,
+        reply: FastifyReply
+    ) {
+        const user = request.user as { sub: string; id?: string };
+        const actions = await this.service.getRecentActions(user.sub || user.id!, request.query.limit);
+        return reply.send(actions);
+    }
+
+    async getModeratorMetrics(
+        request: FastifyRequest<{ Querystring: { timeRangeHours?: number } }>,
+        reply: FastifyReply
+    ) {
+        const user = request.user as { sub: string; id?: string };
+        const metrics = await this.service.getModeratorMetrics(user.sub || user.id!, request.query.timeRangeHours);
+        return reply.send(metrics);
+    }
+
     // ─── Legacy Endpoints ────────────────────────────────
 
     async getQueue(

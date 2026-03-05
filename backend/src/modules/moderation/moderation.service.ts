@@ -251,6 +251,10 @@ export class ModerationService {
         return this.repository.getModeratorMetrics(moderatorId, timeRangeHours);
     }
 
+    async getRecentActions(moderatorId: string, limit: number = 5) {
+        return this.repository.getRecentActions(moderatorId, limit);
+    }
+
     async getModerationSla(timeRangeHours: number = 24) {
         return this.repository.getModerationSlaMetrics(timeRangeHours);
     }

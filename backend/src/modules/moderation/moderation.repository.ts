@@ -290,6 +290,35 @@ export class ModerationRepository {
     }
 
     /**
+     * Get recent actions by a moderator.
+     */
+    async getRecentActions(moderatorId: string, limit: number = 5) {
+        const results = await db
+            .select({
+                id: moderationLogs.id,
+                action: moderationLogs.action,
+                reason: moderationLogs.reason,
+                createdAt: moderationLogs.createdAt,
+                post: {
+                    id: posts.id,
+                    content: posts.content,
+                },
+                author: {
+                    id: users.id,
+                    username: users.username,
+                }
+            })
+            .from(moderationLogs)
+            .leftJoin(posts, eq(moderationLogs.postId, posts.id))
+            .leftJoin(users, eq(posts.userId, users.id))
+            .where(eq(moderationLogs.moderatorId, moderatorId))
+            .orderBy(desc(moderationLogs.createdAt))
+            .limit(limit);
+
+        return results;
+    }
+
+    /**
      * Get moderation SLA metrics (average time from PENDING_REVIEW to decision).
      */
     async getModerationSlaMetrics(timeRangeHours: number = 24) {
