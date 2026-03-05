@@ -49,15 +49,15 @@ export class ModerationService {
      * Get posts pending moderation (primary queue view).
      * Uses database query with risk_score sorting + FIFO fallback.
      */
-    async getModerationQueue(limit: number = 20) {
-        return this.repository.getPendingPosts(limit);
+    async getModerationQueue(limit: number = 20, variant?: string) {
+        return this.repository.getPendingPosts(limit, variant);
     }
 
     /**
      * Get legacy report-based queue.
      */
-    async getReportQueue(limit: number = 20, moderatorId?: string) {
-        return this.repository.getReportQueue(limit, moderatorId);
+    async getReportQueue(limit: number = 20, moderatorId?: string, category?: string) {
+        return this.repository.getReportQueue(limit, moderatorId, category);
     }
 
     /**
@@ -106,6 +106,7 @@ export class ModerationService {
             "REMOVE": "REMOVE",
             "RESTORE": "RESTORE",
             "ESCALATE": "ESCALATE",
+            "FLAG": "FLAG",
         };
 
         const moderationAction = actionMap[action];
@@ -245,14 +246,18 @@ export class ModerationService {
         return this.repository.getPostModerationHistory(postId);
     }
 
+    async getPostReports(postId: string) {
+        return this.repository.getPostReports(postId);
+    }
+
     // ─── Moderator Metrics ───────────────────────────────
 
     async getModeratorMetrics(moderatorId: string, timeRangeHours: number = 24) {
         return this.repository.getModeratorMetrics(moderatorId, timeRangeHours);
     }
 
-    async getRecentActions(moderatorId: string, limit: number = 5) {
-        return this.repository.getRecentActions(moderatorId, limit);
+    async getRecentActions(moderatorId: string, limit: number = 5, offset: number = 0, action?: string) {
+        return this.repository.getRecentActions(moderatorId, limit, offset, action);
     }
 
     async getModerationSla(timeRangeHours: number = 24) {
@@ -302,6 +307,9 @@ export class ModerationService {
                 break;
             case "ESCALATE":
                 events.emitPostEscalated(postId, moderatorId, reason);
+                break;
+            case "FLAG":
+                // Internal flag - no public event
                 break;
         }
     }

@@ -35,7 +35,7 @@ export const createReportSchema = z.object({
 // ─── Moderation Action Schemas ───────────────────────────
 
 export const moderationActionEnum = z.enum([
-    "APPROVE", "REJECT", "REQUEST_REVISION", "REMOVE", "RESTORE", "ESCALATE"
+    "APPROVE", "REJECT", "REQUEST_REVISION", "REMOVE", "RESTORE", "ESCALATE", "FLAG"
 ]);
 
 export const moderatePostSchema = z.object({

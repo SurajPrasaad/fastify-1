@@ -13,6 +13,7 @@ import {
   Loader2,
   RefreshCw,
   Inbox,
+  AlertTriangle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type QueueVariant = "ALL" | "HIGH_RISK" | "LOW_RISK" | "AUTO_FLAGGED" | "USER_REPORTED" | "ESCALATED";
 
@@ -87,7 +95,7 @@ type QueueItem = {
   content: string;
   codeSnippet: string | null;
   language: string | null;
-  mediaUrls: unknown;
+  mediaUrls: string[];
   status: string;
   riskScore: number;
   createdAt: Date | string;
@@ -101,37 +109,49 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [justification, setJustification] = useState("");
   const [policyRef, setPolicyRef] = useState("");
-  const [confirmAction, setConfirmAction] = useState<{ postId: string; action: string } | null>(null);
+  const [reportCategory, setReportCategory] = useState<string>("SPAM");
+  const [confirmAction, setConfirmAction] = useState<{ postId: string; action: "APPROVE" | "REJECT" | "REQUEST_REVISION" | "ESCALATE" | "FLAG" | "REPORT" } | null>(null);
 
   const limit = 50;
-  const queueQuery = trpc.moderation.getQueue.useQuery({ limit }, { refetchInterval: autoRefresh ? 15_000 : false });
+  const queueQuery = trpc.moderation.getQueue.useQuery(
+    { limit, variant },
+    { refetchInterval: autoRefresh ? 15_000 : false }
+  );
   const statsQuery = trpc.moderation.getQueueStats.useQuery(undefined, { refetchInterval: autoRefresh ? 30_000 : false });
   const lockPost = trpc.moderation.lockPost.useMutation();
   const unlockPost = trpc.moderation.unlockPost.useMutation();
   const moderate = trpc.moderation.moderate.useMutation();
+  const bulkModerate = trpc.moderation.bulkModerate.useMutation();
+  const createReport = trpc.moderation.createReport.useMutation();
   const postHistory = trpc.moderation.getPostHistory.useQuery(
     { postId: selectedPost?.id ?? "" },
     { enabled: !!selectedPost?.id }
   );
+  const postReports = trpc.moderation.getPostReports.useQuery(
+    { postId: selectedPost?.id ?? "" },
+    { enabled: !!selectedPost?.id }
+  );
 
-  const queue = (queueQuery.data ?? []) as unknown as QueueItem[];
+  const filtered = (queueQuery.data ?? []) as unknown as QueueItem[];
   const stats = statsQuery.data;
-  const filtered = (() => {
-    switch (variant) {
-      case "HIGH_RISK":
-        return queue.filter((p) => p.riskScore >= 60);
-      case "LOW_RISK":
-        return queue.filter((p) => p.riskScore < 40);
-      case "AUTO_FLAGGED":
-        return queue.filter((p) => p.riskScore >= 70);
-      case "USER_REPORTED":
-        return queue.filter((p) => (p as QueueItem & { reportsCount?: number }).reportsCount > 0);
-      case "ESCALATED":
-        return queue.filter((p) => p.riskScore >= 80 && ((p as QueueItem & { reportsCount?: number }).reportsCount ?? 0) >= 2);
-      default:
-        return queue;
-    }
-  })();
+
+  const handleBulkAction = useCallback((action: "APPROVE" | "REJECT") => {
+    if (selectedIds.size === 0) return;
+    bulkModerate.mutate(
+      {
+        postIds: Array.from(selectedIds),
+        action,
+        reason: `Bulk ${action.toLowerCase()} by moderator`,
+      },
+      {
+        onSuccess: () => {
+          setSelectedIds(new Set());
+          queueQuery.refetch();
+          statsQuery.refetch();
+        },
+      }
+    );
+  }, [selectedIds, bulkModerate, queueQuery, statsQuery]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -162,11 +182,7 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
   }, [selectedPost?.id, unlockPost]);
 
   const handleModerate = useCallback(
-    (postId: string, action: "APPROVE" | "REJECT" | "REQUEST_REVISION" | "ESCALATE") => {
-      if (action === "APPROVE") {
-        setConfirmAction({ postId, action });
-        return;
-      }
+    (postId: string, action: "APPROVE" | "REJECT" | "REQUEST_REVISION" | "ESCALATE" | "FLAG" | "REPORT") => {
       setConfirmAction({ postId, action });
     },
     []
@@ -174,27 +190,47 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
 
   const submitDecision = useCallback(() => {
     if (!confirmAction) return;
-    const reason = justification.trim() || (confirmAction.action === "APPROVE" ? "Approved" : "");
-    if (confirmAction.action !== "APPROVE" && !reason) return;
+    const reason = justification.trim() || (confirmAction.action === "APPROVE" ? "Approved" : confirmAction.action === "FLAG" ? "Flagged for review" : "");
+    if (!["APPROVE", "FLAG", "REPORT"].includes(confirmAction.action) && !reason) return;
+
+    if (confirmAction.action === "REPORT") {
+      createReport.mutate(
+        {
+          postId: confirmAction.postId,
+          category: reportCategory as any,
+          reason: justification,
+        },
+        {
+          onSuccess: () => {
+            setConfirmAction(null);
+            setJustification("");
+            setPolicyRef("");
+            postReports.refetch();
+          },
+        }
+      );
+      return;
+    }
+
     moderate.mutate(
       {
         postId: confirmAction.postId,
-        action: confirmAction.action as "APPROVE" | "REJECT" | "REQUEST_REVISION" | "ESCALATE",
-        reason,
-        ...(policyRef.trim() ? { internalNote: `Policy: ${policyRef.trim()}` } : {}),
+        action: confirmAction.action as any,
+        reason: justification || (confirmAction.action === "APPROVE" ? "Approved by moderator" : ""),
+        internalNote: policyRef,
       },
       {
         onSuccess: () => {
           setConfirmAction(null);
           setJustification("");
           setPolicyRef("");
+          closeReview();
           queueQuery.refetch();
           statsQuery.refetch();
-          if (selectedPost?.id === confirmAction.postId) closeReview();
         },
       }
     );
-  }, [confirmAction, justification, policyRef, moderate, queueQuery, statsQuery, selectedPost?.id, closeReview]);
+  }, [confirmAction, justification, policyRef, moderate, queueQuery, statsQuery, selectedPost?.id, closeReview, createReport, reportCategory, postReports]);
 
   const isHighRisk = (p: QueueItem) => p.riskScore >= 80;
   const reportsCount = (p: QueueItem) => (p as QueueItem & { reportsCount?: number }).reportsCount ?? 0;
@@ -285,15 +321,31 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
                     <td className="p-2">
                       <button
                         type="button"
-                        className="text-left font-medium text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="text-left flex items-start gap-2 focus:outline-none group"
                         onClick={() => openReview(post)}
                       >
-                        {post.content.slice(0, 80)}
-                        {post.content.length > 80 ? "…" : ""}
+                        {reportsCount(post) > 0 && (
+                          <div className="mt-1 shrink-0">
+                            <div className="flex h-5 w-5 items-center justify-center rounded bg-mod-rejected/10 text-mod-rejected">
+                              <Flag className="h-3 w-3 fill-current" />
+                            </div>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-semibold text-primary group-hover:underline block truncate max-w-[400px]">
+                            {post.content.slice(0, 100)}
+                            {post.content.length > 100 ? "…" : ""}
+                          </span>
+                          {reportsCount(post) > 0 && (
+                            <span className="text-[10px] uppercase font-bold text-mod-rejected tracking-wider">
+                              Flagged by community
+                            </span>
+                          )}
+                        </div>
                       </button>
                     </td>
                     <td className="p-2 text-muted-foreground">
-                      <span className="truncate block">@{post.author?.username ?? "—"}</span>
+                      <span className="truncate block font-medium">@{post.author?.username ?? "—"}</span>
                     </td>
                     <td className="p-2">
                       <RiskBadge score={post.riskScore} />
@@ -309,9 +361,33 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
                       )}
                     </td>
                     <td className="p-2">
-                      <div className="flex flex-wrap gap-1">
-                        <Button size="sm" variant="outline" className="text-mod-approved hover:bg-mod-approved/10" onClick={() => openReview(post)}>
-                          Review
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-mod-approved hover:bg-mod-approved/10 hover:text-mod-approved"
+                          onClick={() => handleModerate(post.id, "APPROVE")}
+                          title="Quick Approve"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-mod-rejected hover:bg-mod-rejected/10 hover:text-mod-rejected"
+                          onClick={() => handleModerate(post.id, "REJECT")}
+                          title="Quick Reject"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                        <div className="h-4 w-px bg-border mx-1" />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2 text-[#71767B] hover:bg-muted font-bold text-xs"
+                          onClick={() => openReview(post)}
+                        >
+                          Details
                         </Button>
                       </div>
                     </td>
@@ -323,6 +399,56 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
         )}
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-[calc(50%+130px)] -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-6 bg-[#16181C] border border-[#2F3336] rounded-full px-6 py-3 shadow-2xl shadow-black/50 overflow-hidden">
+            <div className="flex items-center gap-2">
+              <div className="flex h-5 w-5 items-center justify-center rounded bg-primary text-[10px] font-bold text-white">
+                {selectedIds.size}
+              </div>
+              <span className="text-sm font-semibold text-[#E7E9EA]">
+                {selectedIds.size === 1 ? "Item" : "Items"} Selected
+              </span>
+            </div>
+
+            <div className="h-4 w-px bg-[#2F3336]" />
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-[#71767B] hover:text-[#E7E9EA] hover:bg-[#2F3336]"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-mod-approved/10 text-mod-approved hover:bg-mod-approved/20 border border-mod-approved/20"
+                onClick={() => handleBulkAction("APPROVE")}
+                disabled={bulkModerate.isPending}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+              </Button>
+              <Button
+                size="sm"
+                className="bg-mod-rejected/10 text-mod-rejected hover:bg-mod-rejected/20 border border-mod-rejected/20"
+                onClick={() => handleBulkAction("REJECT")}
+                disabled={bulkModerate.isPending}
+              >
+                <XCircle className="mr-2 h-4 w-4" /> Reject
+              </Button>
+            </div>
+
+            {bulkModerate.isPending && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[1px]">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* Review panel (right drawer) */}
       <Sheet open={!!selectedPost} onOpenChange={(open) => !open && closeReview()}>
         <SheetContent side="right" className="flex flex-col w-full max-w-xl sm:max-w-xl">
@@ -349,19 +475,53 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
                   </div>
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{selectedPost.author?.name ?? selectedPost.author?.username}</span>
+                    <span className="font-bold text-[#E7E9EA]">{selectedPost.author?.name ?? selectedPost.author?.username}</span>
+                    <div className="h-4 w-px bg-[#2F3336]" />
                     <RiskBadge score={selectedPost.riskScore} />
                   </div>
-                  {postHistory.data && postHistory.data.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Moderation history</p>
-                      <ul className="mt-1 space-y-1 text-xs">
-                        {postHistory.data.slice(0, 5).map((entry: { action: string; reason: string | null; createdAt: string }) => (
-                          <li key={entry.createdAt}>
-                            {entry.action} — {(entry.reason ?? "").slice(0, 40)}…
-                          </li>
+
+                  {postReports.data && postReports.data.length > 0 && (
+                    <div className="rounded-xl border border-mod-rejected/20 bg-mod-rejected/5 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-mod-rejected">
+                        <Flag className="h-4 w-4" />
+                        <p className="text-sm font-bold uppercase tracking-wide">Community Reports ({postReports.data.length})</p>
+                      </div>
+                      <div className="space-y-3">
+                        {postReports.data.map((report: any) => (
+                          <div key={report.id} className="text-xs border-l-2 border-mod-rejected/30 pl-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-[#E7E9EA] bg-[#2F3336] px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                                {report.category}
+                              </span>
+                              <span className="text-[#71767B]">{formatTimeAgo(report.createdAt)}</span>
+                            </div>
+                            <p className="text-[#E7E9EA]/80 italic">"{report.reason}"</p>
+                            <p className="mt-1 text-[#71767B]">by @{report.reporter?.username || "anonymous"}</p>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {postHistory.data && postHistory.data.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-xs font-bold text-[#71767B] mb-2 uppercase tracking-widest">Moderation history</p>
+                      <div className="space-y-2">
+                        {postHistory.data.slice(0, 3).map((entry: any) => (
+                          <div key={entry.createdAt} className="text-[11px] flex gap-2 items-start">
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded font-bold uppercase",
+                              entry.action === "APPROVE" ? "bg-mod-approved/10 text-mod-approved" : "bg-mod-rejected/10 text-mod-rejected"
+                            )}>
+                              {entry.action}
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-[#E7E9EA] opacity-70 line-clamp-1">{entry.reason}</p>
+                              <span className="text-[#71767B]">{formatTimeAgo(entry.createdAt)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -421,6 +581,22 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
                   >
                     <ArrowUpRight className="h-4 w-4" /> Escalate
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="bg-mod-rejected/10 text-mod-rejected hover:bg-mod-rejected/20"
+                    onClick={() => handleModerate(selectedPost.id, "FLAG")}
+                    disabled={moderate.isPending}
+                  >
+                    <Flag className="h-4 w-4" /> Flag
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="bg-[#2F3336] text-[#E7E9EA] hover:bg-[#3E4144]"
+                    onClick={() => handleModerate(selectedPost.id, "REPORT")}
+                    disabled={createReport.isPending}
+                  >
+                    <AlertTriangle className="h-4 w-4 text-mod-warning" /> Report
+                  </Button>
                 </SheetFooter>
               </div>
             </>
@@ -439,16 +615,40 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
                   ? "Reject content?"
                   : confirmAction?.action === "REQUEST_REVISION"
                     ? "Request revision?"
-                    : "Escalate?"}
+                    : confirmAction?.action === "FLAG"
+                      ? "Flag content?"
+                      : confirmAction?.action === "REPORT"
+                        ? "Report content?"
+                        : "Escalate?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmAction?.action !== "APPROVE" && "Provide a justification. This may be visible to the author."}
+              {confirmAction?.action !== "APPROVE" && confirmAction?.action !== "FLAG" && "Provide a justification. This may be visible to the author."}
               {confirmAction?.action === "APPROVE" && "This will publish the content to the feed."}
+              {confirmAction?.action === "FLAG" && "This marks the post as flagged for internal review."}
+              {confirmAction?.action === "REPORT" && "Submit a formal report for this content."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {(confirmAction?.action === "REJECT" || confirmAction?.action === "REQUEST_REVISION" || confirmAction?.action === "ESCALATE") && (
+          {confirmAction?.action === "REPORT" && (
             <div className="py-2">
-              <Label>Justification</Label>
+              <Label>Report Category</Label>
+              <Select value={reportCategory} onValueChange={setReportCategory}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SPAM">Spam</SelectItem>
+                  <SelectItem value="HARASSMENT">Harassment</SelectItem>
+                  <SelectItem value="HATE_SPEECH">Hate Speech</SelectItem>
+                  <SelectItem value="INAPPROPRIATE">Inappropriate</SelectItem>
+                  <SelectItem value="CHILD_SAFETY">Child Safety</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {(confirmAction?.action === "REJECT" || confirmAction?.action === "REQUEST_REVISION" || confirmAction?.action === "ESCALATE" || confirmAction?.action === "FLAG" || confirmAction?.action === "REPORT") && (
+            <div className="py-2">
+              <Label>{confirmAction?.action === "FLAG" ? "Internal Note" : "Justification"}</Label>
               <Textarea
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
@@ -463,10 +663,11 @@ export function ModerationQueueWorkspace({ variant }: { variant: QueueVariant })
               onClick={submitDecision}
               disabled={
                 moderate.isPending ||
-                (confirmAction?.action !== "APPROVE" && !justification.trim())
+                createReport.isPending ||
+                (["REJECT", "REQUEST_REVISION", "ESCALATE", "REPORT"].includes(confirmAction?.action || "") && !justification.trim())
               }
             >
-              {moderate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
+              {(moderate.isPending || createReport.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
