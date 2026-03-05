@@ -8,6 +8,7 @@ import {
     ChevronDown, Filter, X, ArrowUpRight, Server,
     AlertCircle, CheckCircle2, ShieldCheck, Database
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 // ==========================================
 // 1. TYPES & CONSTANTS
@@ -15,7 +16,7 @@ import {
 
 type DateRange = "24h" | "7d" | "30d" | "90d";
 
-const KPI_DATA = {
+const KPI_FALLBACK = {
     totalUsers: { value: "142.5M", change: "+4.2%", isPositive: true },
     dau: { value: "48.2M", change: "+1.8%", isPositive: true },
     mau: { value: "98.4M", change: "+2.4%", isPositive: true },
@@ -23,7 +24,15 @@ const KPI_DATA = {
     reports: { value: "34,210", change: "-5.2%", isPositive: true },
     sla: { value: "99.8%", change: "+0.2%", isPositive: true },
     api: { value: "4.2B", change: "+12.4%", isPositive: true },
-    uptime: { value: "99.99%", change: "0.00%", isPositive: true }
+    uptime: { value: "99.99%", change: "0.00%", isPositive: true },
+};
+
+const formatCompactNumber = (value: number) => {
+    if (!Number.isFinite(value)) return "0";
+    return new Intl.NumberFormat("en", {
+        notation: "compact",
+        maximumFractionDigits: 1,
+    }).format(value);
 };
 
 // ==========================================
@@ -94,100 +103,259 @@ const DrilldownDrawer = ({ isOpen, onClose, title }: { isOpen: boolean, onClose:
 // ==========================================
 
 const commonChartConfig = {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent", 
     tooltip: {
-        trigger: 'axis',
-        backgroundColor: '#16181C',
-        borderColor: '#2F3336',
-        textStyle: { color: '#E7E9EA', fontSize: 13, fontFamily: 'inherit' },
-        axisPointer: { type: 'shadow' }
+        trigger: "axis",
+        backgroundColor: "#16181C",
+        borderColor: "#2F3336",
+        textStyle: { color: "#E7E9EA", fontSize: 13, fontFamily: "inherit" },
+        axisPointer: { type: "shadow" },
     },
     grid: { top: 30, right: 10, bottom: 20, left: 40, containLabel: false },
     xAxis: {
-        type: 'category',
-        axisLine: { lineStyle: { color: '#2F3336' } },
+            type: "category",
+        axisLine: { lineStyle: { color: "#2F3336" } },
         axisTick: { show: false },
-        axisLabel: { color: '#71767B', fontSize: 11, fontFamily: 'inherit', margin: 12 },
+        axisLabel: { color: "#71767B", fontSize: 11, fontFamily: "inherit", margin: 12 },
     },
     yAxis: {
-        type: 'value',
-        splitLine: { lineStyle: { color: '#2F3336', type: 'dashed' } },
-        axisLabel: { color: '#71767B', fontSize: 11, fontFamily: 'inherit', formatter: (value: number) => value >= 1000 ? (value / 1000) + 'k' : value }
-    }
+            type: "value",
+            splitLine: { lineStyle: { color: "#2F3336", type: "dashed" } }, 
+        axisLabel: {
+            color: "#71767B",
+            fontSize: 11,
+            fontFamily: "inherit",
+            formatter: (value: number) => (value >= 1000 ? value / 1000 + "k" : value),
+        },
+    },
 };
 
-const dauMauConfig = {
+const buildDauMauConfig = (labels: string[], dauValues: number[], mauValues: number[]) => ({
     ...commonChartConfig,
     title: { show: false },
-    legend: { show: false }, // Handled by custom UI
-    xAxis: { ...commonChartConfig.xAxis, data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] },
+    legend: { show: false },
+    xAxis: { ...commonChartConfig.xAxis, data: labels.length ? labels : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
     series: [
         {
-            name: 'DAU', type: 'line', smooth: true, symbolSize: 6,
-            itemStyle: { color: '#1D9BF0' }, lineStyle: { width: 3 },
+            name: "DAU",
+            type: "line",
+            smooth: true,
+            symbolSize: 6,
+            itemStyle: { color: "#1D9BF0" },
+            lineStyle: { width: 3 },
             areaStyle: {
-                color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29, 155, 240, 0.2)' }, { offset: 1, color: 'rgba(29, 155, 240, 0)' }] }
+                color: {
+                    type: "linear",
+                    x: 0,
+                    y: 0,
+                    x2: 0,
+                    y2: 1,
+                    colorStops: [
+                        { offset: 0, color: "rgba(29, 155, 240, 0.2)" },
+                        { offset: 1, color: "rgba(29, 155, 240, 0)" },
+                    ],
+                },
             },
-            data: [42000, 45000, 48200, 47000, 52000, 58000, 56000]
+            data: dauValues.length ? dauValues : [42000, 45000, 48200, 47000, 52000, 58000, 56000],
         },
         {
-            name: 'MAU', type: 'line', smooth: true, symbolSize: 6,
-            itemStyle: { color: '#8247E5' }, lineStyle: { width: 3 },
-            data: [96000, 96500, 97000, 97500, 98000, 98400, 98400]
-        }
-    ]
-};
+            name: "MAU",
+            type: "line",
+            smooth: true,
+            symbolSize: 6,
+            itemStyle: { color: "#8247E5" },
+            lineStyle: { width: 3 },
+            data: mauValues.length ? mauValues : [96000, 96500, 97000, 97500, 98000, 98400, 98400],
+        },
+    ],
+});
 
-const engagementBarConfig = {
+const buildEngagementBarConfig = (values: { likes: number; comments: number; reposts: number }) => ({
     ...commonChartConfig,
     grid: { top: 30, right: 10, bottom: 20, left: 10, containLabel: true },
-    xAxis: { ...commonChartConfig.xAxis, data: ['Likes', 'Comments', 'Shares', 'Saves'] },
-    series: [{
-        type: 'bar', barWidth: '40%',
-        itemStyle: { borderRadius: [4, 4, 0, 0] },
-        data: [
-            { value: 85000, itemStyle: { color: '#F91880' } },
-            { value: 42000, itemStyle: { color: '#1D9BF0' } },
-            { value: 18000, itemStyle: { color: '#00BA7C' } },
-            { value: 12000, itemStyle: { color: '#FFD400' } }
-        ]
-    }]
-};
+    xAxis: { ...commonChartConfig.xAxis, data: ["Likes", "Comments", "Shares", "Saves"] },
+    series: [
+        {
+            type: "bar",
+            barWidth: "40%",
+            itemStyle: { borderRadius: [4, 4, 0, 0] },
+            data: [
+                { value: values.likes || 85000, itemStyle: { color: "#F91880" } },
+                { value: values.comments || 42000, itemStyle: { color: "#1D9BF0" } },
+                { value: values.reposts || 18000, itemStyle: { color: "#00BA7C" } },
+                { value: 12000, itemStyle: { color: "#FFD400" } },
+            ],
+        },
+    ],
+});
 
-const reportsDonutConfig = {
-    backgroundColor: 'transparent',
-    tooltip: { trigger: 'item', backgroundColor: '#16181C', borderColor: '#2F3336', textStyle: { color: '#E7E9EA', fontSize: 13 } },
+const buildReportsDonutConfig = (
+    categories: Array<{ name: string; value: number; color: string }>,
+) => ({
+    backgroundColor: "transparent",
+    tooltip: {
+        trigger: "item",
+        backgroundColor: "#16181C",
+        borderColor: "#2F3336",
+        textStyle: { color: "#E7E9EA", fontSize: 13 },
+    },
     legend: { show: false },
-    series: [{
-        name: 'Reports',
-        type: 'pie',
-        radius: ['55%', '85%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderColor: '#000000', borderWidth: 2 },
-        label: { show: false },
-        data: [
-            { value: 45, name: 'Spam', itemStyle: { color: '#71767B' } },
-            { value: 30, name: 'Harassment', itemStyle: { color: '#FFD400' } },
-            { value: 15, name: 'Hate Speech', itemStyle: { color: '#F91880' } },
-            { value: 10, name: 'NSFW', itemStyle: { color: '#8247E5' } }
-        ]
-    }]
-};
+    series: [
+        {
+            name: "Reports",
+            type: "pie",
+            radius: ["55%", "85%"],
+            avoidLabelOverlap: false,
+            itemStyle: { borderColor: "#000000", borderWidth: 2 },
+            label: { show: false },
+            data:
+                categories.length > 0
+                    ? categories
+                    : [
+                          { value: 45, name: "Spam", itemStyle: { color: "#7176B" } },
+                          { value: 30, name: "Harassment", itemStyle: { color: "#FFD400" } },
+                          { value: 15, name: "Hate Speech", itemStyle: { color: "#F91880" } },
+                          { value: 10, name: "NSFW", itemStyle: { color: "#8247E5" } },
+                          { value: 10, name: "Other", itemStyle: { color: "#1D9BF0" } },
+                      ],
+        },
+    ],
+});
 
 // ==========================================
 // 4. MAIN PAGE
 // ==========================================
+
+const dateRangeToHours = (range: DateRange): number => {
+    switch (range) {
+        case "24h":
+            return 24;
+        case "7d":
+            return 24 * 7;
+        case "30d":
+            return 24 * 30;
+        case "90d":
+            return 24 * 90;
+    }
+};
 
 export default function AdminDashboardPage() {
     const [dateRange, setDateRange] = useState<DateRange>("24h");
     const [drilldown, setDrilldown] = useState<string | null>(null);
     const [time, setTime] = useState("");
 
+    const statsQuery = trpc.admin.getStats.useQuery({
+        timeRangeHours: dateRangeToHours(dateRange),
+    }, {
+        refetchInterval: 60_000,
+    });
+    const stats = statsQuery.data as
+        | {
+              kpis: {
+                  totalUsers: number;
+                  dau: number; 
+                  mau: number;
+                  newSignups24h: number;
+                  activeReports: number;
+                  apiRequests24h: number;
+                  slaCompliance: number;
+                  uptimePercent: number;
+              };
+              audienceGrowth: Array<{ date: string; activeUsers: number; newUsers: number }>;
+              engagement: { likes: number; comments: number; reposts: number };
+              reportCategories: Array<{ category: string; count: number }>;
+              platformHealth: { queueSize: number; queueStatus: "HEALTHY" | "ELEVATED" | "CRITICAL" };
+          }
+        | undefined;
+
     useEffect(() => {
         setTime(new Date().toLocaleTimeString());
         const timer = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
         return () => clearInterval(timer);
     }, []);
+
+    const kpis = useMemo(() => {
+        if (!stats) return KPI_FALLBACK;
+
+        const { kpis } = stats;
+
+        return {
+            totalUsers: {
+                ...KPI_FALLBACK.totalUsers,
+                value: formatCompactNumber(kpis.totalUsers),
+            },
+            mau: {
+                ...KPI_FALLBACK.mau,
+                value: formatCompactNumber(kpis.mau),
+            },
+            dau: {
+                ...KPI_FALLBACK.dau,
+                value: formatCompactNumber(kpis.dau),
+            },
+            signups: {
+                ...KPI_FALLBACK.signups,
+                value: formatCompactNumber(kpis.newSignups24h),
+            },
+            reports: {
+                ...KPI_FALLBACK.reports,
+                value: formatCompactNumber(kpis.activeReports),
+            },
+            sla: {
+                ...KPI_FALLBACK.sla,
+                value: `${kpis.slaCompliance.toFixed(1)}%`,
+            },
+            api: {
+                ...KPI_FALLBACK.api,
+                value: formatCompactNumber(kpis.apiRequests24h),
+            },
+            uptime: {
+                ...KPI_FALLBACK.uptime,
+                value: `${kpis.uptimePercent.toFixed(2)}%`,
+            },
+        };
+    }, [stats]);
+
+    const audienceLabels = useMemo(
+        () => stats?.audienceGrowth.map((p) => p.date.slice(5)) ?? [],
+        [stats?.audienceGrowth],
+    );
+    const audienceDau = useMemo(
+        () => stats?.audienceGrowth.map((p) => p.activeUsers) ?? [],
+        [stats?.audienceGrowth],
+    );
+    const audienceMau = useMemo(
+        () => stats?.audienceGrowth.map((p) => p.newUsers) ?? [],
+        [stats?.audienceGrowth],
+    );
+
+    const dauMauOption = useMemo(
+        () => buildDauMauConfig(audienceLabels, audienceDau, audienceMau),
+        [audienceLabels, audienceDau, audienceMau],
+    );
+
+    const engagementBarOption = useMemo(
+        () => buildEngagementBarConfig(stats?.engagement ?? { likes: 0, comments: 0, reposts: 0 }),
+        [stats?.engagement],
+    );
+
+    const reportCategoryOption = useMemo(
+        () =>
+            buildReportsDonutConfig(
+                (stats?.reportCategories ?? []).map((c) => ({
+                    name: c.category,
+                    value: c.count,
+                    color:
+                        c.category === "SPAM"
+                            ? "#71767B"
+                            : c.category === "HARASSMENT"
+                            ? "#FFD400"
+                            : c.category === "HATE_SPEECH"
+                            ? "#F91880"
+                            : "#8247E5",
+                })),
+            ),
+        [stats?.reportCategories],
+    );
 
     return (
         <div className="flex-1 flex flex-col relative overflow-hidden bg-[#000000] text-[#E7E9EA] h-[100vh] font-display">
@@ -234,14 +402,14 @@ export default function AdminDashboardPage() {
 
                 {/* 1. EXECUTIVE KPIs (8 cards) */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                    <KpiCard title="Total Users" value={KPI_DATA.totalUsers.value} change={KPI_DATA.totalUsers.change} isPositive={true} icon={Users} colorClass="text-[#1D9BF0]" onClick={() => setDrilldown("Total Users")} />
-                    <KpiCard title="Monthly Active (MAU)" value={KPI_DATA.mau.value} change={KPI_DATA.mau.change} isPositive={true} icon={Activity} colorClass="text-[#8247E5]" onClick={() => setDrilldown("MAU")} />
-                    <KpiCard title="Daily Active (DAU)" value={KPI_DATA.dau.value} change={KPI_DATA.dau.change} isPositive={true} icon={Activity} colorClass="text-[#1D9BF0]" onClick={() => setDrilldown("DAU")} />
-                    <KpiCard title="New Signups" value={KPI_DATA.signups.value} change={KPI_DATA.signups.change} isPositive={true} icon={Users} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("Signups")} />
-                    <KpiCard title="Active Reports" value={KPI_DATA.reports.value} change={KPI_DATA.reports.change} isPositive={true} icon={ShieldAlert} colorClass="text-[#FFD400]" onClick={() => setDrilldown("Reports")} />
-                    <KpiCard title="Mod SLA Compliance" value={KPI_DATA.sla.value} change={KPI_DATA.sla.change} isPositive={true} icon={ShieldCheck} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("SLA Compliance")} />
-                    <KpiCard title="API Requests" value={KPI_DATA.api.value} change={KPI_DATA.api.change} isPositive={true} icon={Server} colorClass="text-[#71767B]" onClick={() => setDrilldown("API Requests")} />
-                    <KpiCard title="System Uptime" value={KPI_DATA.uptime.value} change={KPI_DATA.uptime.change} isPositive={true} icon={CheckCircle2} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("Uptime")} />
+                    <KpiCard title="Total Users" value={kpis.totalUsers.value} change={kpis.totalUsers.change} isPositive={true} icon={Users} colorClass="text-[#1D9BF0]" onClick={() => setDrilldown("Total Users")} />
+                    <KpiCard title="Monthly Active (MAU)" value={kpis.mau.value} change={kpis.mau.change} isPositive={true} icon={Activity} colorClass="text-[#8247E5]" onClick={() => setDrilldown("MAU")} />
+                    <KpiCard title="Daily Active (DAU)" value={kpis.dau.value} change={kpis.dau.change} isPositive={true} icon={Activity} colorClass="text-[#1D9BF0]" onClick={() => setDrilldown("DAU")} />
+                    <KpiCard title="New Signups" value={kpis.signups.value} change={kpis.signups.change} isPositive={true} icon={Users} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("Signups")} />
+                    <KpiCard title="Active Reports" value={kpis.reports.value} change={kpis.reports.change} isPositive={true} icon={ShieldAlert} colorClass="text-[#FFD400]" onClick={() => setDrilldown("Reports")} />
+                    <KpiCard title="Mod SLA Compliance" value={kpis.sla.value} change={kpis.sla.change} isPositive={true} icon={ShieldCheck} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("SLA Compliance")} />
+                    <KpiCard title="API Requests" value={kpis.api.value} change={kpis.api.change} isPositive={true} icon={Server} colorClass="text-[#71767B]" onClick={() => setDrilldown("API Requests")} />
+                    <KpiCard title="System Uptime" value={kpis.uptime.value} change={kpis.uptime.change} isPositive={true} icon={CheckCircle2} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("Uptime")} />
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -260,7 +428,7 @@ export default function AdminDashboardPage() {
                             </div>
                         </div>
                         <div className="flex-1 w-full relative">
-                            <ReactECharts option={dauMauConfig} style={{ height: '100%', width: '100%', position: 'absolute' }} />
+                            <ReactECharts option={dauMauOption} style={{ height: '100%', width: '100%', position: 'absolute' }} />
                         </div>
                     </div>
 
@@ -272,7 +440,7 @@ export default function AdminDashboardPage() {
                                 <button className="text-[#71767B] hover:text-[#E7E9EA]" onClick={() => setDrilldown("Engagement")}><ArrowUpRight className="w-4 h-4" /></button>
                             </div>
                             <div className="flex-1 w-full relative">
-                                <ReactECharts option={engagementBarConfig} style={{ height: '100%', width: '100%', position: 'absolute' }} />
+                                <ReactECharts option={engagementBarOption} style={{ height: '100%', width: '100%', position: 'absolute' }} />
                             </div>
                         </div>
 
@@ -288,7 +456,7 @@ export default function AdminDashboardPage() {
                                 </div>
                             </div>
                             <div className="w-[140px] h-[140px] relative">
-                                <ReactECharts option={reportsDonutConfig} style={{ height: '100%', width: '100%', position: 'absolute' }} />
+                                <ReactECharts option={reportCategoryOption} style={{ height: '100%', width: '100%', position: 'absolute' }} />
                                 {/* Center number */}
                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                     <span className="text-[20px] font-bold text-[#E7E9EA]">34k</span>

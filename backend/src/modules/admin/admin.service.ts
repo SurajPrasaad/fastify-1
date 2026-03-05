@@ -15,7 +15,7 @@ import { hasMinimumRole, type UserRole } from "../../middleware/rbac.js";
 import * as events from "../moderation/moderation.events.js";
 import { AppError } from "../../utils/AppError.js";
 import { db } from "../../config/drizzle.js";
-import { users } from "../../db/schema.js";
+import { users, sessions } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 
 const postRepo = new PostRepository();
@@ -69,8 +69,8 @@ export class AdminService {
         return await this.repository.bulkAction(postIds, action, adminId, reason);
     }
 
-    async getDashboardStats() {
-        return await this.repository.getPostStatsByRegion();
+    async getDashboardStats(timeRangeHours?: number) {
+        return await this.repository.getDashboardStats(timeRangeHours);
     }
 
     // ─── User Management ─────────────────────────────────
@@ -205,5 +205,46 @@ export class AdminService {
         events.emitUserRoleChanged(userId, adminId, oldRole, newRole, reason);
 
         return { success: true, userId, oldRole, newRole };
+    }
+
+    /**
+     * Ban a user account. Sets status to DELETED and revokes all active sessions.
+     * This is intended to be a hard block – the user cannot log in again unless
+     * an administrator manually restores their account in the database.
+     */
+    async banUser(userId: string, adminId: string, reason: string) {
+        const [targetUser] = await db
+            .select({ status: users.status })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+
+        if (!targetUser) {
+            throw new AppError("User not found", 404);
+        }
+
+        if (targetUser.status === "DELETED") {
+            throw new AppError("User is already banned", 400);
+        }
+
+        await db.transaction(async (tx) => {
+            await tx
+                .update(users)
+                .set({ status: "DELETED", updatedAt: new Date() })
+                .where(eq(users.id, userId));
+
+            await tx
+                .update(sessions)
+                .set({ isValid: false })
+                .where(eq(sessions.userId, userId));
+
+            await auditService.logFromRequest(adminId, "USER_BAN", "USER", userId, {
+                reason,
+                previousState: { status: targetUser.status },
+                newState: { status: "DELETED" },
+            });
+        });
+
+        return { success: true, userId, newStatus: "DELETED" as const };
     }
 }

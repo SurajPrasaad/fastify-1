@@ -9,7 +9,7 @@
 
 import { router, protectedProcedure, moderatorProcedure, adminProcedure } from "../trpc.js";
 import { z } from "zod";
-import { createReportSchema, moderatePostSchema } from "../../modules/moderation/moderation.schema.js";
+import { createReportSchema, moderatePostSchema, resolveReportSchema } from "../../modules/moderation/moderation.schema.js";
 import { ModerationService } from "../../modules/moderation/moderation.service.js";
 import type { UserRole } from "../../middleware/rbac.js";
 
@@ -184,5 +184,19 @@ export const moderationRouter = router({
         .input(z.object({ queueId: z.string() }))
         .mutation(async ({ input, ctx }) => {
             return await service.assignTask(input.queueId, ctx.user.id);
+        }),
+
+    resolveReport: moderatorProcedure
+        .input(resolveReportSchema)
+        .mutation(async ({ input, ctx }) => {
+            return await service.resolveReport(
+                { ...input, resolvedById: ctx.user.id },
+                {
+                    previousState: undefined,
+                    newState: undefined,
+                    ipAddress: ctx.req.ip,
+                    userAgent: ctx.req.headers["user-agent"] as string,
+                },
+            );
         }),
 });

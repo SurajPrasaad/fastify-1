@@ -7,20 +7,33 @@ import {
     ChevronDown, Filter, X, ArrowUpRight, BarChart3, Database,
     MoreHorizontal, Server
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 // ==========================================
-// 1. MOCK DATA & TYPES
+// 1. TYPES & HELPERS
 // ==========================================
 
 type DateRange = "24h" | "7d" | "30d" | "90d";
 
-const kpiData = {
-    totalUsers: { value: "34,204,192", change: "+12.4%", isPositive: true },
-    dau: { value: "14,832,041", change: "+5.2%", isPositive: true },
-    reports: { value: "42,105", change: "-2.1%", isPositive: true }, // Less reports is positive
-    sla: { value: "98.4%", change: "-0.5%", isPositive: false },
-    api: { value: "4.2B", change: "+15.2%", isPositive: true },
-    uptime: { value: "99.99%", change: "0.00%", isPositive: true }
+const formatCompact = (value: number): string =>
+    new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(
+        Number.isFinite(value) ? value : 0,
+    );
+
+const formatPercent = (value: number, digits = 1): string =>
+    `${(Number.isFinite(value) ? value : 0).toFixed(digits)}%`;
+
+const dateRangeToHours = (range: DateRange): number => {
+    switch (range) {
+        case "24h":
+            return 24;
+        case "7d":
+            return 24 * 7;
+        case "30d":
+            return 24 * 30;
+        case "90d":
+            return 24 * 90;
+    }
 };
 
 // ==========================================
@@ -141,6 +154,76 @@ export default function AnalyticsDashboardPage() {
     const [dateRange, setDateRange] = useState<DateRange>("24h");
     const [drilldown, setDrilldown] = useState<string | null>(null);
 
+    const statsQuery = trpc.admin.getStats.useQuery({
+        timeRangeHours: dateRangeToHours(dateRange),
+    }, {
+        refetchInterval: 60_000,
+    });
+    const stats = statsQuery.data as
+        | {
+              kpis: {
+                  totalUsers: number;
+                  dau: number;
+                  mau: number;
+                  newSignups24h: number;
+                  activeReports: number;
+                  apiRequests24h: number;
+                  slaCompliance: number;
+                  uptimePercent: number;
+              };
+              audienceGrowth: Array<{ date: string; activeUsers: number; newUsers: number }>;
+              platformHealth: { queueSize: number; queueStatus: "HEALTHY" | "ELEVATED" | "CRITICAL" };
+              byRegion: Array<{ region: unknown; count: number }>;
+          }
+        | undefined;
+
+    const kpiData = useMemo(() => {
+        if (!stats) {
+            return {
+                totalUsers: { value: "34,204,192", change: "+12.4%", isPositive: true },
+                dau: { value: "14,832,041", change: "+5.2%", isPositive: true },
+                reports: { value: "42,105", change: "-2.1%", isPositive: true },
+                sla: { value: "98.4%", change: "-0.5%", isPositive: false },
+                api: { value: "4.2B", change: "+15.2%", isPositive: true },
+                uptime: { value: "99.99%", change: "0.00%", isPositive: true },
+            };
+        }
+
+        const { kpis } = stats;
+        return {
+            totalUsers: {
+                value: kpis.totalUsers.toLocaleString("en-US"),
+                change: "+0.0%",
+                isPositive: true,
+            },
+            dau: {
+                value: kpis.dau.toLocaleString("en-US"),
+                change: "+0.0%",
+                isPositive: true,
+            },
+            reports: {
+                value: kpis.activeReports.toLocaleString("en-US"),
+                change: "-0.0%",
+                isPositive: true,
+            },
+            sla: {
+                value: formatPercent(kpis.slaCompliance),
+                change: "+0.0%",
+                isPositive: kpis.slaCompliance >= 95,
+            },
+            api: {
+                value: formatCompact(kpis.apiRequests24h),
+                change: "+0.0%",
+                isPositive: true,
+            },
+            uptime: {
+                value: formatPercent(kpis.uptimePercent, 2),
+                change: "0.00%",
+                isPositive: true,
+            },
+        };
+    }, [stats]);
+
     // Simulated Real-Time Clock
     const [time, setTime] = useState("");
     useEffect(() => {
@@ -212,12 +295,60 @@ export default function AnalyticsDashboardPage() {
 
                 {/* 1. EXECUTIVE KPI GRID (6 cols) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-                    <KpiCard title="Total Users" value={kpiData.totalUsers.value} change={kpiData.totalUsers.change} isPositive={true} icon={Users} colorClass="text-[#1D9BF0]" onClick={() => setDrilldown("Total Users")} />
-                    <KpiCard title="Daily Active" value={kpiData.dau.value} change={kpiData.dau.change} isPositive={true} icon={Activity} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("Daily Active Users")} />
-                    <KpiCard title="API Requests" value={kpiData.api.value} change={kpiData.api.change} isPositive={true} icon={Server} colorClass="text-[#8247E5]" onClick={() => setDrilldown("API Requests Volume")} />
-                    <KpiCard title="Active Reports" value={kpiData.reports.value} change={kpiData.reports.change} isPositive={true} icon={ShieldAlert} colorClass="text-[#FFD400]" onClick={() => setDrilldown("Active Incident Reports")} />
-                    <KpiCard title="Mod SLA Met" value={kpiData.sla.value} change={kpiData.sla.change} isPositive={false} icon={Clock} colorClass="text-[#F91880]" onClick={() => setDrilldown("Moderation SLA Compliance")} />
-                    <KpiCard title="System Uptime" value={kpiData.uptime.value} change={kpiData.uptime.change} isPositive={true} icon={Database} colorClass="text-[#00BA7C]" onClick={() => setDrilldown("Platform Uptime Tracking")} />
+                    <KpiCard
+                        title="Total Users"
+                        value={kpiData.totalUsers.value}
+                        change={kpiData.totalUsers.change}
+                        isPositive={kpiData.totalUsers.isPositive}
+                        icon={Users}
+                        colorClass="text-[#1D9BF0]"
+                        onClick={() => setDrilldown("Total Users")}
+                    />
+                    <KpiCard
+                        title="Daily Active"
+                        value={kpiData.dau.value}
+                        change={kpiData.dau.change}
+                        isPositive={kpiData.dau.isPositive}
+                        icon={Activity}
+                        colorClass="text-[#00BA7C]"
+                        onClick={() => setDrilldown("Daily Active Users")}
+                    />
+                    <KpiCard
+                        title="API Requests"
+                        value={kpiData.api.value}
+                        change={kpiData.api.change}
+                        isPositive={kpiData.api.isPositive}
+                        icon={Server}
+                        colorClass="text-[#8247E5]"
+                        onClick={() => setDrilldown("API Requests Volume")}
+                    />
+                    <KpiCard
+                        title="Active Reports"
+                        value={kpiData.reports.value}
+                        change={kpiData.reports.change}
+                        isPositive={kpiData.reports.isPositive}
+                        icon={ShieldAlert}
+                        colorClass="text-[#FFD400]"
+                        onClick={() => setDrilldown("Active Incident Reports")}
+                    />
+                    <KpiCard
+                        title="Mod SLA Met"
+                        value={kpiData.sla.value}
+                        change={kpiData.sla.change}
+                        isPositive={kpiData.sla.isPositive}
+                        icon={Clock}
+                        colorClass="text-[#F91880]"
+                        onClick={() => setDrilldown("Moderation SLA Compliance")}
+                    />
+                    <KpiCard
+                        title="System Uptime"
+                        value={kpiData.uptime.value}
+                        change={kpiData.uptime.change}
+                        isPositive={kpiData.uptime.isPositive}
+                        icon={Database}
+                        colorClass="text-[#00BA7C]"
+                        onClick={() => setDrilldown("Platform Uptime Tracking")}
+                    />
                 </div>
 
                 {/* 2. CORE ANALYTICS BANDS */}
@@ -280,30 +411,45 @@ export default function AnalyticsDashboardPage() {
                                 <MapPinIcon />
                             </h3>
                             <div className="space-y-3 flex-1 overflow-hidden">
-                                <div>
-                                    <div className="flex justify-between text-[12px] font-bold text-[#E7E9EA] mb-1.5">
-                                        <span>North America (us-east-1)</span><span>48%</span>
-                                    </div>
-                                    <div className="w-full h-1.5 bg-[#000000] rounded-full overflow-hidden">
-                                        <div className="bg-[#1D9BF0] h-full" style={{ width: '48%' }}></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-[12px] font-bold text-[#E7E9EA] mb-1.5">
-                                        <span>Europe (eu-central-1)</span><span>35%</span>
-                                    </div>
-                                    <div className="w-full h-1.5 bg-[#000000] rounded-full overflow-hidden">
-                                        <div className="bg-[#1D9BF0] h-full opacity-80" style={{ width: '35%' }}></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-[12px] font-bold text-[#E7E9EA] mb-1.5">
-                                        <span>Asia Pacific (ap-northeast-1)</span><span>17%</span>
-                                    </div>
-                                    <div className="w-full h-1.5 bg-[#000000] rounded-full overflow-hidden">
-                                        <div className="bg-[#1D9BF0] h-full opacity-60" style={{ width: '17%' }}></div>
-                                    </div>
-                                </div>
+                                {(() => {
+                                    const regions = (stats?.byRegion ?? []) as Array<{ region: unknown; count: number }>;
+                                    const total = regions.reduce((sum, r) => sum + (r.count ?? 0), 0) || 1;
+                                    const top = regions
+                                        .map((r) => ({
+                                            name:
+                                                Array.isArray(r.region) && r.region.length
+                                                    ? (r.region as string[]).join(", ")
+                                                    : typeof r.region === "string"
+                                                    ? (r.region as string)
+                                                    : "Global",
+                                            percent: Math.round(((r.count ?? 0) / total) * 100),
+                                        }))
+                                        .sort((a, b) => b.percent - a.percent)
+                                        .slice(0, 3);
+
+                                    const fallbacks = [
+                                        { name: "North America (us-east-1)", percent: 48 },
+                                        { name: "Europe (eu-central-1)", percent: 35 },
+                                        { name: "Asia Pacific (ap-northeast-1)", percent: 17 },
+                                    ];
+
+                                    const rows = top.length ? top : fallbacks;
+
+                                    return rows.map((row, idx) => (
+                                        <div key={idx}>
+                                            <div className="flex justify-between text-[12px] font-bold text-[#E7E9EA] mb-1.5">
+                                                <span>{row.name}</span>
+                                                <span>{row.percent}%</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-[#000000] rounded-full overflow-hidden">
+                                                <div
+                                                    className="bg-[#1D9BF0] h-full"
+                                                    style={{ width: `${Math.min(row.percent, 100)}%`, opacity: 1 - idx * 0.2 }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
                             </div>
                         </div>
 
@@ -311,7 +457,9 @@ export default function AnalyticsDashboardPage() {
                         <div className="bg-[#16181C] border border-[#2F3336] rounded-xl p-5 shadow-sm h-[178px] flex flex-col cursor-pointer hover:border-[#71767B]/50 transition-colors" onClick={() => setDrilldown("Moderation Pipeline")}>
                             <h3 className="text-[14px] font-bold text-[#E7E9EA] mb-4 flex justify-between items-center">
                                 Moderation Load
-                                <span className="text-[11px] px-2 py-0.5 bg-[#F91880]/10 text-[#F91880] rounded border border-[#F91880]/20 font-bold">Elevated</span>
+                                <span className="text-[11px] px-2 py-0.5 bg-[#F91880]/10 text-[#F91880] rounded border border-[#F91880]/20 font-bold">
+                                    {stats?.platformHealth.queueStatus ?? "HEALTHY"}
+                                </span>
                             </h3>
                             <div className="flex gap-4 items-end flex-1 pb-2">
                                 {/* Fake bar chart */}

@@ -53,19 +53,32 @@ export class AuthService {
                 user = existingUser;
             } else {
                 // 3. Create new user
-                const username = `${(name || 'user').replace(/\s+/g, '').toLowerCase()}_${crypto.randomBytes(3).toString('hex')}`;
+                const username = `${(name || "user").replace(/\s+/g, "").toLowerCase()}_${crypto
+                    .randomBytes(3)
+                    .toString("hex")}`;
                 // Cast picture to string | undefined
                 user = await this.authRepository.createGoogleUser({
                     email,
                     name: name || "User",
                     username,
                     providerId,
-                    ...(picture ? { picture } : {})
+                    ...(picture ? { picture } : {}),
                 });
             }
         }
 
-        // 4. Create Session
+        // 4. Block login if account is not active
+        if (user.status && user.status !== "ACTIVE") {
+            if (user.status === "SUSPENDED") {
+                throw new AppError("Account suspended. Contact support.", 403);
+            }
+            if (user.status === "DELETED") {
+                throw new AppError("Account banned or deleted. Contact support.", 403);
+            }
+            throw new AppError("Account is not active.", 403);
+        }
+
+        // 5. Create Session
         const tokens = await this.createSession(user.id, deviceId, meta);
         const fullUser = await this.getMe(user.id);
         return { user: fullUser, tokens };
@@ -126,6 +139,17 @@ export class AuthService {
         const user = await this.authRepository.findUserByEmail(data.email);
         if (!user) {
             throw new AppError("Invalid credentials", 401);
+        }
+
+        // Block login for non-active accounts
+        if (user.status !== "ACTIVE") {
+            if (user.status === "SUSPENDED") {
+                throw new AppError("Account suspended. Contact support.", 403);
+            }
+            if (user.status === "DELETED") {
+                throw new AppError("Account banned or deleted. Contact support.", 403);
+            }
+            throw new AppError("Account is not active.", 403);
         }
 
         if (!user.password) {
@@ -351,6 +375,20 @@ export class AuthService {
      * Core Session Creation Logic
      */
     private async createSession(userId: string, deviceId: string, meta: { ip?: string, ua?: string }, existingSessionId?: string) {
+        const user = await this.authRepository.findUserById(userId);
+        if (!user) {
+            throw new AppError("User not found", 404);
+        }
+        if (user.status !== "ACTIVE") {
+            if (user.status === "SUSPENDED") {
+                throw new AppError("Account suspended. Contact support.", 403);
+            }
+            if (user.status === "DELETED") {
+                throw new AppError("Account banned or deleted. Contact support.", 403);
+            }
+            throw new AppError("Account is not active.", 403);
+        }
+
         const tokenSecret = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(tokenSecret).digest('hex');
 
