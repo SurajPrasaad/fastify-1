@@ -61,7 +61,8 @@ export function useRoomSocket(roomId: string | undefined, userId: string | undef
 
         const onRoomEnded = () => {
             clearRoom();
-            // Redirect or show message
+            // Redirect everyone to the spaces feed
+            window.location.href = '/spaces';
         };
 
         socketService.on('audio_room:participant_joined', onParticipantJoined);

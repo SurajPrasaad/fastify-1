@@ -1,7 +1,9 @@
 "use client"
 
-import React, { useEffect } from 'react';
-import { Mic, MicOff, Users, Hand, Settings, LogOut, PhoneOff, Disc, MoreVertical, ShieldAlert } from 'lucide-react';
+import React,{useEffect} from 'react';
+import { Mic, MicOff, Users, Hand, Settings, LogOut, PhoneOff, Disc, MoreVertical, ShieldAlert, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -19,6 +21,8 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
     const params = React.use(paramsPromise);
     const { roomId } = params;
     const { user: me } = useAuth();
+    const router = useRouter();
+
 
     // 1. Fetch Room Data
     const { data: roomInfo, isLoading } = trpc.rooms.getRoom.useQuery({ roomId }, { enabled: !!roomId });
@@ -87,6 +91,7 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
     const raiseHandMutation = trpc.rooms.raiseHand.useMutation();
     const approveSpeakerMutation = trpc.rooms.approveSpeaker.useMutation();
     const demoteSpeakerMutation = trpc.rooms.demoteSpeaker.useMutation();
+    const endRoomMutation = trpc.rooms.endRoom.useMutation();
 
     const handleRaiseHand = () => {
         raiseHandMutation.mutate({ roomId });
@@ -98,6 +103,16 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
 
     const handleDemoteSpeaker = (speakerId: string) => {
         demoteSpeakerMutation.mutate({ roomId, speakerId });
+    };
+
+    const handleEndRoom = () => {
+        if (window.confirm("Are you sure you want to end this space? Everyone will be removed.")) {
+            endRoomMutation.mutate({ roomId }, {
+                onSuccess: () => {
+                    router.push('/spaces');
+                }
+            });
+        }
     };
 
     if (isLoading) {
@@ -157,12 +172,23 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
                     )}
 
                     {/* Action Menu (Leave Room) */}
-                    <Link href="/spaces">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold rounded-full transition-colors active:scale-95 shadow-sm border border-red-500/20">
-                            <LogOut size={16} />
-                            Leave
+                    {myRole === 'HOST' ? (
+                        <button
+                            onClick={handleEndRoom}
+                            disabled={endRoomMutation.isPending}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-full transition-colors active:scale-95 shadow-lg border border-red-500/20 disabled:opacity-50"
+                        >
+                            <Trash2 size={16} />
+                            {endRoomMutation.isPending ? 'Ending...' : 'End Space'}
                         </button>
-                    </Link>
+                    ) : (
+                        <Link href="/spaces">
+                            <button className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-sm font-semibold rounded-full transition-colors active:scale-95 shadow-sm border border-red-500/20">
+                                <LogOut size={16} />
+                                Leave
+                            </button>
+                        </Link>
+                    )}
                 </div>
             </header>
 
