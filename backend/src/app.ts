@@ -27,6 +27,7 @@ import fastifySocketIO from 'fastify-socket.io'
 import { chatGateway } from './modules/chat/chat.gateway.js'
 import { notificationGateway } from './modules/notification/notification.gateway.js'
 import { callGateway } from './modules/call/call.gateway.js'
+import { roomGateway } from './modules/room/room.gateway.js'
 import { callRoutes } from './modules/call/call.routes.js'
 
 import sessionPlugin from './plugin/session.js'
@@ -75,6 +76,7 @@ app.register(fastifySocketIO as any, {
 app.register(chatGateway);
 app.register(notificationGateway);
 app.register(callGateway);
+app.register(roomGateway);
 
 app.register(notificationRoutes, { prefix: '/notifications' })
 app.register(postRoutes, { prefix: '/posts' })

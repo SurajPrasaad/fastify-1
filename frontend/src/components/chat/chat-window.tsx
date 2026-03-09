@@ -242,8 +242,8 @@ export function ChatWindow({ roomId, room, onBack }: ChatWindowProps) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <HeaderButton icon="call" onClick={() => handleCall('AUDIO')} />
-                    <HeaderButton icon="videocam" onClick={() => handleCall('VIDEO')} />
+                    {/* <HeaderButton icon="call" onClick={() => handleCall('AUDIO')} />
+                    <HeaderButton icon="videocam" onClick={() => handleCall('VIDEO')} /> */}
                     <HeaderButton icon="info" onClick={handleMarkAllAsRead} />
                 </div>
             </header>

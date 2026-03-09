@@ -24,10 +24,14 @@ export function createContext({ req, res }: CreateFastifyContextOptions) {
         }
     }
 
+    const _server = req.server as any;
+    const io = _server ? _server.io : null;
+
     return {
         req,
         res,
         user,
+        io,
     };
 }
 

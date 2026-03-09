@@ -876,3 +876,48 @@ export const legalHoldsRelations = relations(legalHolds, ({ one, many }) => ({
     heldBy: one(users, { fields: [legalHolds.heldById], references: [users.id] }),
     archiveRecords: many(archiveRecords),
 }));
+
+// --- AUDIO ROOMS SYSTEM ---
+
+export const rooms = pgTable("rooms", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hostId: uuid("host_id").references(() => users.id).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    status: text("status").$type<"SCHEDULED" | "ACTIVE" | "ENDED">().default("SCHEDULED").notNull(),
+    maxSpeakers: integer("max_speakers").default(20).notNull(),
+    startedAt: timestamp("started_at"),
+    endedAt: timestamp("ended_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const roomParticipants = pgTable("room_participants", {
+    roomId: uuid("room_id").references(() => rooms.id, { onDelete: 'cascade' }).notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    role: text("role").$type<"HOST" | "SPEAKER" | "LISTENER">().notNull(),
+    speakerDurationSeconds: integer("speaker_duration_seconds").default(0).notNull(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+    leftAt: timestamp("left_at"),
+}, (t) => ({
+    pk: primaryKey({ columns: [t.roomId, t.userId] }),
+    roomRoleIdx: index("room_role_idx").on(t.roomId, t.role),
+}));
+
+export const roomsRelations = relations(rooms, ({ one, many }) => ({
+    host: one(users, {
+        fields: [rooms.hostId],
+        references: [users.id],
+    }),
+    participants: many(roomParticipants),
+}));
+
+export const roomParticipantsRelations = relations(roomParticipants, ({ one }) => ({
+    room: one(rooms, {
+        fields: [roomParticipants.roomId],
+        references: [rooms.id],
+    }),
+    user: one(users, {
+        fields: [roomParticipants.userId],
+        references: [users.id],
+    }),
+}));
