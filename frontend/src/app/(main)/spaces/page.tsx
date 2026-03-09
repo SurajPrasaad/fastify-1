@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { Play, Users, Disc, Search, Plus } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { formatDistanceToNow } from 'date-fns';
+import { CreateSpaceModal } from '@/features/spaces/components/create-space-modal';
 
 export default function SpacesIndexPage() {
     const { data: roomsData, isLoading } = trpc.rooms.getActiveRooms.useQuery({
         limit: 20
     });
+
+    const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
 
     const createRoomMutation = trpc.rooms.createRoom.useMutation({
         onSuccess: (data) => {
@@ -18,11 +21,8 @@ export default function SpacesIndexPage() {
         }
     });
 
-    const handleCreateRoom = () => {
-        const title = prompt("Enter Space Title:");
-        if (title) {
-            createRoomMutation.mutate({ title });
-        }
+    const handleCreateRoom = (title: string) => {
+        createRoomMutation.mutate({ title });
     };
 
     return (
@@ -34,8 +34,8 @@ export default function SpacesIndexPage() {
                     <p className="text-sm font-normal text-[#71767b]">Happening right now across DevAtlas</p>
                 </div>
                 <button
-                    onClick={handleCreateRoom}
-                    disabled={createRoomMutation.isLoading}
+                    onClick={() => setIsCreateModalOpen(true)}
+                    disabled={createRoomMutation.isPending}
                     className="bg-[#1d9bf0] hover:bg-[#1a8cd8] text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-colors disabled:opacity-50"
                 >
                     <Plus size={18} />
@@ -123,6 +123,13 @@ export default function SpacesIndexPage() {
                     )}
                 </div>
             </main>
+
+            <CreateSpaceModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onCreate={handleCreateRoom}
+                isLoading={createRoomMutation.isPending}
+            />
         </div>
     );
 }

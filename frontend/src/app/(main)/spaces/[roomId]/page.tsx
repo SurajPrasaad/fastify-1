@@ -1,6 +1,6 @@
 "use client"
 
-import React,{useEffect} from 'react';
+import React, { useEffect } from 'react';
 import { Mic, MicOff, Users, Hand, Settings, LogOut, PhoneOff, Disc, MoreVertical, ShieldAlert, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -16,12 +16,14 @@ import { trpc } from '@/lib/trpc';
 import { useAudioRoomStore } from '@/store/audio-room.store';
 import { useRoomSocket } from '@/hooks/use-room-socket';
 import { useAuth } from '@/features/auth/components/AuthProvider';
+import { ConfirmEndSpaceModal } from '@/features/spaces/components/confirm-end-space-modal';
 
 export default function AudioRoomPage({ params: paramsPromise }: { params: Promise<{ roomId: string }> }) {
     const params = React.use(paramsPromise);
     const { roomId } = params;
     const { user: me } = useAuth();
     const router = useRouter();
+    const [isEndModalOpen, setIsEndModalOpen] = React.useState(false);
 
 
     // 1. Fetch Room Data
@@ -37,6 +39,9 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
         raisedHands,
         setRoomData,
         setMyRole,
+        addRaisedHand,
+        removeRaisedHand,
+        updateParticipantRole,
         myRole,
         clearRoom
     } = useAudioRoomStore();
@@ -88,9 +93,25 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
         };
     }, [clearRoom]);
 
-    const raiseHandMutation = trpc.rooms.raiseHand.useMutation();
-    const approveSpeakerMutation = trpc.rooms.approveSpeaker.useMutation();
-    const demoteSpeakerMutation = trpc.rooms.demoteSpeaker.useMutation();
+    const raiseHandMutation = trpc.rooms.raiseHand.useMutation({
+        onSuccess: () => {
+            if (me?.id) addRaisedHand(me.id);
+        }
+    });
+
+    const approveSpeakerMutation = trpc.rooms.approveSpeaker.useMutation({
+        onSuccess: (_, variables) => {
+            updateParticipantRole(variables.listenerId, 'SPEAKER');
+            removeRaisedHand(variables.listenerId);
+        }
+    });
+
+    const demoteSpeakerMutation = trpc.rooms.demoteSpeaker.useMutation({
+        onSuccess: (_, variables) => {
+            updateParticipantRole(variables.speakerId, 'LISTENER');
+        }
+    });
+
     const endRoomMutation = trpc.rooms.endRoom.useMutation();
 
     const handleRaiseHand = () => {
@@ -106,13 +127,16 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
     };
 
     const handleEndRoom = () => {
-        if (window.confirm("Are you sure you want to end this space? Everyone will be removed.")) {
-            endRoomMutation.mutate({ roomId }, {
-                onSuccess: () => {
-                    router.push('/spaces');
-                }
-            });
-        }
+        setIsEndModalOpen(true);
+    };
+
+    const confirmEndRoom = () => {
+        endRoomMutation.mutate({ roomId }, {
+            onSuccess: () => {
+                setIsEndModalOpen(false);
+                router.push('/spaces');
+            }
+        });
     };
 
     if (isLoading) {
@@ -366,6 +390,13 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
 
                 </div>
             </footer>
+
+            <ConfirmEndSpaceModal
+                isOpen={isEndModalOpen}
+                onClose={() => setIsEndModalOpen(false)}
+                onConfirm={confirmEndRoom}
+                isLoading={endRoomMutation.isPending}
+            />
         </div>
     );
 }
