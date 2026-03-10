@@ -3,8 +3,10 @@ import { Pool } from "pg";
 import * as schema from "../db/schema.js";
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/fastify_app",
+    connectionString: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:6432/fastify_app",
+    max: 20, // Recommended for pgbouncer transaction mode
 });
+
 
 export const db = drizzle(pool, { schema });
 

@@ -3,17 +3,20 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install pnpm
+RUN npm install -g pnpm
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install all dependencies
+RUN pnpm install --frozen-lockfile
 
 # Copy source
 COPY . .
 
 # Build TypeScript
-RUN npm run build
+RUN pnpm run build
 
 
 # -------- 2️⃣ Production Stage --------
@@ -21,9 +24,13 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install pnpm
+RUN npm install -g pnpm
+
 # Copy only production dependencies
-COPY package*.json ./
-RUN npm ci --omit=dev
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
