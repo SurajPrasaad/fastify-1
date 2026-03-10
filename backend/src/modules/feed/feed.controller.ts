@@ -4,6 +4,7 @@ import type { getFeedSchema, getExploreFeedSchema, getHashtagFeedSchema, getHash
 import { FeedService } from "./feed.service.js";
 import { FeedRepository } from "./feed.repository.js";
 import type { z } from "zod";
+import { rateLimitHook } from "../../utils/rate-limiter.js";
 
 const feedRepository = new FeedRepository();
 const feedService = new FeedService(feedRepository);
@@ -14,6 +15,9 @@ export async function getHomeFeedHandler(
 ) {
     const userId = request.user!.sub;
     const { limit, cursor, type } = request.query;
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
 
     const posts = await feedService.getFeed(userId, type as any, limit, cursor);
 
@@ -47,6 +51,10 @@ export async function getExploreFeedHandler(
     reply: FastifyReply
 ) {
     const { limit, cursor } = request.query;
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
+
     const posts = await feedService.getExploreFeed(limit, cursor);
 
     const lastPost = posts[posts.length - 1] as any;
@@ -73,6 +81,9 @@ export async function getHashtagFeedHandler(
 ) {
     const { tag } = request.params;
     const { limit, cursor } = request.query;
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
 
     const posts = await feedService.getHashtagFeed(tag, limit, cursor);
 

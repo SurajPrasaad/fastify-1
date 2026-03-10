@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { UserService } from "./user.service.js";
 import type { CreateUserDto, UpdateUserDto, UpdateUserPrivacyDto, UpdateNotificationSettingsDto } from "./user.dto.js";
+import { rateLimitHook } from "../../utils/rate-limiter.js";
 
 export class UserController {
   constructor(private userService: UserService) { }
@@ -9,6 +10,9 @@ export class UserController {
     request: FastifyRequest<{ Body: CreateUserDto }>,
     reply: FastifyReply
   ) => {
+    await rateLimitHook(request, reply, "AUTH");
+    if (reply.sent) return;
+
     const user = await this.userService.createUser(request.body);
     return reply.status(201).send(user);
   };
@@ -20,6 +24,10 @@ export class UserController {
     const { username } = request.params;
     // @ts-ignore
     const currentUserId = request.user?.sub;
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
+
     const user = await this.userService.getProfile(username, currentUserId);
     return reply.status(200).send(user);
   };
@@ -74,6 +82,10 @@ export class UserController {
     reply: FastifyReply
   ) => {
     const { q, limit } = request.query;
+
+    await rateLimitHook(request, reply, "SEARCH");
+    if (reply.sent) return;
+
     const users = await this.userService.searchUsers(q, limit || 10);
     return reply.status(200).send(users);
   };

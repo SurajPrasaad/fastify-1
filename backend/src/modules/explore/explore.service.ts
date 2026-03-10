@@ -6,6 +6,7 @@ import { DiversityEnforcer } from "./candidates/diversity.enforcer.js";
 import { ContentFilter } from "./safety/content.filter.js";
 import { INTERACTION_WEIGHTS } from "./ranking/ranking.weights.js";
 import { redis } from "../../config/redis.js";
+import { getOrSetWithLock } from "../../utils/cache.js";
 import type {
     ExplorePost,
     CandidatePool,
@@ -121,13 +122,20 @@ export class ExploreService {
     async getTrendingFeed(limit: number, cursor?: string, region?: string, timeWindow?: string) {
         const offset = cursor ? this.decodeCursorOffset(cursor) : 0;
 
-        // Fetch trending post IDs from Redis (pre-scored)
+        // 1. Try pre-scored Redis set
         let postIds = await this.repository.getTrendingPostIds(limit * 2, offset, region);
 
-        // Fallback to PostgreSQL if Redis is empty
+        // 2. Cache Miss - Use Lock to fetch from DB (Prevent Stampede)
         if (postIds.length === 0) {
-            const fallback = await this.repository.getFallbackTrending(limit, cursor);
-            postIds = fallback.map(p => p.id);
+            const cacheKey = `explore:trending:fallback:${region || 'global'}`;
+            postIds = await getOrSetWithLock(
+                cacheKey,
+                async () => {
+                    const fallback = await this.repository.getFallbackTrending(limit * 5, cursor);
+                    return fallback.map(p => p.id);
+                },
+                600 // 10 minutes cache
+            );
         }
 
         // Hydrate
@@ -224,10 +232,18 @@ export class ExploreService {
             }
             case "posts":
             default: {
-                const posts = await this.repository.searchPosts(query, limit, cursor);
+                // Shared search result cache for 60 seconds (Locked)
+                const cacheKey = `search:posts:${query.toLowerCase()}`;
+                const ranked = await getOrSetWithLock(
+                    cacheKey,
+                    async () => {
+                        const posts = await this.repository.searchPosts(query, limit * 2, cursor);
+                        // Rank search results with engagement + relevance
+                        return this.rankingEngine.rankPosts(posts as any, undefined, "SEARCH");
+                    },
+                    60 // 1 minute search cache
+                ) as any[];
 
-                // Rank search results with engagement + relevance
-                const ranked = this.rankingEngine.rankPosts(posts as any, undefined, "SEARCH");
                 const paginated = ranked.slice(0, limit);
 
                 const lastPost = paginated[paginated.length - 1];
@@ -257,7 +273,20 @@ export class ExploreService {
             interestTags = await this.repository.getUserTopInterests(userId, 5);
         }
 
-        const creators = await this.repository.getRecommendedCreators(limit, userId, interestTags);
+        // Cache Key strategy:
+        // Anonymous: explore:creators:anon
+        // Logged-in: explore:creators:user:{userId} OR base on tags: explore:creators:tags:{tag1,tag2}
+        const cacheKey = userId
+            ? `explore:creators:user:${userId}`
+            : `explore:creators:anon:${category || 'all'}`;
+
+        const creators = await getOrSetWithLock(
+            cacheKey,
+            async () => {
+                return await this.repository.getRecommendedCreators(limit, userId, interestTags);
+            },
+            userId ? 600 : 3600 // 10 mins for users, 1 hour for public
+        ) as any[];
 
         return {
             data: creators,
@@ -274,12 +303,20 @@ export class ExploreService {
      * Get trending hashtags.
      */
     async getTrendingHashtags(limit: number) {
-        const hashtags = await this.repository.getTrendingHashtags(limit);
+        const cacheKey = "explore:trending:hashtags:global";
+
+        const hashtags = await getOrSetWithLock(
+            cacheKey,
+            async () => {
+                return await this.repository.getTrendingHashtags(limit);
+            },
+            3600 // 1 hour global cache
+        );
 
         return {
             data: hashtags,
             meta: {
-                count: hashtags.length,
+                count: (hashtags as any[]).length,
                 provider: "EXPLORE_TRENDING_HASHTAGS_V1",
             },
         };

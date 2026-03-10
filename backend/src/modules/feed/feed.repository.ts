@@ -1,8 +1,8 @@
 
 import { db } from "../../config/drizzle.js";
 import { posts, users, follows, celebrityAccounts, rankingFeatures, polls, pollOptions, hashtags, postHashtags } from "../../db/schema.js";
-import { and, desc, eq, inArray, lt, sql, exists, or } from "drizzle-orm";
-import { blocks } from "../../db/schema.js";
+import { and, desc, eq, inArray, lt, sql, exists, or, gt } from "drizzle-orm";
+import { blocks, sessions } from "../../db/schema.js";
 
 export class FeedRepository {
     // 1. Bulk Fetch for Hydration pattern
@@ -347,5 +347,23 @@ export class FeedRepository {
             }
         }
         return Array.from(uniqueItemsMap.values());
+    }
+
+    // 11. Cache Warming: Get active user IDs
+    async getActiveUserIds(limit: number): Promise<string[]> {
+        const result = await db
+            .select({ userId: sessions.userId })
+            .from(sessions)
+            .where(
+                and(
+                    eq(sessions.isValid, true),
+                    gt(sessions.lastActiveAt, sql`NOW() - INTERVAL '7 days'`)
+                )
+            )
+            .orderBy(desc(sessions.lastActiveAt))
+            .limit(limit);
+
+        // Deduplicate user IDs (one user might have multiple active sessions)
+        return [...new Set(result.map(r => r.userId))];
     }
 }

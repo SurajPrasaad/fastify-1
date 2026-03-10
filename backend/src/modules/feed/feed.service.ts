@@ -1,6 +1,7 @@
 
 import { FeedRepository } from "./feed.repository.js";
 import { redis } from "../../config/redis.js";
+import { getOrSetWithLock } from "../../utils/cache.js";
 
 export class FeedService {
     constructor(private feedRepository: FeedRepository) { }
@@ -63,50 +64,36 @@ export class FeedService {
     private async getForYouFeed(userId: string, limit: number, cursor?: string) {
         const feedKey = `feed:foryou:${userId}`;
 
-        // 1. Check personalized cache first
-        const maxScore = cursor ? parseFloat(cursor) : 10000; // Rank scores are roughly 0-100
-        const cachedIds = await redis.zrevrangebyscore(feedKey, maxScore.toString(), '0', 'LIMIT', 0, limit);
+        // 1. Try to fetch from cache (or build with lock if missing)
+        const ranked = await getOrSetWithLock(
+            feedKey,
+            async () => {
+                // expensive ranking logic
+                const followingCandidates = await this.feedRepository.getHomeFeedFallback(userId, 40);
+                const trendingCandidates = await this.feedRepository.getTrendingPosts(40, followingCandidates.map(p => p.id));
+                const candidates = [...followingCandidates, ...trendingCandidates];
+                const uniqueCandidates = Array.from(new Map(candidates.map(p => [p.id, p])).values());
 
-        if (cachedIds.length > 0) {
-            return await this.feedRepository.findByIds(cachedIds);
-        }
+                const affinityScores = await this.feedRepository.getAffinityScores(userId);
+                const affinityMap = new Map(affinityScores.map(s => [s.targetUserId, s.score]));
 
-        // 2. Cache Miss - Candidate Generation (Lazy Build)
-        // a. Segment from Following (20 items)
-        const followingCandidates = await this.feedRepository.getHomeFeedFallback(userId, 20);
+                return uniqueCandidates.map(post => {
+                    const affinity = affinityMap.get(post.userId) || 0.1;
+                    const baseRank = this.calculateRankScore(post);
+                    return {
+                        ...post,
+                        finalScore: baseRank * (1 + affinity)
+                    };
+                }).sort((a, b) => b.finalScore - a.finalScore);
+            },
+            3600 // 1 hour TTL
+        );
 
-        // b. Segment from Trending (20 items)
-        const blockedUserIds = await this.feedRepository.getBlockedUserIds(userId);
-        const trendingCandidates = await this.feedRepository.getTrendingPosts(20, followingCandidates.map(p => p.id));
-
-        // 3. Enrichment and Ranking
-        const candidates = [...followingCandidates, ...trendingCandidates];
-        const uniqueCandidates = Array.from(new Map(candidates.map(p => [p.id, p])).values());
-
-        // 4. ML Selection Logic
-        const affinityScores = await this.feedRepository.getAffinityScores(userId);
-        const affinityMap = new Map(affinityScores.map(s => [s.targetUserId, s.score]));
-
-        const ranked = uniqueCandidates.map(post => {
-            const affinity = affinityMap.get(post.userId) || 0.1;
-            const baseRank = this.calculateRankScore(post);
-            return {
-                ...post,
-                finalScore: baseRank * (1 + affinity)
-            };
-        }).sort((a, b) => b.finalScore - a.finalScore);
-
-        // 5. Async: Warm up cache for next request
-        if (ranked.length > 0) {
-            const pipeline = redis.pipeline();
-            ranked.forEach(p => {
-                pipeline.zadd(feedKey, p.finalScore.toString(), p.id);
-            });
-            pipeline.expire(feedKey, 3600); // 1h TTL
-            pipeline.exec().catch(err => console.error("Feed cache warming failed", err));
-        }
-
-        return ranked.slice(0, limit);
+        // 2. Pagination for the ranked result
+        const maxScore = cursor ? parseFloat(cursor) : 10000;
+        return ranked
+            .filter((p: any) => p.finalScore < maxScore)
+            .slice(0, limit);
     }
 
     /**

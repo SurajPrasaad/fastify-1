@@ -10,6 +10,8 @@ import { getRabbitChannel } from './config/rabbitmq.js';
 import { testDbConnection } from './config/drizzle.js';
 import { redis } from './config/redis.js';
 import { LOCAL_REGION, POD_ID } from './config/region.js';
+import { exploreWarmer } from './modules/explore/explore.warmer.js';
+import { feedWarmer } from './modules/feed/feed.warmer.js';
 
 const start = async () => {
   try {
@@ -19,6 +21,22 @@ const start = async () => {
     await testDbConnection();
     await connectMongoose();
     await getRabbitChannel();
+
+    // ── Pre-warming/Cache Maintenance ──
+    const isNeeded = await exploreWarmer.isWarmNeeded();
+    if (isNeeded) {
+      await exploreWarmer.warm();
+    } else {
+      console.log("ℹ️ Explore Cache already warm.");
+    }
+
+    // Feed Cache Warming
+    const isFeedWarmNeeded = await feedWarmer.isWarmNeeded();
+    if (isFeedWarmNeeded) {
+      await feedWarmer.warm();
+    } else {
+      console.log("ℹ️ Feed Cache already warm.");
+    }
 
     // ── Kafka & Notification Workers ──
     const { connectKafka } = await import('./config/kafka.js');

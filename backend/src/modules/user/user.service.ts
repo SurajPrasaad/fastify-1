@@ -3,6 +3,7 @@ import { UserRepository } from "./user.repository.js";
 import type { CreateUserDto, UpdateUserDto, UpdateUserPrivacyDto, NotificationSettingsDto, UpdateNotificationSettingsDto } from "./user.dto.js";
 import { AppError } from "../../utils/AppError.js";
 import { triggerFollowNotification } from "../notification/notification.triggers.js";
+import { getOrSetWithLock } from "../../utils/cache.js";
 
 export class UserService {
   constructor(private userRepository: UserRepository) { }
@@ -19,24 +20,51 @@ export class UserService {
   async getProfile(username: string, currentUserId?: string) {
     const cacheKey = `user:profile:${username}`;
 
-    // 1. Check Redis Cache - Only if not logged in (to avoid complex cache invalidation for follow status)
+    // 1. If searching for someone else's profile (shared data)
     if (!currentUserId) {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
+      return await getOrSetWithLock(
+        cacheKey,
+        async () => {
+          const user = await this.userRepository.findByUsername(username);
+          if (!user) throw new AppError("User not found", 404);
+
+          return {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            name: user.name,
+            bio: user.bio || null,
+            avatarUrl: user.avatarUrl || null,
+            coverUrl: user.coverUrl || null,
+            website: user.website || null,
+            location: user.location || null,
+            profile: {
+              techStack: user.techStack || [],
+              followersCount: user.followersCount,
+              followingCount: user.followingCount,
+              postsCount: user.postsCount,
+            },
+            auth: {
+              isEmailVerified: user.isEmailVerified,
+              status: user.status,
+            },
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+            isFollowing: false,
+            isSelf: false
+          };
+        },
+        60 // 60 seconds TTL for public profile
+      );
     }
 
-    // 2. Fetch from DB
+    // 2. Logged in user: Fetch directly from DB as we need personalized 'isFollowing'
     const user = await this.userRepository.findByUsername(username);
     if (!user) throw new AppError("User not found", 404);
 
-    let isFollowing = false;
-    if (currentUserId) {
-      isFollowing = await this.userRepository.isFollowing(currentUserId, user.id);
-    }
+    const isFollowing = await this.userRepository.isFollowing(currentUserId, user.id);
 
-    const response = {
+    return {
       id: user.id,
       username: user.username,
       email: user.email,
@@ -61,13 +89,6 @@ export class UserService {
       isFollowing,
       isSelf: currentUserId === user.id
     };
-
-    // 3. Cache for 60 seconds (Only for public view)
-    if (!currentUserId) {
-      await redis.set(cacheKey, JSON.stringify(response), "EX", 60);
-    }
-
-    return response;
   }
 
   async followUser(actorId: string, targetId: string) {

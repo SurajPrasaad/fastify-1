@@ -5,6 +5,7 @@ import { getPostsQuerySchema } from "./post.schema.js";
 import { PostService } from "./post.service.js";
 import { PostRepository } from "./post.repository.js";
 import { z } from "zod";
+import { rateLimitHook } from "../../utils/rate-limiter.js";
 
 const postRepository = new PostRepository();
 const postService = new PostService(postRepository); // Dependency Injection
@@ -15,6 +16,10 @@ export async function createPostHandler(
 ) {
     const userId = request.user!.sub; // Using JWT sub
     const isDraft = request.query.draft === 'true';
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
+
     const post = await postService.createPost(userId, { ...request.body, isDraft });
     return reply.code(201).send(post);
 }
@@ -56,6 +61,10 @@ export async function getPostHandler(
 ) {
     const { id } = request.params;
     const userId = request.user?.sub;
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
+
     const post = await postService.getPost(id, userId);
     return reply.send(post);
 }

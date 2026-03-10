@@ -17,6 +17,8 @@ import { triggerMentionNotifications } from "../notification/notification.trigge
 import { isEditable, validateTransition, type PostStatus } from "./post.state-machine.js";
 import * as events from "../moderation/moderation.events.js";
 import * as moderationQueue from "../moderation/moderation.queue.js";
+import { getOrSetWithLock } from "../../utils/cache.js";
+import { redis } from "../../config/redis.js";
 
 export class PostService {
     constructor(private postRepository: PostRepository) { }
@@ -133,17 +135,34 @@ export class PostService {
      * Security: only owner or moderator/admin can see non-published posts.
      */
     async getPost(id: string, userId?: string) {
-        const post = await this.postRepository.findById(id, true);
+        const cacheKey = `post:hydrated:${id}`;
+
+        // 1. Fetch base post data (Locked for Stampede protection)
+        const post = await getOrSetWithLock(
+            cacheKey,
+            async () => {
+                const p = await this.postRepository.findByIdHydrated(id);
+                if (!p) return null;
+                return p;
+            },
+            300 // 5 minutes cache for post data
+        ) as any;
+
         if (!post) throw new AppError("Post not found", 404);
 
-        // Security: non-published posts are only visible to the owner
+        // 2. Security Check (Owner/Admin only for non-published)
         const nonPublicStatuses: PostStatus[] = [
             "DRAFT", "PENDING_REVIEW", "REJECTED", "NEEDS_REVISION", "REMOVED"
         ];
 
-        if (nonPublicStatuses.includes(post.status as PostStatus) && post.userId !== userId) {
-            throw new AppError("Post not found", 404); // Don't reveal existence
+        if (nonPublicStatuses.includes(post.status) && post.userId !== userId) {
+            throw new AppError("Post not found", 404);
         }
+
+        // 3. User-Specific Overlay (Personalized flags)
+        // Note: In a real app, you might want to overlay isLiked/isBookmarked here 
+        // if they were removed from the cached 'post' object.
+        // For now, findByIdHydrated returns them as false if no currentUserId passed to cache builder.
 
         return post;
     }
@@ -169,6 +188,10 @@ export class PostService {
         if (!updated) {
             throw new AppError("Post not found or unauthorized", 404);
         }
+
+        // Invalidate cache
+        const cacheKey = `post:hydrated:${id}`;
+        await redis.del(cacheKey);
 
         return updated;
     }

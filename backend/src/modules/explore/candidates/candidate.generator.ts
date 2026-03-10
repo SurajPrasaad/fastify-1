@@ -2,6 +2,7 @@
 import { ExploreRepository } from "../explore.repository.js";
 import type { CandidatePool, CandidateSource, ExploreCandidate } from "../explore.dto.js";
 import { POOL_SIZES } from "../ranking/ranking.weights.js";
+import { getOrSetWithLock } from "../../../utils/cache.js";
 
 /**
  * Candidate Generator
@@ -53,7 +54,7 @@ export class CandidateGenerator {
         limit: number,
         seenIds: Set<string> = new Set()
     ): Promise<CandidatePool[]> {
-        // Try Redis first, fall back to PostgreSQL
+        // 1. Try Redis first
         const redisIds = await this.repository.getCategoryTrendingIds(slug, limit * 2);
         const filteredIds = redisIds.filter(id => !seenIds.has(id));
 
@@ -62,14 +63,22 @@ export class CandidateGenerator {
                 source: "CATEGORY" as CandidateSource,
                 candidates: filteredIds.slice(0, limit).map((postId, i) => ({
                     postId,
-                    score: limit - i, // Preserve ordering
+                    score: limit - i,
                     source: "CATEGORY" as CandidateSource,
                 })),
             }];
         }
 
-        // Fallback: PostgreSQL query
-        const pgPosts = await this.repository.getCategoryPosts(slug, limit);
+        // 2. Fallback: PostgreSQL query (Locked to prevent Stampede)
+        const cacheKey = `explore:category:fallback:${slug}`;
+        const pgPosts = await getOrSetWithLock(
+            cacheKey,
+            async () => {
+                return await this.repository.getCategoryPosts(slug, limit * 2);
+            },
+            600 // 10 minutes cache
+        ) as any[];
+
         return [{
             source: "CATEGORY" as CandidateSource,
             candidates: pgPosts.map((p, i) => ({

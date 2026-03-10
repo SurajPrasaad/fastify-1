@@ -76,10 +76,13 @@ class ApiClient {
 
                 if (typeof window !== "undefined" &&
                     response.status !== 401 &&
-                    response.status !== 422 &&
-                    response.status !== 429
+                    response.status !== 422
                 ) {
-                    toast.error(normalizedError.message);
+                    if (response.status === 429) {
+                        toast.error("Slow down! Too many requests. Please wait a moment.");
+                    } else {
+                        toast.error(normalizedError.message);
+                    }
                 }
 
                 throw normalizedError;

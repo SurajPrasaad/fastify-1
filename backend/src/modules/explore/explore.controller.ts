@@ -12,6 +12,7 @@ import type {
     trendingHashtagsSchema,
     exploreInteractionSchema,
 } from "./explore.schema.js";
+import { rateLimitHook } from "../../utils/rate-limiter.js";
 
 const exploreService = new ExploreService();
 
@@ -23,6 +24,9 @@ export async function getExploreFeedHandler(
     const userId = request.session?.userId;
     const { limit, cursor, region } = request.query;
 
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
+
     const result = await exploreService.getExploreFeed(userId, limit, cursor, region);
     return reply.send(result);
 }
@@ -33,6 +37,9 @@ export async function getTrendingFeedHandler(
     reply: FastifyReply
 ) {
     const { limit, cursor, region, timeWindow } = request.query;
+
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
 
     const result = await exploreService.getTrendingFeed(limit, cursor, region, timeWindow);
     return reply.send(result);
@@ -50,6 +57,9 @@ export async function getCategoryFeedHandler(
     const { limit, cursor } = request.query;
     const userId = request.session?.userId;
 
+    await rateLimitHook(request, reply, "API");
+    if (reply.sent) return;
+
     const result = await exploreService.getCategoryFeed(slug, limit, cursor, userId);
     return reply.send(result);
 }
@@ -60,6 +70,9 @@ export async function searchHandler(
     reply: FastifyReply
 ) {
     const { q, limit, cursor, type } = request.query;
+
+    await rateLimitHook(request, reply, "SEARCH");
+    if (reply.sent) return;
 
     const result = await exploreService.search(q, limit, cursor, type);
     return reply.send(result);
