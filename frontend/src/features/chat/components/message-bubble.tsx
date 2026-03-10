@@ -15,12 +15,17 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isMe, showAvatar, sender, onRetry }: MessageBubbleProps) {
-    const statusIcons = {
+    const statusIcons: Record<string, React.ReactNode> = {
         SENDING: <Clock className="h-3 w-3 animate-pulse" />,
+        sending: <Clock className="h-3 w-3 animate-pulse" />,
         SENT: <Check className="h-3 w-3" />,
+        sent: <Check className="h-3 w-3" />,
         DELIVERED: <CheckCheck className="h-3 w-3" />,
+        delivered: <CheckCheck className="h-3 w-3" />,
         READ: <CheckCheck className="h-3 w-3 text-sky-400" />,
+        read: <CheckCheck className="h-3 w-3 text-sky-400" />,
         ERROR: <AlertCircle className="h-3 w-3 text-rose-500" />,
+        error: <AlertCircle className="h-3 w-3 text-rose-500" />,
     };
 
     return (

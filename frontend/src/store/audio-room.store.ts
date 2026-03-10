@@ -29,6 +29,7 @@ interface AudioRoomState {
     setMyRole: (role: 'HOST' | 'SPEAKER' | 'LISTENER') => void;
     addRaisedHand: (userId: string) => void;
     removeRaisedHand: (userId: string) => void;
+    setSpeakingStatus: (userId: string, isSpeaking: boolean) => void;
     clearRoom: () => void;
 }
 
@@ -129,6 +130,23 @@ export const useAudioRoomStore = create<AudioRoomState>((set) => ({
     removeRaisedHand: (userId) => set((state) => ({
         raisedHands: state.raisedHands.filter(id => id !== userId)
     })),
+
+    setSpeakingStatus: (userId, isSpeaking) => set((state) => {
+        const speakers = new Map(state.speakers);
+        const listeners = new Map(state.listeners);
+
+        const sp = speakers.get(userId);
+        if (sp) {
+            speakers.set(userId, { ...sp, isSpeaking });
+        } else {
+            const ls = listeners.get(userId);
+            if (ls) {
+                listeners.set(userId, { ...ls, isSpeaking });
+            }
+        }
+
+        return { speakers, listeners };
+    }),
 
     clearRoom: () => set({
         roomId: null,

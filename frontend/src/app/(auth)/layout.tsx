@@ -9,8 +9,8 @@ export const metadata: Metadata = {
         follow: false,
     },
     title: {
-        template: '%s | Secure Auth',
-        default: 'Authentication',
+        template: '%s | Dev Atlas',
+        default: 'Dev Atlas Authentication',
     },
 };
 

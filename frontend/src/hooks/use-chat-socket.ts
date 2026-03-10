@@ -3,50 +3,15 @@
 import { useEffect } from "react";
 import { socketService } from "@/services/socket.service";
 import { useChatStore } from "@/features/chat/store/chat-store";
-import { MessageStatus } from "@/features/chat/types/chat.types";
 import { useUser } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
 export function useChatSocket(roomId?: string) {
     const addMessage = useChatStore(state => state.addMessage);
-    const setTyping = useChatStore(state => state.setTyping);
-    const setOnlineStatus = useChatStore(state => state.setOnlineStatus);
-    const updateMessage = useChatStore(state => state.updateMessage);
 
     useEffect(() => {
-        socketService.connect();
-
-        const handlers = {
-            NEW_MESSAGE: (message: any) => {
-                addMessage(message.roomId, message);
-            },
-            USER_ONLINE: (data: { userId: string }) => {
-                setOnlineStatus(data.userId, true);
-            },
-            USER_OFFLINE: (data: { userId: string }) => {
-                setOnlineStatus(data.userId, false);
-            },
-            USER_TYPING: (data: { roomId: string; userId: string }) => {
-                setTyping(data.roomId, data.userId, true);
-            },
-            USER_STOPPED_TYPING: (data: { roomId: string; userId: string }) => {
-                setTyping(data.roomId, data.userId, false);
-            },
-            ROOM_PRESENCE: (data: { roomId: string; onlineParticipants: string[] }) => {
-                data.onlineParticipants.forEach(userId => setOnlineStatus(userId, true));
-            },
-            READ_ACK: (data: { roomId: string; userId: string; messageId: string }) => {
-                updateMessage(data.roomId, data.messageId, { status: MessageStatus.READ });
-            },
-            ERROR: (err: any) => {
-                console.error("Socket Error:", err);
-            }
-        };
-
-        // Attach listeners
-        Object.entries(handlers).forEach(([event, handler]) => {
-            socketService.on(event, handler);
-        });
+        // The RealtimeChatListener component will handle global socket connection and core events.
+        // This hook will now only manage room-specific logic.
 
         // Request room presence if roomId changes
         if (roomId) {
@@ -57,11 +22,9 @@ export function useChatSocket(roomId?: string) {
             if (roomId) {
                 socketService.send("LEAVE_ROOM", { roomId });
             }
-            Object.entries(handlers).forEach(([event, handler]) => {
-                socketService.off(event, handler);
-            });
+            // No need to manage event listeners here, RealtimeChatListener handles them.
         };
-    }, [roomId, addMessage, setTyping, setOnlineStatus, updateMessage]);
+    }, [roomId]); // Dependencies reduced as global listeners are moved
 
     const { data: currentUser } = useUser();
 

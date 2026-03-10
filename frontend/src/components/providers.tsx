@@ -9,6 +9,7 @@ import { AppearanceProvider } from "@/components/appearance-provider";
 import { trpc } from "@/lib/trpc";
 import { httpBatchLink } from "@trpc/client";
 import { api } from "@/lib/api-client";
+import { RealtimeChatListener } from "@/features/chat/components/RealtimeChatListener";
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient());
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     disableTransitionOnChange
                 >
                     <AuthProvider>
+                        <RealtimeChatListener />
                         <AppearanceProvider>
                             {children}
                         </AppearanceProvider>

@@ -33,7 +33,7 @@ import { callRoutes } from './modules/call/call.routes.js'
 import sessionPlugin from './plugin/session.js'
 import rateLimitPlugin from './plugin/rate-limit.js'
 import swaggerPlugin from './plugin/swagger.js'
-
+import socketPlugin from './plugin/socket.js'
 
 const rawApp = Fastify({ logger: true });
 rawApp.setValidatorCompiler(validatorCompiler);
@@ -56,6 +56,7 @@ app.get('/', async () => {
 app.register(sessionPlugin)
 app.register(rateLimitPlugin)
 app.register(swaggerPlugin)
+app.register(socketPlugin)
 app.register(healthRoutes);
 
 app.register(userRoutes, { prefix: '/users' })

@@ -11,6 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useAuthActions } from "../hooks";
 import Link from "next/link";
+import { Logo } from "@/components/layout/logo";
 
 const registerSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -69,11 +70,16 @@ export function RegisterForm() {
 
     return (
         <Card className="w-full">
-            <CardHeader className="space-y-1">
-                <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-                <CardDescription>
-                    Fill in your details to get started
-                </CardDescription>
+            <CardHeader className="space-y-4">
+                <div className="flex justify-center mb-2">
+                    <Logo size={60} showText={false} />
+                </div>
+                <div className="space-y-1 text-center">
+                    <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+                    <CardDescription>
+                        Join the Dev Atlas community today
+                    </CardDescription>
+                </div>
             </CardHeader>
             <form onSubmit={handleSubmit(onSubmit)}>
                 <CardContent className="space-y-3">

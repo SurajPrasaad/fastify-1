@@ -6,6 +6,7 @@ import { interactionApi } from "@/features/interaction/api"
 import { getSuggestions, getActiveFriends } from "@/features/follow/api"
 import { useQuery } from "@tanstack/react-query"
 import { useToggleFollow } from "@/features/follow/hooks"
+import { useChatStore } from "@/features/chat/store/chat-store"
 
 export function RightSidebar({ className }: { className?: string }) {
     const [showAllTrends, setShowAllTrends] = React.useState(false)
@@ -26,8 +27,21 @@ export function RightSidebar({ className }: { className?: string }) {
     const { data: activeFriends, isLoading: isLoadingFriends } = useQuery({
         queryKey: ["active-friends"],
         queryFn: () => getActiveFriends(),
-        refetchInterval: 1000 * 30, // Refetch every 30 seconds for presence updates
+        staleTime: 1000 * 60, // Trust socket for real-time updates
     })
+
+    const onlineUsers = useChatStore(state => state.onlineUsers);
+
+    // Combine initial fetch with real-time socket updates
+    const consolidatedFriends = React.useMemo(() => {
+        if (!activeFriends) return [];
+        // We filter the list to only show those currently online in the store
+        // The backend initial fetch gives us a good starting point
+        return activeFriends.map(friend => ({
+            ...friend,
+            isOnline: onlineUsers.has(friend.id)
+        })).filter(f => f.isOnline);
+    }, [activeFriends, onlineUsers]);
 
     const displayTrends = showAllTrends ? trends : trends?.slice(0, 3)
     const displaySuggestions = showAllSuggestions ? suggestions : suggestions?.slice(0, 2)
@@ -140,8 +154,8 @@ export function RightSidebar({ className }: { className?: string }) {
                                 </div>
                             ))}
                         </div>
-                    ) : activeFriends?.length ? (
-                        activeFriends.map((friend) => (
+                    ) : consolidatedFriends?.length ? (
+                        consolidatedFriends.map((friend) => (
                             <ActiveFriend
                                 key={friend.id}
                                 name={friend.name}

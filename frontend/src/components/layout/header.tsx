@@ -17,7 +17,16 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/features/auth/components/AuthProvider"
 
+import { Logo } from "./logo"
+import { useChatStore } from "@/features/chat/store/chat-store"
+import React from "react"
+
 export function Header() {
+    const unreadCounts = useChatStore((state) => state.unreadCounts)
+    const totalUnreadCount = React.useMemo(() => {
+        return Object.values(unreadCounts).reduce((acc, current) => acc + (current || 0), 0)
+    }, [unreadCounts])
+
     return (
         <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="flex h-14 items-center gap-4 px-6">
@@ -40,10 +49,17 @@ export function Header() {
                             <span className="sr-only">Notifications</span>
                         </Button>
                     </Link>
-                    <Button variant="ghost" size="icon">
-                        <Mail className="h-5 w-5" />
-                        <span className="sr-only">Messages</span>
-                    </Button>
+                    <Link href="/messages">
+                        <Button variant="ghost" size="icon" className="relative">
+                            <Mail className="h-5 w-5" />
+                            {totalUnreadCount > 0 && (
+                                <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-primary text-[10px] flex items-center justify-center text-white font-bold">
+                                    {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
+                                </span>
+                            )}
+                            <span className="sr-only">Messages</span>
+                        </Button>
+                    </Link>
                     <ModeToggle />
                     <UserNav />
                 </div>

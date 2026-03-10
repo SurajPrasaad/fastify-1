@@ -120,29 +120,32 @@ export class PresenceService {
 
     /**
      * Broadcast status to all relevant participants (friends/room members)
+     * Optimized for multi-node scalability using Socket.io room batching.
      */
     async broadcastStatus(userId: string, status: PresenceStatus) {
         // Optimized Fan-out:
-        // 1. Get all rooms user is in
-        // 2. Broadcast to those rooms
-        const rooms = await this.chatRepository.findUserRooms(userId, 100, 0); // Limit to recent 100
+        const rooms = await this.chatRepository.findUserRooms(userId, 100, 0);
         const event = {
             type: status === PresenceStatus.ONLINE ? 'USER_ONLINE' : 'USER_OFFLINE',
             payload: { userId, status, timestamp: Date.now() }
         };
 
-        // Leverage Socket.io rooms for efficient delivery
-        // Every user is in their own room `u:{userId}`
+        const targetRooms: string[] = [];
         const participantIds = new Set<string>();
+
         for (const room of rooms) {
             room.participants.forEach(pId => {
-                if (pId !== userId) participantIds.add(pId);
+                if (pId !== userId) participantIds.add(`u:${pId}`);
             });
         }
 
-        // Cross-node emission via Redis Adapter
-        for (const pId of participantIds) {
-            this.io.to(`u:${pId}`).emit('event', event);
+        // Convert Set to Array for batch emission
+        const batch = Array.from(participantIds);
+
+        if (batch.length > 0) {
+            // Emitting to an array of rooms is natively optimized by Socket.io 
+            // and the Redis adapter to reduce cross-node pub/sub noise.
+            this.io.to(batch).emit('event', event);
         }
     }
 

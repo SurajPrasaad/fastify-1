@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation"
 
+import { Logo } from "./logo"
+import { useChatStore } from "@/features/chat/store/chat-store"
+
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> { }
 
 export function Sidebar({ className }: Readonly<SidebarProps>) {
@@ -23,23 +26,31 @@ export function Sidebar({ className }: Readonly<SidebarProps>) {
     const { theme, setTheme } = useTheme()
     const router = useRouter()
 
+    const unreadCounts = useChatStore((state) => state.unreadCounts)
+    const totalUnreadCount = React.useMemo(() => {
+        return Object.values(unreadCounts).reduce((acc, current) => acc + (current || 0), 0)
+    }, [unreadCounts])
+
     return (
         <aside className={cn("hidden md:flex flex-col w-72 h-screen p-6", className)}>
             <div className="flex flex-col h-full justify-between">
                 <div className="flex flex-col gap-8">
                     {/* Logo */}
-                    <Link href="/" className="flex items-center gap-3 px-3 group">
-                        <div className="size-10 bg-primary rounded-xl flex items-center justify-center text-white transition-transform group-hover:scale-110">
-                            <span className="material-symbols-outlined text-2xl">rocket_launch</span>
-                        </div>
-                        <h1 className="text-xl font-bold tracking-tight">DevAtlas</h1>
+                    <Link href="/" className="px-3">
+                        <Logo />
                     </Link>
 
                     {/* Nav Links */}
                     <nav className="flex flex-col gap-2">
                         <SidebarLink icon="home" label="Home" href="/" active={pathname === "/"} fillIcon />
                         <SidebarLink icon="explore" label="Explore" href="/explore" active={pathname === "/explore"} />
-                        <SidebarLink icon="mail" label="Messages" href="/messages" active={pathname.startsWith("/messages")} badge="4" />
+                        <SidebarLink
+                            icon="mail"
+                            label="Messages"
+                            href="/messages"
+                            active={pathname.startsWith("/messages")}
+                            badge={totalUnreadCount > 0 ? totalUnreadCount.toString() : undefined}
+                        />
                         {/* <SidebarLink icon="call" label="Calls" href="/calls" active={pathname === "/calls"} /> */}
                         <SidebarLink icon="graphic_eq" label="Spaces" href="/spaces" active={pathname.startsWith("/spaces")} />
                         <SidebarLink icon="notifications" label="Notifications" href="/notifications" active={pathname === "/notifications"} />

@@ -13,6 +13,7 @@ import { useAuthActions } from "../hooks";
 import { TwoFactorForm } from "./TwoFactorForm";
 import { GoogleLoginButton } from "./GoogleLoginButton";
 import Link from "next/link";
+import { Logo } from "@/components/layout/logo";
 
 const loginSchema = z.object({
     email: z.string().email("Invalid email address"),
@@ -66,11 +67,16 @@ export function LoginForm() {
 
     return (
         <Card className="w-full">
-            <CardHeader className="space-y-1">
-                <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-                <CardDescription>
-                    Enter your credentials to access your account
-                </CardDescription>
+            <CardHeader className="space-y-4">
+                <div className="flex justify-center mb-2">
+                    <Logo size={60} showText={false} />
+                </div>
+                <div className="space-y-1 text-center">
+                    <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+                    <CardDescription>
+                        Enter your credentials to access your Dev Atlas account
+                    </CardDescription>
+                </div>
             </CardHeader>
             <form onSubmit={handleSubmit(onSubmit)}>
                 <CardContent className="space-y-4">

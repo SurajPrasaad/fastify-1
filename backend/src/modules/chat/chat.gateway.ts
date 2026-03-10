@@ -15,14 +15,6 @@ import {
 } from './chat.schema.js';
 import jwt from 'jsonwebtoken';
 import { publicKey } from '../../config/keys.js';
-import { createAdapter } from "@socket.io/redis-adapter";
-
-const subRedis = new Redis({
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: Number(process.env.REDIS_PORT) || 6379,
-});
-
-const pubRedis = subRedis.duplicate(); // For adapter
 
 const chatRepository = new ChatRepository();
 const userRepository = new UserRepository();
@@ -37,9 +29,6 @@ export async function chatGateway(fastify: FastifyInstance) {
 
     // Periodic Cleanup of stale presence (could also be a separate worker)
     setInterval(() => presenceService.cleanupStalePresence(), 60000);
-
-    // Use Redis adapter for multi-node support
-    io.adapter(createAdapter(pubRedis, subRedis));
 
     // Middleware: Authentication & Device Tracking
     io.use((socket: Socket, next: (err?: Error) => void) => {
@@ -171,6 +160,19 @@ export async function chatGateway(fastify: FastifyInstance) {
             } catch (err: any) {
                 socket.emit('ERROR', { message: err.message });
             }
+        });
+
+        socket.on('DELIVERY_RECEIPT', async (payload: { roomId: string; messageId: string }) => {
+            try {
+                const { roomId, messageId } = payload;
+                const room = await chatRepository.findRoomById(roomId);
+                if (!room) return;
+
+                const event = { type: 'DELIVERY_ACK', payload: { roomId, userId, messageId } };
+                room.participants.filter(id => id !== userId).forEach(id => {
+                    io.to(`u:${id}`).emit('event', event);
+                });
+            } catch (err) { }
         });
 
         socket.on('disconnect', async () => {

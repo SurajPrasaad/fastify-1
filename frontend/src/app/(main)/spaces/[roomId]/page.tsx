@@ -17,6 +17,8 @@ import { useAudioRoomStore } from '@/store/audio-room.store';
 import { useRoomSocket } from '@/hooks/use-room-socket';
 import { useAuth } from '@/features/auth/components/AuthProvider';
 import { ConfirmEndSpaceModal } from '@/features/spaces/components/confirm-end-space-modal';
+import { useVoiceActivity } from '@/hooks/use-voice-activity';
+import { socketService } from '@/services/socket.service';
 
 export default function AudioRoomPage({ params: paramsPromise }: { params: Promise<{ roomId: string }> }) {
     const params = React.use(paramsPromise);
@@ -92,6 +94,20 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
             clearRoom();
         };
     }, [clearRoom]);
+
+    // 4. Voice Activity Local Detection
+    const handleLocalSpeaking = React.useCallback((isSpeaking: boolean) => {
+        socketService.send('audio_room:speaking', { roomId, isSpeaking });
+        if (me?.id) {
+            useAudioRoomStore.getState().setSpeakingStatus(me.id, isSpeaking);
+        }
+    }, [roomId, me?.id]);
+
+    useVoiceActivity({
+        enabled: myRole === 'HOST' || myRole === 'SPEAKER',
+        onSpeaking: handleLocalSpeaking,
+        threshold: 0.05, // Can adjust based on testing
+    });
 
     const raiseHandMutation = trpc.rooms.raiseHand.useMutation({
         onSuccess: () => {

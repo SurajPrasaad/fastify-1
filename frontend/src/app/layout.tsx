@@ -18,8 +18,8 @@ const fontMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SocialApp | Modern Social Media",
-  description: "A modern social media platform built for developers and creative professionals.",
+  title: "Dev Atlas | Connect. Build. Grow.",
+  description: "The ultimate social platform for developers and tech enthusiasts to collaborate, share, and build together.",
 };
 
 export default function RootLayout({

@@ -108,13 +108,18 @@ class SocketService {
         return !!this.socket?.connected;
     }
 
-    public send(type: string, payload: any) {
+    public send(type: string, payload: any, callback?: (response: any) => void) {
         // Drop silently if there is no active socket connection.
         // Callers are responsible for checking connectivity and/or retrying.
         if (!this.socket || !this.socket.connected) {
             return;
         }
-        this.socket.emit(type, payload);
+
+        if (callback) {
+            this.socket.emit(type, payload, callback);
+        } else {
+            this.socket.emit(type, payload);
+        }
     }
 
     public on(event: string, callback: SocketListener) {
