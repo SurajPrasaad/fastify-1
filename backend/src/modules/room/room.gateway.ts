@@ -48,6 +48,9 @@ export async function roomGateway(app: FastifyInstance) {
                 return;
             }
 
+            // Join personal room for private signaling
+            socket.join(userId);
+
             /**
              * Helper to wrap events in robust error handling and logging
              */
@@ -130,43 +133,37 @@ export async function roomGateway(app: FastifyInstance) {
                 }
             });
 
-            // 3. Signaling: Request SFU Transport
-            socket.on('audio_room:request_transport', (payload, callback) => handleEvent('audio_room:request_transport', payload, async (data: any) => {
-                const { roomId } = roomJoinSchema.parse(data);
-                // Future: Integrate Mediasoup/Livekit here
-                return {
-                    transportOptions: { id: `transport_${Math.random().toString(36).substr(2, 9)}`, iceParameters: {}, iceCandidates: [], dtlsParameters: {} }
-                };
-            }, callback));
+            // 3. Signaling: Get TURN Credentials
+            socket.on('audio_room:get_turn_credentials', async (data: any, callback: Function) => {
+                try {
+                    const { turnService } = await import('../call/turn.service.js');
+                    const credentials = await turnService.issue(userId);
+                    if (callback) callback({ success: true, credentials });
+                } catch (error: any) {
+                    app.log.error(`${logPrefix} TURN Error: ${error.message}`);
+                    if (callback) callback({ success: false, message: error.message });
+                }
+            });
 
-            // 4. Signaling: Connect WebRTC Transport
-            socket.on('audio_room:connect_transport', (payload, callback) => handleEvent('audio_room:connect_transport', payload, async () => {
-                return { success: true };
-            }, callback));
+            // 4. Signaling: Relay WebRTC signals (Offers, Answers, ICE Candidates)
+            socket.on('audio_room:signal', (payload) => handleEvent('audio_room:signal', payload, async (data: any) => {
+                const { roomId, targetUserId, signal } = data;
+                
+                if (!roomId || !targetUserId || !signal) {
+                    throw new Error("Invalid signaling payload");
+                }
 
-            // 5. Signaling: Produce Audio
-            socket.on('audio_room:produce', (payload, callback) => handleEvent('audio_room:produce', payload, async (data: any) => {
-                const { roomId } = produceSchema.parse(data);
-                const producerId = `prod_${Math.random().toString(36).substr(2, 9)}`;
-
-                socket.to(`room:${roomId}`).emit('audio_room:new_producer', {
-                    producerId,
-                    userId,
-                    kind: data.kind
+                // Verify both users are in the same room (optional but good)
+                // Forward signal to target user ONLY
+                io.to(targetUserId).emit('audio_room:signal', {
+                    senderId: userId,
+                    signal
                 });
 
-                return { producerId };
-            }, callback));
+                return { success: true };
+            }));
 
-            // 6. Signaling: Consume Audio
-            socket.on('audio_room:consume', (payload, callback) => handleEvent('audio_room:consume', payload, async (data: any) => {
-                const { roomId, producerId } = consumeSchema.parse(data);
-                return {
-                    consumerOptions: { id: `cons_${Math.random().toString(36).substr(2, 9)}`, producerId, kind: "audio", rtpParameters: {} }
-                };
-            }, callback));
-
-            // 7. Voice Activity: Broadcast speaking status
+            // 4. Voice Activity: Broadcast speaking status
             socket.on('audio_room:speaking', (payload) => handleEvent('audio_room:speaking', payload, async (data: any) => {
                 const { roomId, isSpeaking } = speakingSchema.parse(data);
                 socket.to(`room:${roomId}`).emit('audio_room:speaking_status', {

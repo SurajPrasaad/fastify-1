@@ -13,8 +13,9 @@ import {
 
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
-import { useAudioRoomStore } from '@/store/audio-room.store';
+import { useAudioRoomStore, Participant } from '@/store/audio-room.store';
 import { useRoomSocket } from '@/hooks/use-room-socket';
+import { useRoomAudio } from '@/hooks/use-room-audio';
 import { useAuth } from '@/features/auth/components/AuthProvider';
 import { ConfirmEndSpaceModal } from '@/features/spaces/components/confirm-end-space-modal';
 import { useVoiceActivity } from '@/hooks/use-voice-activity';
@@ -26,7 +27,7 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
     const { user: me } = useAuth();
     const router = useRouter();
     const [isEndModalOpen, setIsEndModalOpen] = React.useState(false);
-
+    const [isMuted, setIsMuted] = React.useState(false);
 
     // 1. Fetch Room Data
     const { data: roomInfo, isLoading } = trpc.rooms.getRoom.useQuery({ roomId }, { enabled: !!roomId });
@@ -50,6 +51,23 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
 
     // 3. Connect Signaling
     useRoomSocket(roomId, me?.id);
+
+    // 4. Voice Activity & Audio Engine
+    const handleLocalSpeaking = React.useCallback((isSpeaking: boolean) => {
+        socketService.send('audio_room:speaking', { roomId, isSpeaking });
+        if (me?.id) {
+            useAudioRoomStore.getState().setSpeakingStatus(me.id, isSpeaking);
+        }
+    }, [roomId, me?.id]);
+
+    const { stream: localStream } = useVoiceActivity({
+        enabled: myRole === 'HOST' || myRole === 'SPEAKER',
+        onSpeaking: handleLocalSpeaking,
+        threshold: 0.05,
+    });
+
+    // Initialize WebRTC Audio Mesh
+    useRoomAudio({ roomId, userId: me?.id, myRole, localStream });
 
     useEffect(() => {
         if (roomInfo) {
@@ -95,20 +113,6 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
         };
     }, [clearRoom]);
 
-    // 4. Voice Activity Local Detection
-    const handleLocalSpeaking = React.useCallback((isSpeaking: boolean) => {
-        socketService.send('audio_room:speaking', { roomId, isSpeaking });
-        if (me?.id) {
-            useAudioRoomStore.getState().setSpeakingStatus(me.id, isSpeaking);
-        }
-    }, [roomId, me?.id]);
-
-    useVoiceActivity({
-        enabled: myRole === 'HOST' || myRole === 'SPEAKER',
-        onSpeaking: handleLocalSpeaking,
-        threshold: 0.05, // Can adjust based on testing
-    });
-
     const raiseHandMutation = trpc.rooms.raiseHand.useMutation({
         onSuccess: () => {
             if (me?.id) addRaisedHand(me.id);
@@ -146,6 +150,16 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
         setIsEndModalOpen(true);
     };
 
+    const toggleMute = () => {
+        if (localStream) {
+            const newMuteState = !isMuted;
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = !newMuteState;
+            });
+            setIsMuted(newMuteState);
+        }
+    };
+
     const confirmEndRoom = () => {
         endRoomMutation.mutate({ roomId }, {
             onSuccess: () => {
@@ -171,9 +185,9 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
         );
     }
 
-    const speakersList = Array.from(speakers.values());
-    const listenersList = Array.from(listeners.values());
-    const host = speakers.get(hostId || '');
+    const speakersList = Array.from(speakers.values()) as Participant[];
+    const listenersList = Array.from(listeners.values()) as Participant[];
+    const host = speakers.get(hostId || '') as Participant | undefined;
 
     return (
         <div className="flex flex-col h-screen max-h-screen bg-[#000000] text-gray-100 font-sans">
@@ -376,8 +390,13 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
                     <div className="flex items-center gap-4">
                         {/* Main Mic Toggle - Only for Speakers/Host */}
                         {(myRole === 'HOST' || myRole === 'SPEAKER') ? (
-                            <button className="flex items-center justify-center w-14 h-14 bg-[#1d9bf0] hover:bg-[#1a8cd8] text-white rounded-full shadow-lg shadow-[#1d9bf0]/20 transition-transform active:scale-90">
-                                <Mic size={24} />
+                            <button 
+                                onClick={toggleMute}
+                                className={`flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-transform active:scale-90 ${
+                                    isMuted ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20' : 'bg-[#1d9bf0] hover:bg-[#1a8cd8] shadow-[#1d9bf0]/20'
+                                }`}
+                            >
+                                {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                             </button>
                         ) : (
                             <div className="w-14 h-14 bg-gray-800 flex items-center justify-center rounded-full text-gray-500 cursor-not-allowed">
@@ -386,14 +405,14 @@ export default function AudioRoomPage({ params: paramsPromise }: { params: Promi
                         )}
                         <div className="text-sm">
                             <p className="text-white font-semibold">
-                                {myRole === 'LISTENER' ? 'Listening only' : 'Microphone Ready'}
+                                {myRole === 'LISTENER' ? 'Listening only' : isMuted ? 'Microphone Muted' : 'Microphone Ready'}
                             </p>
                             <p className="text-[#1d9bf0] text-[10px] font-bold uppercase tracking-widest mt-0.5">
                                 Your Role: {myRole}
                             </p>
                             <p className="text-gray-400 text-xs text-green-400 flex items-center gap-1 mt-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                                Connected to Studio
+                                <span className={`w-1.5 h-1.5 rounded-full bg-green-400 ${!isMuted ? 'animate-pulse' : ''}`}></span>
+                                {isMuted ? 'Microphone Off' : 'Connected to Studio'}
                             </p>
                         </div>
                     </div>

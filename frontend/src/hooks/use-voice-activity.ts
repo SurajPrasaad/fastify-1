@@ -18,6 +18,7 @@ export function useVoiceActivity({
     const streamRef = useRef<MediaStream | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [stream, setStream] = useState<MediaStream | null>(null);
 
     const isSpeakingRef = useRef(false);
 
@@ -34,6 +35,7 @@ export function useVoiceActivity({
 
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 streamRef.current = stream;
+                setStream(stream);
 
                 const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
                 const audioContext = new AudioContextClass();
@@ -103,6 +105,7 @@ export function useVoiceActivity({
         if (timerRef.current) clearInterval(timerRef.current);
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => track.stop());
+            setStream(null);
         }
         if (audioContextRef.current) {
             audioContextRef.current.close().catch(() => { });
@@ -113,5 +116,5 @@ export function useVoiceActivity({
         }
     }
 
-    return { isSpeaking };
+    return { isSpeaking, stream };
 }

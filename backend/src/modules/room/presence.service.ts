@@ -82,6 +82,11 @@ export class RoomPresenceService {
         return await redis.scard(`${this.ROOM_PREFIX}${roomId}:participants`);
     }
 
+    async isUserInRoom(roomId: string, userId: string): Promise<boolean> {
+        const setKey = `${this.ROOM_PREFIX}${roomId}:participants`;
+        return await redis.sismember(setKey, userId) === 1;
+    }
+
     /**
      * Clear all room state when a room ends.
      */
