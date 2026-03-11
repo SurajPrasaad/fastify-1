@@ -247,4 +247,8 @@ export class AdminService {
 
         return { success: true, userId, newStatus: "DELETED" as const };
     }
+
+    async getActivityLogs(userId: string, limit: number = 50) {
+        return await this.repository.getUserAuditLogs(userId, limit);
+    }
 }

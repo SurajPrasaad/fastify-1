@@ -56,8 +56,8 @@ export class ModerationService {
     /**
      * Get legacy report-based queue.
      */
-    async getReportQueue(limit: number = 20, moderatorId?: string, category?: string) {
-        return this.repository.getReportQueue(limit, moderatorId, category);
+    async getReportQueue(limit: number = 20, moderatorId?: string, category?: string, status?: "PENDING" | "RESOLVED" | "DISMISSED") {
+        return this.repository.getReportQueue(limit, moderatorId, category, status);
     }
 
     /**

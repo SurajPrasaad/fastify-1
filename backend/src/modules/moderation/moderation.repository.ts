@@ -11,9 +11,10 @@
 import { db } from "../../config/drizzle.js";
 import {
     moderationReports, moderationQueue, posts, users,
-    adminAuditLogsExtended, moderationLogs
+    adminAuditLogsExtended, moderationLogs,
+    comments
 } from "../../db/schema.js";
-import { and, desc, eq, sql, count, inArray, asc, gte, lte } from "drizzle-orm";
+import { and, desc, eq, sql, count, inArray, asc, gte, lte, aliasedTable } from "drizzle-orm";
 import type { CreateReportInput, ResolveReportInput, ModeratePostInput } from "./moderation.schema.js";
 import type { PostStatus } from "../post/post.state-machine.js";
 
@@ -100,11 +101,21 @@ export class ModerationRepository {
     /**
      * Get legacy report-based queue items (for backward compatibility).
      */
-    async getReportQueue(limit: number, moderatorId?: string, category?: string) {
+    async getReportQueue(limit: number, moderatorId?: string, category?: string, status?: 'PENDING' | 'RESOLVED' | 'DISMISSED') {
         try {
-            const conditions = [eq(moderationReports.status, 'PENDING')];
+            const moderator = aliasedTable(users, "moderator");
+            const postsAuthor = aliasedTable(users, "posts_author");
+            const targetUser = aliasedTable(users, "target_user");
+            const commentAuthor = aliasedTable(users, "comment_author");
+
+            const conditions = [eq(moderationReports.status, status || 'PENDING')];
             if (category) {
-                conditions.push(eq(moderationReports.category, category as any));
+                // Handle NSFW which maps to multiple categories
+                if (category === "INAPPROPRIATE, CHILD_SAFETY") {
+                    conditions.push(inArray(moderationReports.category, ["INAPPROPRIATE", "CHILD_SAFETY"]));
+                } else {
+                    conditions.push(eq(moderationReports.category, category as any));
+                }
             }
 
             const results = await db
@@ -112,20 +123,28 @@ export class ModerationRepository {
                     id: moderationQueue.id,
                     reportId: moderationQueue.reportId,
                     assignedToId: moderationQueue.assignedToId,
+                    assignedToName: moderator.username,
                     priority: moderationQueue.priority,
                     createdAt: moderationQueue.createdAt,
                     status: moderationReports.status,
                     reason: moderationReports.reason,
                     category: moderationReports.category,
-                    content: posts.content,
-                    authorName: users.username,
+                    postId: moderationReports.postId,
+                    commentId: moderationReports.commentId,
+                    targetUserId: moderationReports.targetUserId,
+                    content: sql<string>`COALESCE(${posts.content}, ${comments.content})`,
+                    authorName: sql<string>`COALESCE(${postsAuthor.username}, ${targetUser.username}, ${commentAuthor.username}, 'system')`,
                     thumbnail: posts.mediaUrls,
                     reports: moderationReports.priorityScore,
                 })
                 .from(moderationQueue)
                 .innerJoin(moderationReports, eq(moderationQueue.reportId, moderationReports.id))
+                .leftJoin(moderator, eq(moderationQueue.assignedToId, moderator.id))
                 .leftJoin(posts, eq(moderationReports.postId, posts.id))
-                .leftJoin(users, eq(posts.userId, users.id))
+                .leftJoin(postsAuthor, eq(posts.userId, postsAuthor.id))
+                .leftJoin(comments, eq(moderationReports.commentId, comments.id))
+                .leftJoin(commentAuthor, eq(comments.userId, commentAuthor.id))
+                .leftJoin(targetUser, eq(moderationReports.targetUserId, targetUser.id))
                 .where(and(...conditions))
                 .orderBy(desc(moderationQueue.priority), moderationQueue.createdAt)
                 .limit(limit);
@@ -401,10 +420,12 @@ export class ModerationRepository {
 
     async resolveReport(data: ResolveReportInput & { resolvedById: string }, auditLog: Record<string, unknown>) {
         return await db.transaction(async (tx) => {
+            const reportStatus = data.action === 'APPROVE' ? 'DISMISSED' : 'RESOLVED';
+
             const [report] = await tx
                 .update(moderationReports)
                 .set({
-                    status: 'RESOLVED',
+                    status: reportStatus,
                     resolution: data.resolution,
                     resolvedById: data.resolvedById,
                     updatedAt: new Date(),
@@ -415,7 +436,7 @@ export class ModerationRepository {
             if (!report) throw new Error("Report not found");
 
             // Perform action on target if needed
-            if (data.action !== 'APPROVE' as any) {
+            if (data.action !== 'APPROVE') {
                 if (report.postId) {
                     const statusMap: Record<string, string> = {
                         'REJECT': 'REJECTED',
@@ -430,8 +451,7 @@ export class ModerationRepository {
                 }
             }
 
-            // Remove from queue
-            await tx.delete(moderationQueue).where(eq(moderationQueue.reportId, data.reportId));
+            // DO NOT delete from queue - as per user request to preserve history with updated status
 
             // Audit log
             await tx.insert(adminAuditLogsExtended).values({

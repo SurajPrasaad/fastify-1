@@ -122,6 +122,14 @@ export const adminRouter = router({
             .mutation(async ({ input, ctx }) => {
                 return await service.banUser(input.userId, ctx.user.id, input.reason);
             }),
+        getActivityLogs: adminProcedure
+            .input(z.object({
+                userId: z.string().uuid(),
+                limit: z.number().min(1).max(100).default(50),
+            }))
+            .query(async ({ input }) => {
+                return await service.getActivityLogs(input.userId, input.limit);
+            }),
     }),
 
     // ─── Audit Logs ──────────────────────────────────────

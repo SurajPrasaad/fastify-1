@@ -60,8 +60,21 @@ export class AdminRepository {
                 likes: posts.likesCount,
                 comments: posts.commentsCount,
                 shares: posts.repostsCount,
+                mediaUrls: posts.mediaUrls,
+                visibility: posts.visibility,
                 reportsCount: sql<number>`(SELECT count(*) FROM moderation_reports WHERE post_id = ${posts.id})`,
-                priorityScore: sql<number>`COALESCE((SELECT avg(priority_score) FROM moderation_reports WHERE post_id = ${posts.id}), 0)`
+                priorityScore: sql<number>`COALESCE((SELECT avg(priority_score) FROM moderation_reports WHERE post_id = ${posts.id}), 0)`,
+                reportBreakdown: sql<Record<string, number>>`
+                    COALESCE(
+                        (SELECT jsonb_object_agg(category, count)
+                         FROM (
+                            SELECT category, count(*) as count
+                            FROM moderation_reports
+                            WHERE post_id = ${posts.id}
+                            GROUP BY category
+                         ) s
+                        ), '{}'::jsonb
+                    )`
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
@@ -390,5 +403,12 @@ export class AdminRepository {
             },
             byRegion,
         };
+    }
+    async getUserAuditLogs(userId: string, limit: number = 50) {
+        return await db.select()
+            .from(auditLogs)
+            .where(eq(auditLogs.userId, userId))
+            .orderBy(desc(auditLogs.createdAt))
+            .limit(limit);
     }
 }

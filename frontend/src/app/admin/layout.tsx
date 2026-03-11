@@ -12,54 +12,32 @@ import {
     Settings,
     Bell,
     Menu,
-    Rocket,
-    User as UserIcon,
+    Shield,
     Verified,
     LogOut,
+    Sun,
+    MoreHorizontal
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks";
 import { useAuth } from "@/features/auth/components/AuthProvider";
-
-type AdminGroupId =
-    | "dashboard"
-    | "users"
-    | "posts"
-    | "reports"
-    | "analytics"
-    | "notifications"
-    | "rbac"
-    | "policies";
+import { Logo } from "@/components/layout/logo";
+import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
+import { Switch } from "@/components/ui/switch";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function AdminLayout({ children }: { readonly children: React.ReactNode }) {
     const { data: user, isLoading } = useCurrentUser();
     const { logout } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
-    const [isDarkMode, setIsDarkMode] = useState(true);
-    const [openGroups, setOpenGroups] = useState<Record<AdminGroupId, boolean>>(() => {
-        if (typeof globalThis === "undefined" || !globalThis.window) {
-            return {
-                dashboard: true,
-                moderation: false,
-                users: false,
-                posts: false,
-                reports: false,
-                analytics: false,
-                notifications: false,
-                rbac: false,
-                policies: false,
-            };
-        }
-        try {
-            return JSON.parse(
-                globalThis.window.localStorage.getItem("admin_sidebar") ||
-                '{"dashboard":true}'
-            );
-        } catch {
-            return { dashboard: true } as Record<AdminGroupId, boolean>;
-        }
-    });
+    const { theme, setTheme } = useTheme();
 
     const isAdmin = !!user && user.auth.role === "ADMIN";
 
@@ -75,7 +53,7 @@ export default function AdminLayout({ children }: { readonly children: React.Rea
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-black">
+            <div className="flex h-screen items-center justify-center bg-[#0B0C0E]">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1D9BF0]"></div>
             </div>
         );
@@ -85,138 +63,142 @@ export default function AdminLayout({ children }: { readonly children: React.Rea
         return null;
     }
 
-    const groups: {
-        id: AdminGroupId;
-        label: string;
-        icon: any;
-        href: string;
-    }[] = [
-        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
-        { id: "users", label: "Users", icon: Users, href: "/admin/users" },
-        { id: "posts", label: "Posts", icon: FileText, href: "/admin/posts" },
-        { id: "reports", label: "Reports", icon: AlertTriangle, href: "/admin/reports" },
-        { id: "analytics", label: "Analytics", icon: BarChart3, href: "/admin/analytics" },
-        { id: "notifications", label: "Notifications", icon: Bell, href: "/admin/notifications" },
-        { id: "rbac", label: "RBAC", icon: UserIcon, href: "/admin/rbac" },
-        { id: "policies", label: "Policies", icon: Verified, href: "/admin/policies" },
+    const navigationLinks = [
+        { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
+        { label: "Users", icon: Users, href: "/admin/users" },
+        { label: "Posts", icon: FileText, href: "/admin/posts" },
+        { label: "Reports", icon: AlertTriangle, href: "/admin/reports" },
+        { label: "Analytics", icon: BarChart3, href: "/admin/analytics" },
+        { label: "Notifications", icon: Bell, href: "/admin/notifications" },
+        { label: "RBAC", icon: Shield, href: "/admin/rbac" },
+        { label: "Policies", icon: Verified, href: "/admin/policies" },
+        { label: "Settings", icon: Settings, href: "/admin/settings" },
     ];
 
-    const toggleGroup = (id: AdminGroupId) => {
-        setOpenGroups(prev => {
-            const next = { ...prev, [id]: !prev[id] };
-            if (typeof globalThis !== "undefined" && globalThis.window) {
-                globalThis.window.localStorage.setItem("admin_sidebar", JSON.stringify(next));
-            }
-            return next;
-        });
-    };
-
     return (
-        <div className="flex h-screen overflow-hidden bg-black text-[#E7E9EA] font-display">
+        <div className="flex h-screen overflow-hidden bg-white dark:bg-[#0B0C0E] text-slate-900 dark:text-[#E7E9EA] font-display transition-colors duration-300">
             {/* Sidebar */}
-            <aside className="w-[275px] bg-black border-r border-[#2F3336] shrink-0 flex-col hidden md:flex transition-all">
-                <div className="px-6 py-5 flex items-center gap-3 mt-2">
-                    <div className="w-[30px] h-[30px] bg-[#1D9BF0] rounded-full flex items-center justify-center">
-                        <Rocket className="w-[16px] h-[16px] text-white fill-white" />
+            <aside className="w-[300px] border-r border-slate-200 dark:border-[#2F3336]/30 shrink-0 flex flex-col hidden md:flex transition-all p-6 bg-slate-50/50 dark:bg-transparent">
+                <div className="flex flex-col h-full justify-between">
+                    <div className="flex flex-col gap-8">
+                        {/* Logo */}
+                        <Link href="/admin" className="px-3">
+                            <Logo />
+                        </Link>
+
+                        {/* Nav Links */}
+                        <nav className="flex flex-col gap-1">
+                            {navigationLinks.map((link) => {
+                                const Icon = link.icon;
+                                const isActive = pathname === link.href || (link.href !== "/admin" && pathname.startsWith(link.href));
+                                return (
+                                    <Link
+                                        key={link.label}
+                                        href={link.href}
+                                        className={cn(
+                                            "flex items-center gap-4 px-4 py-3 rounded-2xl transition-all group relative",
+                                            isActive
+                                                ? "bg-[#1D9BF0]/10 text-[#1D9BF0] font-bold"
+                                                : "text-slate-600 dark:text-[#E7E9EA]/70 hover:bg-slate-200/50 dark:hover:bg-[#16181C] hover:text-slate-900 dark:hover:text-[#E7E9EA]"
+                                        )}
+                                    >
+                                        <Icon className={cn("w-6 h-6", isActive ? "text-[#1D9BF0]" : "text-slate-400 dark:text-[#E7E9EA]/50")} />
+                                        <span className="text-[17px]">{link.label}</span>
+                                    </Link>
+                                );
+                            })}
+
+                            <button
+                                type="button"
+                                onClick={() => logout()}
+                                className="flex items-center gap-4 px-4 py-3 rounded-2xl transition-all text-[#F97070] hover:bg-[#F97070]/10 mt-2"
+                            >
+                                <LogOut className="w-6 h-6" />
+                                <span className="text-[17px] font-bold">Logout</span>
+                            </button>
+                        </nav>
                     </div>
-                    <span className="font-extrabold text-[20px] tracking-[-0.03em] text-[#E7E9EA]">DevAtlas</span>
-                </div>
 
-                <nav className="flex-1 mt-6 space-y-3 px-3 text-[14px]">
-                    {groups.map(group => {
-                        const Icon = group.icon;
-                        const isOpen = openGroups[group.id];
-                        const isActive = pathname === group.href || pathname.startsWith(group.href + "/");
-                        return (
-                            <div key={group.id}>
-                                <button
-                                    type="button"
-                                    onClick={() => toggleGroup(group.id)}
-                                    className={`flex w-full items-center justify-between px-4 py-2 rounded-full text-[13px] font-semibold ${
-                                        isActive ? "bg-[#333639] text-[#E7E9EA]" : "text-[#E7E9EA] hover:bg-[#16181C]"
-                                    }`}
-                                >
-                                    <span className="flex items-center gap-2">
-                                        <span className="flex items-center justify-center w-5 h-5 text-[#71767B]">
-                                            <Icon className="w-4 h-4" />
-                                        </span>
-                                        {group.label}
-                                    </span>
-                                    <span className="text-[#71767B] text-xs">
-                                        {isOpen ? "−" : "+"}
-                                    </span>
-                                </button>
-                                {isOpen && (
-                                    <div className="mt-1 space-y-1">
-                                        <Link
-                                            href={group.href}
-                                            className={`flex items-center justify-between px-6 py-1.5 rounded-full text-[13px] transition-colors ${
-                                                isActive
-                                                    ? "bg-[#333639] text-[#E7E9EA] font-semibold"
-                                                    : "text-[#9CA3AF] hover:bg-[#16181C]"
-                                            }`}
-                                        >
-                                            <span>{group.label}</span>
-                                        </Link>
-                                    </div>
+                    {/* Bottom Utils */}
+                    <div className="flex flex-col gap-4">
+                        {/* Theme Toggle */}
+                        <div className="flex items-center justify-between px-4 py-3.5 bg-white dark:bg-[#16181C] rounded-2xl border border-slate-200 dark:border-[#2F3336]/20 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                {theme === "dark" ? (
+                                    <svg className="w-5 h-5 text-[#E7E9EA]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                    </svg>
+                                ) : (
+                                    <Sun className="w-5 h-5 text-amber-500" />
                                 )}
+                                <span className="text-[15px] font-medium text-slate-700 dark:text-[#E7E9EA]">Dark Mode</span>
                             </div>
-                        );
-                    })}
-                </nav>
+                            <Switch
+                                checked={theme === "dark"}
+                                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                                className="data-[state=checked]:bg-[#1D9BF0]"
+                            />
+                        </div>
 
-                <div className="p-3 mb-4 space-y-2 relative">
-                    <button
-                        onClick={() => setIsDarkMode(!isDarkMode)}
-                        className="w-full flex items-center justify-between px-4 py-3.5 bg-[#16181C] hover:bg-[#2F3336] transition-colors rounded-full cursor-pointer outline-none"
-                    >
-                        <div className="flex items-center gap-1.5 text-[#E7E9EA]">
-                            <div className="flex items-center justify-center w-8 text-[#71767B]">
-                                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                                </svg>
-                            </div>
-                            <span className="text-[15px] font-bold text-[#E7E9EA]">Dark Mode</span>
-                        </div>
-                        <div className={`w-10 h-5 rounded-full relative transition-colors duration-200 ${isDarkMode ? 'bg-[#1D9BF0]' : 'bg-[#333639]'}`}>
-                            <div className={`absolute top-1 bg-white rounded-full w-3 h-3 transition-all duration-200 ${isDarkMode ? 'right-1' : 'left-1'}`}></div>
-                        </div>
-                    </button>
-
-                    <Link
-                        href="/admin/settings"
-                        className="flex items-center px-4 py-3.5 text-[15px] font-semibold text-[#E7E9EA] hover:bg-[#16181C] transition-colors rounded-full"
-                    >
-                        <div className="flex items-center justify-center w-8 mr-1.5">
-                            <Settings className="w-[20px] h-[20px] text-[#71767B]" strokeWidth={2} />
-                        </div>
-                        System Settings
-                    </Link>
-                    <button
-                        type="button"
-                        onClick={() => logout()}
-                        className="w-full flex items-center px-4 py-3.5 text-[15px] font-semibold text-[#F97070] hover:bg-[#2F3336] transition-colors rounded-full"
-                    >
-                        <div className="flex items-center justify-center w-8 mr-1.5">
-                            <LogOut className="w-[20px] h-[20px]" />
-                        </div>
-                        Logout
-                    </button>
+                        {/* User Profile */}
+                        {user && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-slate-200/50 dark:hover:bg-[#16181C] transition-all cursor-pointer group outline-none border border-transparent active:border-slate-300 dark:active:border-[#2F3336]">
+                                        <div className="size-11 rounded-full bg-gradient-to-br from-[#1D9BF0] to-[#0A4A7F] p-[2px] overflow-hidden shrink-0 shadow-lg">
+                                            <div className="size-full rounded-full overflow-hidden bg-white dark:bg-black">
+                                                <img
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                                    alt={user.name}
+                                                    src={user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-[15px] truncate text-slate-900 dark:text-[#E7E9EA]">{user.name}</p>
+                                            <p className="text-[13px] text-slate-500 dark:text-[#71767B] truncate lowercase">@{user.username}</p>
+                                        </div>
+                                        <MoreHorizontal className="w-5 h-5 text-slate-400 dark:text-[#71767B] group-hover:text-slate-900 dark:group-hover:text-[#E7E9EA] transition-colors" />
+                                    </div>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="top" className="w-64 p-3 rounded-2xl bg-white dark:bg-[#16181C] border border-slate-200 dark:border-[#2F3336] shadow-2xl mb-2 text-slate-900 dark:text-[#E7E9EA]">
+                                    <DropdownMenuItem
+                                        className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-[#333639] transition-colors outline-none"
+                                        onClick={() => router.push(`/settings`)}
+                                    >
+                                        <Settings className="w-5 h-5 text-slate-400 dark:text-[#71767B]" />
+                                        <span className="font-semibold">Settings</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-rose-50 dark:hover:bg-[#F97070]/10 text-rose-600 dark:text-[#F97070] transition-colors outline-none"
+                                        onClick={() => logout()}
+                                    >
+                                        <LogOut className="w-5 h-5" />
+                                        <span className="font-semibold">Logout @{user.username}</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                    </div>
                 </div>
             </aside>
 
             {/* Main Content Wrapper */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-black">
-                {/* Top Navbar Header Removed or Minimized based on screenshot */}
-                <header className="h-[60px] bg-black flex items-center justify-end px-6 shrink-0 lg:hidden">
-                    <button className="md:hidden p-2 text-[#E7E9EA]">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 dark:bg-black relative">
+                <div className="absolute top-0 left-0 w-full h-[300px] bg-gradient-to-b from-[#1D9BF0]/5 to-transparent pointer-events-none" />
+
+                <header className="h-[64px] bg-white/80 dark:bg-black/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0 border-b border-slate-200 dark:border-[#2F3336]/30 z-10 lg:hidden">
+                    <Logo size={32} />
+                    <button className="p-2 text-slate-600 dark:text-[#E7E9EA] hover:bg-slate-100 dark:hover:bg-[#16181C] rounded-full transition-colors">
                         <Menu className="w-6 h-6" />
                     </button>
                 </header>
 
                 {/* Dynamic Page Content */}
-                <main className="flex-1 overflow-auto p-0 border-l border-[#2F3336]">
-                    {children}
+                <main className="flex-1 overflow-auto relative z-0">
+                    <div className="w-full p-0 min-h-full">
+                        {children}
+                    </div>
                 </main>
             </div>
         </div>

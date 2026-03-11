@@ -5,12 +5,21 @@ export interface AdminUserListItem {
     username: string;
     email: string;
     name: string;
+    bio?: string;
+    avatarUrl?: string;
+    coverUrl?: string;
     role: "USER" | "ADMIN" | "SUPER_ADMIN" | "MODERATOR" | "RISK_ANALYST" | "VIEWER";
     status: "ACTIVE" | "DEACTIVATED" | "SUSPENDED" | "DELETED";
     followersCount?: number;
+    followingCount?: number;
     postsCount?: number;
     createdAt: string;
+    updatedAt: string;
     regionAffinity?: string | null;
+    techStack?: string[];
+    website?: string;
+    location?: string;
+    subscriptionPlan?: string;
 }
 
 export const AdminApi = {

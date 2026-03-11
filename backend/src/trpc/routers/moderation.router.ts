@@ -174,10 +174,11 @@ export const moderationRouter = router({
     getReportQueue: moderatorProcedure
         .input(z.object({
             limit: z.number().optional(),
-            category: z.string().optional()
+            category: z.string().optional(),
+            status: z.enum(["PENDING", "RESOLVED", "DISMISSED"]).optional()
         }))
         .query(async ({ input, ctx }) => {
-            return await service.getReportQueue(input.limit || 20, ctx.user.id, input.category);
+            return await service.getReportQueue(input.limit || 20, ctx.user.id, input.category, input.status);
         }),
 
     assignTask: moderatorProcedure
