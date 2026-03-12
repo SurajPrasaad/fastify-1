@@ -7,6 +7,7 @@ import { getSuggestions, getActiveFriends } from "@/features/follow/api"
 import { useQuery } from "@tanstack/react-query"
 import { useToggleFollow } from "@/features/follow/hooks"
 import { useChatStore } from "@/features/chat/store/chat-store"
+import Link from "next/link"
 
 export function RightSidebar({ className }: { className?: string }) {
     const [showAllTrends, setShowAllTrends] = React.useState(false)
@@ -81,6 +82,7 @@ export function RightSidebar({ className }: { className?: string }) {
                                 category="Trending"
                                 topic={`#${trend.name}`}
                                 posts={`${trend.postsCount.toLocaleString()} posts`}
+                                href={`/hashtag/${trend.name}`}
                             />
                         ))
                     ) : (
@@ -181,9 +183,18 @@ export function RightSidebar({ className }: { className?: string }) {
     )
 }
 
-function TrendingItem({ category, topic, posts }: { category: string, topic: string, posts: string }) {
+function TrendingItem({ category, topic, posts, href }: { category: string, topic: string, posts: string, href?: string }) {
+    if (href) {
+        return (
+            <Link className="px-4 py-3 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all block" href={href}>
+                <p className="text-xs text-slate-500">{category}</p>
+                <p className="font-bold">{topic}</p>
+                <p className="text-xs text-slate-500">{posts}</p>
+            </Link>
+        )
+    }
     return (
-        <a className="px-4 py-3 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all" href="#">
+        <a className="px-4 py-3 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all block" href="#">
             <p className="text-xs text-slate-500">{category}</p>
             <p className="font-bold">{topic}</p>
             <p className="text-xs text-slate-500">{posts}</p>

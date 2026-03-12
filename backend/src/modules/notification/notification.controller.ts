@@ -67,6 +67,19 @@ export async function registerDeviceHandler(
 }
 
 /**
+ * POST /notifications/webpush/subscribe
+ */
+export async function subscribeWebPushHandler(
+    request: FastifyRequest,
+    reply: FastifyReply
+) {
+    const userId = request.user!.sub;
+    const subscription = request.body;
+    await service.registerWebPush(userId, subscription);
+    return reply.status(201).send({ message: "Web Push Registered" });
+}
+
+/**
  * PATCH /notifications/:id/read
  */
 export async function markReadHandler(

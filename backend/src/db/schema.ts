@@ -133,6 +133,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     mfaSecret: one(mfaSecrets),
     blocksSent: many(blocks, { relationName: "blocker" }),
     blocksReceived: many(blocks, { relationName: "blocked" }),
+    pushSubscriptions: many(pushSubscriptions),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -517,6 +518,15 @@ export const deviceTokens = pgTable("device_tokens", {
 }, (t) => ({
     userTokenUniqueIdx: unique("user_token_unique_idx").on(t.userId, t.token),
 }));
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    endpoint: text("endpoint").unique().notNull(),
+    auth: text("auth").notNull(),
+    p256dh: text("p256dh").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const notificationPreferences = pgTable("notification_preferences", {
     userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),

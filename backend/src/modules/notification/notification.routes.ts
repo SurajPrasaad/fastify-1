@@ -4,6 +4,7 @@ import {
     getNotificationsHandler,
     getUnreadCountHandler,
     registerDeviceHandler,
+    subscribeWebPushHandler,
     markReadHandler,
     markAllReadHandler,
 } from "./notification.controller.js";
@@ -45,6 +46,14 @@ export async function notificationRoutes(fastify: FastifyInstance) {
             body: RegisterDeviceSchema,
         },
         handler: registerDeviceHandler,
+    });
+
+    /**
+     * POST /notifications/webpush/subscribe
+     * Register Web Push API subscription
+     */
+    fastify.post("/webpush/subscribe", {
+        handler: subscribeWebPushHandler,
     });
 
     /**

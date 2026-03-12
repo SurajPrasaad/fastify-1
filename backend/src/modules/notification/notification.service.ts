@@ -552,6 +552,10 @@ export class NotificationService {
         return this.repository.registerDevice(userId, input);
     }
 
+    async registerWebPush(userId: string, subscription: any) {
+        return this.repository.registerWebPush(userId, subscription);
+    }
+
     async markRead(id: string, userId: string) {
         return this.repository.markAsRead(id, userId);
     }

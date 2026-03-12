@@ -254,30 +254,35 @@ export class FeedRepository {
             })
             .from(posts)
             .innerJoin(users, eq(posts.userId, users.id))
-            .innerJoin(postHashtags, eq(posts.id, postHashtags.postId))
-            .innerJoin(hashtags, eq(postHashtags.hashtagId, hashtags.id))
             .where(
                 and(
                     eq(posts.status, 'PUBLISHED'),
                     or(
-                        eq(hashtags.name, tagWithoutHash),
-                        eq(hashtags.name, tagWithHash),
                         sql`${posts.tags} ? ${tagWithoutHash}`,
-                        sql`${posts.tags} ? ${tagWithHash}`
+                        sql`${posts.tags} ? ${tagWithHash}`,
+                        sql`${posts.content} ILIKE ${'%' + tagWithHash + '%'}`,
+                        exists(
+                            db.select({ id: postHashtags.hashtagId })
+                                .from(postHashtags)
+                                .innerJoin(hashtags, eq(postHashtags.hashtagId, hashtags.id))
+                                .where(
+                                    and(
+                                        eq(postHashtags.postId, posts.id),
+                                        or(
+                                            eq(hashtags.name, tagWithoutHash),
+                                            eq(hashtags.name, tagWithHash)
+                                        )
+                                    )
+                                )
+                        )
                     ),
-                    cursor ? lt(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`, new Date(cursor)) : undefined
+                    cursor ? lt(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`, sql`${new Date(cursor).toISOString()}`) : undefined
                 )
             )
             .orderBy(desc(sql`COALESCE(${posts.publishedAt}, ${posts.createdAt})`))
             .limit(limit);
 
-        const uniqueItemsMap = new Map();
-        for (const item of items) {
-            if (!uniqueItemsMap.has(item.id)) {
-                uniqueItemsMap.set(item.id, item);
-            }
-        }
-        const uniqueItems = Array.from(uniqueItemsMap.values());
+        const uniqueItems = items; // Already unique since we removed the left Joins
 
         const withPolls = await Promise.all(uniqueItems.map(async (item) => {
             if (!item.pollId) return { ...item, poll: null };

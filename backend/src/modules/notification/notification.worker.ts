@@ -1,5 +1,6 @@
 import { getRabbitChannel } from "../../config/rabbitmq.js";
 import { FcmService } from "./fcm.service.js";
+import { WebPushService } from "./web-push.service.js";
 
 /**
  * Notification Delivery Workers
@@ -9,6 +10,7 @@ import { FcmService } from "./fcm.service.js";
  */
 export async function startDeliveryWorkers() {
     const fcmService = new FcmService();
+    const webPushService = new WebPushService();
 
     try {
         let channel = await getRabbitChannel();
@@ -67,8 +69,15 @@ export async function startDeliveryWorkers() {
                         data
                     );
 
+                    const webPushCount = await webPushService.sendToAllDevices(
+                        recipientId,
+                        title || "New Notification",
+                        message,
+                        data
+                    );
+
                     console.log(
-                        `📨 Push sent to ${successCount} device(s) for user ${recipientId}`
+                        `📨 Push sent to ${successCount} FCM device(s) and ${webPushCount} Web device(s) for user ${recipientId}`
                     );
 
                     channel.ack(msg);

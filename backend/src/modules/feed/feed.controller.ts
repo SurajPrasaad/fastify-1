@@ -93,7 +93,7 @@ export async function getHashtagFeedHandler(
     return reply.send({
         data: posts,
         nextCursor,
-        hasMore: !!nextCursor,
+        hasMore: !!nextCursor && posts.length === limit,
         meta: {
             count: posts.length,
             provider: "TAG_FILTER_V1"

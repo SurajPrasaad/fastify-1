@@ -7,6 +7,7 @@ import {
     deviceTokens,
     deliveryAttempts,
     users,
+    pushSubscriptions,
 } from "../../db/schema.js";
 import { and, desc, eq, lt, sql, inArray, count } from "drizzle-orm";
 import type { NotificationEntityType, DeliveryChannel, NotificationType } from "./notification.dto.js";
@@ -202,6 +203,18 @@ export class NotificationRepository {
                 target: [deviceTokens.userId, deviceTokens.token],
                 set: { isActive: true, lastUsedAt: new Date() },
             });
+    }
+
+    async registerWebPush(userId: string, subscription: any) {
+        await db
+            .insert(pushSubscriptions)
+            .values({
+                userId,
+                endpoint: subscription.endpoint,
+                auth: subscription.keys.auth,
+                p256dh: subscription.keys.p256dh,
+            })
+            .onConflictDoNothing({ target: pushSubscriptions.endpoint });
     }
 
     async deactivateDeviceToken(token: string) {

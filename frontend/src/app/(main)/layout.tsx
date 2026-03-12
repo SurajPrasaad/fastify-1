@@ -12,6 +12,7 @@ import { useEffect } from "react"
 import { CallProvider } from "@/features/call/context/CallContext"
 import { CallModal } from "@/features/call/components/CallModal"
 import { RealtimeChatListener } from "@/features/chat/components/RealtimeChatListener"
+import { WebPushListener } from "@/components/WebPushListener"
 
 export default function MainLayout({
     children,
@@ -66,6 +67,7 @@ export default function MainLayout({
 
                     <CallModal />
                     <RealtimeChatListener />
+                    <WebPushListener />
                 </div>
             </CallProvider>
         </AuthGuard>
