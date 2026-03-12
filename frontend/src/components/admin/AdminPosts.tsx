@@ -183,7 +183,11 @@ const formatDate = (dateString: string) => {
     return `${d}/${m}/${y}`;
 };
 
-const mapBackendPostToRow = (post: any): PostData => {
+const mapBackendPostToRow = (row: any): PostData => {
+    // Backend now returns: { post: { ... }, author: { ... }, reportsCount: X, reportBreakdown: {} }
+    const post = row.post || row;
+    const author = row.author || post.author || {};
+
     const statusMap: Record<string, PostStatus> = {
         PUBLISHED: "PUBLISHED",
         FLAGGED: "FLAGGED",
@@ -201,8 +205,8 @@ const mapBackendPostToRow = (post: any): PostData => {
     const rawStatus = (post.status as string) || "PUBLISHED";
     const status = statusMap[rawStatus] ?? "PUBLISHED";
 
-    const priority = Number(post.priorityScore ?? 0);
-    const risk: RiskLevel = priority >= 80 ? "High" : priority >= 40 ? "Medium" : "Low";
+    const riskScore = Number(post.riskScore ?? 0);
+    const risk: RiskLevel = riskScore >= 80 ? "High" : riskScore >= 40 ? "Medium" : "Low";
 
     const mediaUrls = (post.mediaUrls as string[]) || [];
     const hasMedia = mediaUrls.length > 0;
@@ -211,20 +215,20 @@ const mapBackendPostToRow = (post: any): PostData => {
 
     return {
         id: post.id,
-        authorName: post.author?.name ?? "Unknown",
-        authorHandle: post.author?.username ? `@${post.author.username}` : "@unknown",
-        authorAvatar: post.author?.avatarUrl ?? "/avatar-placeholder.png",
+        authorName: author.name ?? "Unknown",
+        authorHandle: author.username ? `@${author.username}` : "@unknown",
+        authorAvatar: author.avatarUrl ?? "/avatar-placeholder.png",
         content: post.content ?? "",
         thumbnail,
         type,
         status,
         visibility: (post.visibility as any) || "PUBLIC",
         risk,
-        likes: Number(post.likes ?? 0),
-        comments: Number(post.comments ?? 0),
-        shares: Number(post.shares ?? 0),
-        reports: Number(post.reportsCount ?? 0),
-        reportBreakdown: post.reportBreakdown ?? {},
+        likes: Number(post.likesCount ?? 0),
+        comments: Number(post.commentsCount ?? 0),
+        shares: Number(post.repostsCount ?? 0),
+        reports: Number(row.reportsCount ?? 0),
+        reportBreakdown: row.reportBreakdown ?? {},
         createdAt: formatDate(post.createdAt),
     };
 };

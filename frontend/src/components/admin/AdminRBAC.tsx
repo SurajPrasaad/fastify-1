@@ -389,7 +389,7 @@ export default function RBACConsolePage() {
                                 {activeRole?.id === 'r1' && <span className="text-[#F91880] text-[12px] ml-2 px-2 py-0.5 bg-[#F91880]/10 border border-[#F91880]/20 rounded font-mono">LOCKED</span>}
                             </h2>
                             {isEditingSystemRole && activeRole?.id !== 'r1' && (
-                                <div className="p-3 bg-[#1D9BF0]/5 border border-[#1D9BF0]/20 rounded-md flex items-start gap-2">
+                                <div className="p-3 bg-[#1D9BF0]/5 border border-[#1D9BF0]/20 rounded-[8px] flex items-start gap-2">
                                     <Info className="w-4 h-4 text-[#1D9BF0] shrink-0 mt-0.5" />
                                     <p className="text-[13px] text-[#E7E9EA]">This is a <strong className="text-[#1D9BF0]">System Role</strong>. Core permissions cannot be removed, but additional custom privileges can be granted.</p>
                                 </div>
@@ -402,7 +402,7 @@ export default function RBACConsolePage() {
                                 const checkCount = category.permissions.filter(p => matrixState[p.id]).length;
 
                                 return (
-                                    <div key={category.id} className="border border-[#2F3336] bg-[#16181C] rounded-xl overflow-hidden shadow-sm">
+                                    <div key={category.id} className="border border-[#2F3336] bg-[#16181C] rounded-[8px] overflow-hidden shadow-sm">
                                         <div
                                             className="px-5 py-3.5 bg-[#16181C] flex items-center justify-between cursor-pointer hover:bg-[#202327] transition-colors"
                                             onClick={() => toggleCategory(category.id)}
@@ -543,7 +543,7 @@ export default function RBACConsolePage() {
 
                 {/* STICKY SAVE BAR */}
                 {hasUnsavedChanges && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#16181C] border border-[#2F3336] px-6 py-4 rounded-full shadow-2xl flex items-center justify-between gap-8 min-w-[500px] animate-in slide-in-from-bottom-10 fade-in duration-300 z-50">
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#16181C] border border-[#2F3336] px-6 py-4 rounded-[8px] shadow-2xl flex items-center justify-between gap-8 min-w-[500px] animate-in slide-in-from-bottom-10 fade-in duration-300 z-50">
                         <div className="flex items-center gap-3">
                             <ShieldAlert className="w-5 h-5 text-[#FFD400]" />
                             <div>
@@ -552,8 +552,8 @@ export default function RBACConsolePage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <button onClick={() => loadRole(selectedRoleId)} className="px-4 py-2 text-[13px] font-bold text-[#E7E9EA] hover:bg-[#2F3336] rounded-full transition-colors">Discard</button>
-                            <button onClick={() => setHasUnsavedChanges(false)} className="px-6 py-2 bg-[#1D9BF0] text-white text-[13px] font-bold rounded-full flex items-center gap-2 hover:bg-[#1A8CD8] shadow-[0_0_15px_rgba(29,155,240,0.3)] transition-all">
+                            <button onClick={() => loadRole(selectedRoleId)} className="px-4 py-2 text-[13px] font-bold text-[#E7E9EA] hover:bg-[#2F3336] rounded-[8px] transition-colors">Discard</button>
+                            <button onClick={() => setHasUnsavedChanges(false)} className="px-6 py-2 bg-[#1D9BF0] text-white text-[13px] font-bold rounded-[8px] flex items-center gap-2 hover:bg-[#1A8CD8] shadow-[0_0_15px_rgba(29,155,240,0.3)] transition-all">
                                 <Save className="w-4 h-4" /> Commit Matrix
                             </button>
                         </div>
