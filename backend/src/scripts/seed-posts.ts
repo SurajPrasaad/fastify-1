@@ -13,6 +13,7 @@ import {
     engagementCounters,
     notifications,
     users,
+    userCounters,
 } from "../db/schema.js";
 import { sql, eq } from "drizzle-orm";
 
@@ -381,6 +382,12 @@ async function seed() {
             createdAt: publishedAt,
             updatedAt: publishedAt,
         }).returning();
+        
+        if (newPost) {
+            await db.update(userCounters)
+                .set({ postsCount: sql`${userCounters.postsCount} + 1`, updatedAt: new Date() })
+                .where(eq(userCounters.userId, user.id));
+        }
 
         if (!newPost) continue;
 

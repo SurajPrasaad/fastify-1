@@ -354,6 +354,26 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
     comments: many(comments),
     mentions: many(postMentions),
     hashtags: many(postHashtags),
+    originalPost: one(posts, {
+        fields: [posts.originalPostId],
+        references: [posts.id],
+        relationName: "reposts",
+    }),
+}));
+
+export const postHashtagsRelations = relations(postHashtags, ({ one }) => ({
+    post: one(posts, {
+        fields: [postHashtags.postId],
+        references: [posts.id],
+    }),
+    hashtag: one(hashtags, {
+        fields: [postHashtags.hashtagId],
+        references: [hashtags.id],
+    }),
+}));
+
+export const hashtagsRelations = relations(hashtags, ({ many }) => ({
+    posts: many(postHashtags),
 }));
 
 export const commentsRelations = relations(comments, ({ one, many }) => ({
@@ -608,13 +628,7 @@ export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
     }),
 }));
 
-export const postsSelfRelations = relations(posts, ({ one }) => ({
-    originalPost: one(posts, {
-        fields: [posts.originalPostId],
-        references: [posts.id],
-        relationName: "reposts",
-    }),
-}));
+// postsSelfRelations was merged into postsRelations above
 
 // --- SUPPORT & HELP SYSTEM ---
 

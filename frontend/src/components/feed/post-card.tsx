@@ -188,40 +188,80 @@ export function PostCard({ post, onLikeToggle, onRemove, onUpdate, onPostCreated
     })()
 
     const renderContent = (content: string) => {
-        return content.split(/(\s+)/).map((part, i) => {
-            if (!part) return part;
+        const parts = content.split(/(```[\s\S]*?```)/g);
 
-            // Handle hashtags
-            if (part.startsWith('#') && part.length > 1) {
-                const tag = part.slice(1);
-                return (
-                    <Link
-                        key={i}
-                        href={`/hashtag/${tag.toLowerCase()}`}
-                        className="text-primary hover:underline font-medium transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {part}
-                    </Link>
-                )
+        return parts.map((part, i) => {
+            if (part.startsWith('```') && part.endsWith('```')) {
+                const match = part.match(/```(\w+)?\n?([\s\S]*?)\n?```/);
+                if (match) {
+                    const lang = match[1] || 'text';
+                    const code = match[2].trim();
+                    return (
+                        <div key={i} className="my-4 rounded-xl overflow-hidden bg-[#0d1117] border border-slate-800/60 shadow-2xl group/code relative" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between px-4 py-2 bg-slate-900/40 border-b border-slate-800/60 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex gap-1.5 items-center mr-2">
+                                        <div className="size-2.5 rounded-full bg-red-500/80" />
+                                        <div className="size-2.5 rounded-full bg-yellow-500/80" />
+                                        <div className="size-2.5 rounded-full bg-green-500/80" />
+                                    </div>
+                                    <span>{lang}</span>
+                                </div>
+                                <button 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(code);
+                                        toast.success("Code copied to clipboard!");
+                                    }}
+                                    className="opacity-0 group-hover/code:opacity-100 transition-opacity hover:text-white bg-slate-800/50 px-2 py-1 rounded text-[10px]"
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                            <pre className="p-4 overflow-x-auto text-[13px] sm:text-[14px] font-mono leading-relaxed text-slate-300 bg-transparent selection:bg-blue-500/30">
+                                <code className="block w-full">{code}</code>
+                            </pre>
+                        </div>
+                    );
+                }
             }
 
-            // Handle mentions
-            if (part.startsWith('@') && part.length > 1) {
-                const username = part.slice(1);
-                return (
-                    <Link
-                        key={i}
-                        href={`/${username}`}
-                        className="text-primary hover:underline font-medium transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {part}
-                    </Link>
-                )
-            }
+            return part.split(/(\s+)/).map((subPart, j) => {
+                if (!subPart) return subPart;
 
-            return part
+                // Handle hashtags
+                if (subPart.startsWith('#') && subPart.length > 1) {
+                    const tag = subPart.slice(1);
+                    return (
+                        <Link
+                            key={`${i}-${j}`}
+                            href={`/hashtag/${tag.toLowerCase()}`}
+                            className="text-primary hover:underline font-medium transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {subPart}
+                        </Link>
+                    )
+                }
+
+                // Handle mentions
+                if (subPart.startsWith('@') && subPart.length > 1) {
+                    const username = subPart.slice(1);
+                    return (
+                        <Link
+                            key={`${i}-${j}`}
+                            href={`/${username}`}
+                            className="text-primary hover:underline font-medium transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {subPart}
+                        </Link>
+                    )
+                }
+
+                return subPart
+            })
         })
     }
 

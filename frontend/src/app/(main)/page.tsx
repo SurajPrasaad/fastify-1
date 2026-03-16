@@ -67,8 +67,27 @@ export default function FeedPage() {
         });
     };
 
+    const [showJumpToPresent, setShowJumpToPresent] = React.useState(false);
+
+    React.useEffect(() => {
+        const handleScroll = () => {
+            if (window.scrollY > 500) {
+                setShowJumpToPresent(true);
+            } else {
+                setShowJumpToPresent(false);
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
     return (
-        <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark">
+        <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark relative">
             {/* Sticky Header Tabs */}
             <header className="sticky top-0 z-40 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50">
                 <div className="flex w-full">
@@ -94,6 +113,17 @@ export default function FeedPage() {
             <div className="flex-1">
                 <FeedList initialPosts={posts} />
             </div>
+
+            {/* Jump to Present Button */}
+            {showJumpToPresent && (
+                <button
+                    onClick={scrollToTop}
+                    className="fixed bottom-20 md:bottom-8 right-4 md:right-8 lg:right-[calc((100vw-1440px)/2+20px)] xl:right-[calc((100vw-1440px)/2+40px)] z-50 flex items-center justify-center gap-3 bg-primary text-white px-15 py-3 rounded-full shadow-lg shadow-primary/40 hover:brightness-110 active:scale-95 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 group min-w-[260px]"
+                >
+                    <span className="material-symbols-outlined text-[20px] group-hover:-translate-y-0.5 transition-transform">arrow_upward</span>
+                    <span className="text-sm font-bold">Jump to present</span>
+                </button>
+            )}
         </div>
     )
 }

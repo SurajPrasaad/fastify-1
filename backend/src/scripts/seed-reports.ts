@@ -58,31 +58,41 @@ async function seed() {
         const reporterIdx = Math.floor(Math.random() * allUsers.length);
         const reporter = allUsers[reporterIdx];
 
+        if (!reporter) continue;
+
         // Pick a target (Post, Comment, or User)
         const typeRoll = Math.random();
-        let target: { postId?: string; commentId?: string; targetUserId?: string } = {};
+        let target: { postId: string | null; commentId: string | null; targetUserId: string | null } = {
+            postId: null,
+            commentId: null,
+            targetUserId: null
+        };
 
         if (typeRoll < 0.4 && allPosts.length > 0) {
-            target.postId = allPosts[Math.floor(Math.random() * allPosts.length)].id;
+            const post = allPosts[Math.floor(Math.random() * allPosts.length)];
+            if (post) target.postId = post.id;
         } else if (typeRoll < 0.7 && allComments.length > 0) {
-            target.commentId = allComments[Math.floor(Math.random() * allComments.length)].id;
+            const comment = allComments[Math.floor(Math.random() * allComments.length)];
+            if (comment) target.commentId = comment.id;
         } else {
             // Report a user
             const targetUserIdx = Math.floor(Math.random() * allUsers.length);
+            const targetUser = allUsers[targetUserIdx];
             // Avoid reporting self
-            if (allUsers[targetUserIdx].id !== reporter.id) {
-                target.targetUserId = allUsers[targetUserIdx].id;
+            if (targetUser && targetUser.id !== reporter.id) {
+                target.targetUserId = targetUser.id;
             } else {
                 // If self, fallback to a post if possible
                 if (allPosts.length > 0) {
-                    target.postId = allPosts[0].id;
+                    const post = allPosts[0];
+                    if (post) target.postId = post.id;
                 } else {
                     continue; // Skip this one
                 }
             }
         }
 
-        const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
+        const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)] as "SPAM" | "HARASSMENT" | "HATE_SPEECH" | "INAPPROPRIATE" | "CHILD_SAFETY" | "OTHER";
         const reason = REASONS[Math.floor(Math.random() * REASONS.length)];
         const priorityScore = Math.floor(Math.random() * 101); // 0-100
 
@@ -96,9 +106,11 @@ async function seed() {
 
         const [report] = await db.insert(moderationReports).values({
             reporterId: reporter.id,
-            ...target,
+            postId: target.postId,
+            commentId: target.commentId,
+            targetUserId: target.targetUserId,
             category,
-            reason,
+            reason: reason || "No reason provided",
             status,
             priorityScore,
             createdAt,
@@ -110,7 +122,8 @@ async function seed() {
             const assignedRoll = Math.random();
             let assignedToId: string | null = null;
             if (assignedRoll > 0.6 && moderators.length > 0) {
-                assignedToId = moderators[Math.floor(Math.random() * moderators.length)].id;
+                const mod = moderators[Math.floor(Math.random() * moderators.length)];
+                if (mod) assignedToId = mod.id;
             }
 
             await db.insert(moderationQueue).values({

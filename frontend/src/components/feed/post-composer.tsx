@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { postService } from "@/services/post.service"
 import { useAuth } from "@/features/auth/components/AuthProvider"
 
-import { Image, Vote, Smile, MapPin, X, Plus } from "lucide-react"
+import { Image, Vote, Smile, MapPin, X, Plus, Sparkles, Wand2, Loader2 } from "lucide-react"
 import { PollCreator } from "./poll-creator"
 import { EmojiPicker } from "./emoji-picker"
 import { LocationPicker } from "./location-picker"
@@ -16,6 +16,7 @@ import { UserService } from "@/services/user.service"
 import { UserResponse } from "@/types/auth"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useUpload } from "@/hooks/use-upload"
+import { AIService } from "@/services/ai.service"
 
 interface PostComposerProps {
     onSuccess?: (post: any) => void;
@@ -36,7 +37,9 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
     const [cursorPosition, setCursorPosition] = React.useState(0)
 
     // UI state for pickers
-    const [activePicker, setActivePicker] = React.useState<"gif" | "poll" | "emoji" | "location" | null>(null)
+    const [activePicker, setActivePicker] = React.useState<"gif" | "poll" | "emoji" | "location" | "ai" | null>(null)
+    const [aiPrompt, setAiPrompt] = React.useState("")
+    const [isAILoading, setIsAILoading] = React.useState(false)
 
     const { user } = useAuth()
     const { upload, isUploading: isUploadingMedia } = useUpload()
@@ -141,13 +144,10 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
             toast.success("Post shared!")
 
             if (onSuccess) {
-                // The backend likely returns the full post object or we need to fetch it
-                // For now, assume it's returned or the callback handles conversion
                 onSuccess(response);
             }
 
             setContent("")
-
             setSelectedMedia([])
             setPoll(null)
             setLocation(null)
@@ -251,7 +251,7 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                 {/* Poll Preview */}
                 {poll && (
                     <div className="mb-2 w-full mt-1">
-                        <PollCreator onUpdate={(p) => setPoll(p)} />
+                        <PollCreator data={poll} onUpdate={(p) => setPoll(p)} />
                     </div>
                 )}
 
@@ -289,7 +289,6 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                                     })
                                 }
                                 setSelectedMedia(prev => [...prev, ...newMediaItems])
-                                // Reset the value so the same file could be selected again if deleted
                                 if (e.target) e.target.value = ''
                             }}
                         />
@@ -315,12 +314,17 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                             onClick={() => setActivePicker(activePicker === "location" ? null : "location")}
                         />
 
+                        <IconButton
+                            icon={<Sparkles size={20} />}
+                            active={activePicker === "ai"}
+                            onClick={() => setActivePicker(activePicker === "ai" ? null : "ai")}
+                        />
+
                         {/* Pickers */}
                         {activePicker === "emoji" && (
                             <EmojiPicker
                                 onSelect={(emoji) => {
                                     setContent(prev => prev + emoji)
-                                    // Don't close so they can add more
                                 }}
                                 onClose={() => setActivePicker(null)}
                             />
@@ -330,6 +334,94 @@ export function PostComposer({ onSuccess }: PostComposerProps) {
                                 onSelect={(loc) => setLocation(loc)}
                                 onClose={() => setActivePicker(null)}
                             />
+                        )}
+                        {activePicker === "ai" && (
+                            <div className="absolute left-0 bottom-full mb-2 w-72 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">
+                                <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-primary/5">
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles size={16} className="text-primary" />
+                                        <span className="text-sm font-bold">AI Assistant</span>
+                                    </div>
+                                    <button onClick={() => setActivePicker(null)} className="text-slate-500 hover:text-white">
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                                <div className="p-3 flex flex-col gap-3">
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Generate from prompt</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text"
+                                                placeholder="Ask AI to write something..."
+                                                className="flex-1 bg-slate-800 border-none rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary outline-none text-white"
+                                                value={aiPrompt}
+                                                onChange={(e) => setAiPrompt(e.target.value)}
+                                            />
+                                            <button 
+                                                disabled={!aiPrompt.trim() || isAILoading}
+                                                onClick={async () => {
+                                                    setIsAILoading(true);
+                                                    try {
+                                                        const data = await AIService.generatePost(aiPrompt);
+                                                        let finalContent = data.content || "";
+                                                        
+                                                        if (data.codeSnippet) {
+                                                            finalContent += `\n\n\`\`\`${data.codeSnippet.language}\n${data.codeSnippet.code}\n\`\`\``;
+                                                        }
+                                                        
+                                                        setContent(finalContent);
+                                                        
+                                                        if (data.poll) {
+                                                            setPoll({
+                                                                question: data.poll.question,
+                                                                options: data.poll.options.slice(0, 4), // Limit to 4 options
+                                                                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                                                            });
+                                                        }
+                                                        
+                                                        setAiPrompt("");
+                                                        setActivePicker(null);
+                                                        toast.success("Post generated with AI!");
+                                                    } catch (e) {
+                                                        toast.error("AI Generation failed");
+                                                    } finally {
+                                                        setIsAILoading(false);
+                                                    }
+                                                }}
+                                                className="bg-primary p-2 rounded-lg hover:brightness-110 disabled:opacity-50 text-white"
+                                            >
+                                                {isAILoading ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {content.trim() && (
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actions</label>
+                                            <button 
+                                                disabled={isAILoading}
+                                                onClick={async () => {
+                                                    setIsAILoading(true);
+                                                    try {
+                                                        const text = await AIService.improvePost(content);
+                                                        setContent(text);
+                                                        setActivePicker(null);
+                                                        toast.success("Post improved!");
+                                                    } catch (e) {
+                                                        toast.error("AI Improvement failed");
+                                                    } finally {
+                                                        setIsAILoading(false);
+                                                    }
+                                                }}
+                                                className="w-full flex items-center justify-center gap-2 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg transition-colors text-white"
+                                            >
+                                                {isAILoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} className="text-primary" />}
+                                                Improve this post
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         )}
                         {activePicker === "poll" && !poll && (
                             <button
@@ -388,4 +480,3 @@ function IconButton({ icon, onClick, active, disabled }: { icon: React.ReactNode
         </button>
     )
 }
-

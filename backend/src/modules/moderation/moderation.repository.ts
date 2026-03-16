@@ -12,7 +12,7 @@ import { db } from "../../config/drizzle.js";
 import {
     moderationReports, moderationQueue, posts, users,
     adminAuditLogsExtended, moderationLogs,
-    comments
+    comments, userCounters
 } from "../../db/schema.js";
 import { and, desc, eq, sql, count, inArray, asc, gte, lte, aliasedTable } from "drizzle-orm";
 import type { CreateReportInput, ResolveReportInput, ModeratePostInput } from "./moderation.schema.js";
@@ -229,6 +229,19 @@ export class ModerationRepository {
             }
 
             await tx.update(posts).set(updateData as any).where(eq(posts.id, data.postId));
+
+            // Sync User Post Count: only if it transitions to/from PUBLISHED
+            if (previousStatus !== "PUBLISHED" && data.newStatus === "PUBLISHED") {
+                await tx
+                    .update(userCounters)
+                    .set({ postsCount: sql`${userCounters.postsCount} + 1`, updatedAt: new Date() })
+                    .where(eq(userCounters.userId, post.userId));
+            } else if (previousStatus === "PUBLISHED" && data.newStatus !== "PUBLISHED") {
+                await tx
+                    .update(userCounters)
+                    .set({ postsCount: sql`${userCounters.postsCount} - 1`, updatedAt: new Date() })
+                    .where(eq(userCounters.userId, post.userId));
+            }
 
             // 3. Write moderation log
             await tx.insert(moderationLogs).values({

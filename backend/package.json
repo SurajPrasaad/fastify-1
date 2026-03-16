@@ -23,6 +23,7 @@
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.5",
     "@fastify/websocket": "^11.2.0",
+    "@google/generative-ai": "^0.24.1",
     "@socket.io/redis-adapter": "^8.3.0",
     "@trpc/client": "^11.11.0",
     "@trpc/next": "^11.11.0",

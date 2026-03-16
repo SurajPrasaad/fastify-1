@@ -29,6 +29,7 @@ import { notificationGateway } from './modules/notification/notification.gateway
 import { callGateway } from './modules/call/call.gateway.js'
 import { roomGateway } from './modules/room/room.gateway.js'
 import { callRoutes } from './modules/call/call.routes.js'
+import { aiRoutes } from './modules/ai/ai.routes.js'
 
 import sessionPlugin from './plugin/session.js'
 import rateLimitPlugin from './plugin/rate-limit.js'
@@ -94,6 +95,7 @@ app.register(callRoutes, { prefix: '/call' })
 app.register(moderationRoutes, { prefix: '/moderation' })
 app.register(adminRoutes, { prefix: '/admin' })
 app.register(appealsRoutes, { prefix: '/appeals' })
+app.register(aiRoutes, { prefix: '/ai' })
 
 app.register(fastifyTRPCPlugin, {
   prefix: '/trpc',
